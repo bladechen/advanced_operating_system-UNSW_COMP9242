@@ -23,6 +23,7 @@ extern void ttyout_init(void);
  * This is our system call endpoint cap, as defined by the root server
  */
 #define SYSCALL_ENDPOINT_SLOT  (1)
+#define SYSCALL_IPC_PRINT_COLSOLE (2)
 
 
 /* routines needed by the libs/c i.e. -lc implementation */

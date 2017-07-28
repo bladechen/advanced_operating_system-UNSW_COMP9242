@@ -35,6 +35,7 @@ thread_block(void){
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
     seL4_SetTag(tag);
     seL4_SetMR(0, 1);
+
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
 }
 
@@ -42,8 +43,15 @@ int main(void){
     /* initialise communication */
     ttyout_init();
 
+
+    for (int i = 0; i < 100000; i ++)
+    {
+        printf ("hello");
+    }
+
     do {
         printf("task:\tHello world, I'm\ttty_test!\n");
+        fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall
     } while(1);

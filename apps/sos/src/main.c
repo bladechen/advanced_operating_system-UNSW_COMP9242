@@ -55,6 +55,10 @@ extern char _cpio_archive[];
 
 const seL4_BootInfo* _boot_info;
 
+static struct serial * serial_handler = NULL;
+
+#define SYSCALL_IPC_PRINT_COLSOLE 2
+
 
 struct {
 
@@ -86,6 +90,41 @@ seL4_CPtr _sos_interrupt_ep_cap;
 extern fhandle_t mnt_point;
 
 
+static int send2nc(struct serial* serial, char* data, int len)
+{
+
+    return serial_send(serial, (data), (len));
+    /* int sent_len = 0; */
+    /* while(sent_len != len) */
+    /* { */
+    /*     int tmp = serial_send(serial, (data + sent_len), (len - sent_len)); */
+    /*     if (tmp <= 0) */
+    /*     { */
+    /*         continue; */
+    /*     } */
+    /*     sent_len += tmp; */
+    /* } */
+    /* return; */
+}
+
+// try best to send buf to serial, no retry at server side, let client do retry.
+static void handle_ipc_print_console(seL4_CPtr session)
+{
+    int msg_len = seL4_GetMR(1);
+    color_print(ANSI_COLOR_YELLOW, "recieved from tty, len: %d\n", msg_len);
+    seL4_IPCBuffer* ipc_buffer = seL4_GetIPCBuffer();
+    char* msg = (char*)(ipc_buffer->msg + 2);
+    int ret = send2nc(serial_handler, msg, msg_len);
+    color_print(ANSI_COLOR_YELLOW, "serial_send finish, len: %d\n", ret);
+
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, ret);
+    seL4_Send(session, reply);
+
+
+    return;
+}
+
 void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
@@ -107,6 +146,17 @@ void handle_syscall(seL4_Word badge, int num_args) {
         seL4_Send(reply_cap, reply);
 
         break;
+
+
+    case SYSCALL_IPC_PRINT_COLSOLE:
+        color_print(ANSI_COLOR_YELLOW, "SYSCALL_IPC_PRINT_COLSOLE\n");
+
+        handle_ipc_print_console(reply_cap);
+
+
+        break;
+
+
 
     default:
         printf("%s:%d (%s) Unknown syscall %d\n",
@@ -166,11 +216,11 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"\nCap details:\n");
     dprintf(1,"Type              Start      End\n");
     dprintf(1,"Empty             0x%08x 0x%08x\n", info->empty.start, info->empty.end);
-    dprintf(1,"Shared frames     0x%08x 0x%08x\n", info->sharedFrames.start, 
+    dprintf(1,"Shared frames     0x%08x 0x%08x\n", info->sharedFrames.start,
                                                    info->sharedFrames.end);
-    dprintf(1,"User image frames 0x%08x 0x%08x\n", info->userImageFrames.start, 
+    dprintf(1,"User image frames 0x%08x 0x%08x\n", info->userImageFrames.start,
                                                    info->userImageFrames.end);
-    dprintf(1,"User image PTs    0x%08x 0x%08x\n", info->userImagePTs.start, 
+    dprintf(1,"User image PTs    0x%08x 0x%08x\n", info->userImagePTs.start,
                                                    info->userImagePTs.end);
     dprintf(1,"Untypeds          0x%08x 0x%08x\n", info->untyped.start, info->untyped.end);
 
@@ -230,7 +280,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
 
     /* Create a VSpace */
     tty_test_process.vroot_addr = ut_alloc(seL4_PageDirBits);
-    conditional_panic(!tty_test_process.vroot_addr, 
+    conditional_panic(!tty_test_process.vroot_addr,
                       "No memory for new Page Directory");
     err = cspace_ut_retype_addr(tty_test_process.vroot_addr,
                                 seL4_ARM_PageDirectoryObject,
@@ -257,7 +307,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     user_ep_cap = cspace_mint_cap(tty_test_process.croot,
                                   cur_cspace,
                                   fault_ep,
-                                  seL4_AllRights, 
+                                  seL4_AllRights,
                                   seL4_CapData_Badge_new(TTY_EP_BADGE));
     /* should be the first slot in the space, hack I know */
     assert(user_ep_cap == 1);
@@ -346,7 +396,7 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* Create an endpoint for user application IPC */
     ep_addr = ut_alloc(seL4_EndpointBits);
     conditional_panic(!ep_addr, "No memory for endpoint");
-    err = cspace_ut_retype_addr(ep_addr, 
+    err = cspace_ut_retype_addr(ep_addr,
                                 seL4_EndpointObject,
                                 seL4_EndpointBits,
                                 cur_cspace,
@@ -415,6 +465,8 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
+
+    serial_handler = serial_init();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
