@@ -50,7 +50,7 @@ struct eth_device {
         int (*write_hwaddr)(struct eth_device *dev);
 };
 
-int fec_init(unsigned phy_mask, struct enet* enet);
+int fec_init(struct enet* enet);
 
 #define FEC_RCNTRL_MAX_FL_SHIFT		16
 #define FEC_RCNTRL_LOOP			0x00000001

@@ -44,7 +44,7 @@ int main(void){
     ttyout_init();
 
 
-    for (int i = 0; i < 100000; i ++)
+    for (int i = 0; i < 10; i ++)
     {
         printf ("hello");
     }

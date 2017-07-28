@@ -444,11 +444,6 @@ static int phy_probe(struct phy_device *phydev)
 
 static struct phy_driver *generic_for_interface(phy_interface_t interface)
 {
-#ifdef CONFIG_PHYLIB_10G
-	if (is_10g_interface(interface))
-		return &gen10g_driver;
-#endif
-
 	return &genphy_driver;
 }
 

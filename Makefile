@@ -29,6 +29,10 @@ lib-dirs:=libs
 include tools/common/project.mk
 
 
+qemu: app-images
+	mkdir -p $(TFTPROOT)
+	# cp -v $(IMAGE_ROOT)/sos-image-arm-imx6 $(TFTPROOT)/bootimg.elf
+
 all: app-images
 	mkdir -p $(TFTPROOT)
 	cp -v $(IMAGE_ROOT)/sos-image-arm-imx6 $(TFTPROOT)/bootimg.elf

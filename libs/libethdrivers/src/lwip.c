@@ -134,8 +134,8 @@ static void lwip_rx_complete(void *iface, unsigned int num_bufs, void **cookies,
         }
     }
 
-//    PKT_DEBUG(printf("Receiving packet\n"));
-//    PKT_DEBUG(print_packet(COL_RX, p->payload, len));
+    PKT_DEBUG(printf("Receiving packet\n"));
+    PKT_DEBUG(print_packet(COL_RX, p->payload, len));
 
 #if ETH_PAD_SIZE
     pbuf_header(p, ETH_PAD_SIZE); /* reclaim the padding word */
@@ -200,8 +200,8 @@ ethif_link_output(struct netif *netif, struct pbuf *p)
         pkt_pos += q->len;
     }
     ps_dma_cache_clean(&iface->dma_man, buf.virt, p->tot_len);
-//    PKT_DEBUG(cprintf(COL_TX, "Sending packet"));
-//    PKT_DEBUG(print_packet(COL_TX, (void*)buf.virt, p->tot_len));
+    PKT_DEBUG(cprintf(COL_TX, "Sending packet"));
+    PKT_DEBUG(print_packet(COL_TX, (void*)buf.virt, p->tot_len));
 
 #if ETH_PAD_SIZE
     pbuf_header(p, ETH_PAD_SIZE); /* reclaim the padding word */

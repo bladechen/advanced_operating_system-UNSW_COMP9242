@@ -89,13 +89,16 @@ void fec_halt(struct eth_device *dev)
     assert(!"unimplemented");
 #endif
 }
-int fec_init(unsigned phy_mask, struct enet* enet)
+
+
+int fec_init(struct enet* enet)
 {
 	struct eth_device *edev;
     struct phy_device *phydev;
 	struct mii_dev *bus;
 	int ret = 0;
     struct eth_device _eth;
+
 	/* create and fill edev struct */
 	edev = &_eth;
 	memset(edev, 0, sizeof(*edev));
@@ -119,21 +122,17 @@ int fec_init(unsigned phy_mask, struct enet* enet)
 	}
 
     /****** Configure phy ******/
-    phydev = phy_connect_by_mask(bus, phy_mask, edev, PHY_INTERFACE_MODE_RGMII);
+    phydev = phy_connect_by_mask(bus, 1, edev, PHY_INTERFACE_MODE_RGMII);
     if (!phydev) {
         return -1;
     }
 
-    /* min rx data delay */
-    ksz9021_phy_extended_write(phydev, MII_KSZ9021_EXT_RGMII_RX_DATA_SKEW, 0x0);
-    /* min tx data delay */
-    ksz9021_phy_extended_write(phydev, MII_KSZ9021_EXT_RGMII_TX_DATA_SKEW, 0x0);
-    /* max rx/tx clock delay, min rx/tx control */
-    ksz9021_phy_extended_write(phydev, MII_KSZ9021_EXT_RGMII_CLOCK_SKEW, 0xf0f0);
-    ksz9021_config(phydev);
+//    do_phy_config(phydev);
+    genphy_config(phydev);
 
 	/* Start up the PHY */
-	ret = ksz9021_startup(phydev);
+//	ret = do_phy_startup(phydev);
+    ret = genphy_startup(phydev);
 	if (ret) {
 		printf("Could not initialize PHY %s\n", phydev->dev->name);
 		return ret;

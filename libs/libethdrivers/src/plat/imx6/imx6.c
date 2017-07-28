@@ -393,7 +393,7 @@ int ethif_imx6_init(struct eth_driver *eth_driver, ps_io_ops_t io_ops, void *con
     enet_set_mac(enet, mac);
 
     /* Connect the phy to the ethernet controller */
-    if (fec_init(CONFIG_FEC_MXC_PHYMASK, enet)) {
+    if (fec_init(enet)) {
         LOG_ERROR("Failed to initialize fec");
         goto error;
     }

@@ -193,17 +193,6 @@ static inline int phy_write(struct phy_device *phydev, int devad, int regnum,
 	return bus->write(bus, phydev->addr, devad, regnum, val);
 }
 
-#ifdef CONFIG_PHYLIB_10G
-extern struct phy_driver gen10g_driver;
-
-/* For now, XGMII is the only 10G interface */
-static inline int is_10g_interface(phy_interface_t interface)
-{
-	return interface == PHY_INTERFACE_MODE_XGMII;
-}
-
-#endif
-
 int phy_init(void);
 int phy_reset(struct phy_device *phydev);
 struct phy_device *phy_connect(struct mii_dev *bus, int addr,
@@ -221,24 +210,6 @@ int genphy_update_link(struct phy_device *phydev);
 int genphy_config(struct phy_device *phydev);
 int genphy_startup(struct phy_device *phydev);
 int genphy_shutdown(struct phy_device *phydev);
-int gen10g_config(struct phy_device *phydev);
-int gen10g_startup(struct phy_device *phydev);
-int gen10g_shutdown(struct phy_device *phydev);
-int gen10g_discover_mmds(struct phy_device *phydev);
-
-int phy_atheros_init(void);
-int phy_broadcom_init(void);
-int phy_davicom_init(void);
-int phy_lxt_init(void);
-int phy_marvell_init(void);
 int phy_micrel_init(void);
-int phy_natsemi_init(void);
-int phy_realtek_init(void);
-int phy_smsc_init(void);
-int phy_teranetics_init(void);
-int phy_vitesse_init(void);
-
-/* PHY UIDs for various PHYs that are referenced in external code */
-#define PHY_UID_TN2020	0x00a19410
 
 #endif
