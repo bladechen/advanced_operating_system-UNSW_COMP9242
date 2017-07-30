@@ -44,11 +44,10 @@ int main(void){
     ttyout_init();
 
 
-    for (int i = 0; i < 100000; i ++)
+    for (int i = 0; i < 1000; i ++)
     {
         printf ("hello");
     }
-
     do {
         printf("task:\tHello world, I'm\ttty_test!\n");
         fflush(NULL);

@@ -74,10 +74,16 @@ static int tty_debug_print(const char *fmt, ...)
 }
 
 
-
+/// @brief: protocol type(4bytes) + msg length in bytes (4bytes) + msg([msg length] bytes)
+///
+/// @param:  buf
+/// @param:  buflen
+///
+/// @return: actually ipc sent msg in bytes if success, otherwise negative number return
 int req_ipc_print_console(char* buf, size_t buflen)
 {
-    int max_char = seL4_MsgMaxLength * 4 - 8;
+    // seL4_Word msg[seL4_MsgMaxLength]; therefore should multiply by 4 , transfer int to char
+    int max_char = seL4_MsgMaxLength * 4 - 8; // maximum bytes sent supported by ipc
     int can_send_buflen = max_char > buflen ? buflen : max_char;
 
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2 + (can_send_buflen) / 4 + (can_send_buflen % 4 == 0 ? 0 : 1));
@@ -89,7 +95,7 @@ int req_ipc_print_console(char* buf, size_t buflen)
     memcpy(msg_buf, buf, can_send_buflen);
 
     seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-    tty_debug_print("do sending buflen: %d\n", can_send_buflen);
+    tty_debug_print("[tty] do sending buflen: %d\n", can_send_buflen);
     assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
     return seL4_GetMR(0);
 
@@ -100,26 +106,21 @@ size_t sos_write(void *vData, size_t count)
 {
     size_t sent_len = 0;
     char *buf = (char * ) vData;
-    tty_debug_print("sos_write len: %d\n", count);
+    tty_debug_print("[tty] begin sos_write len: %d\n", count);
     while (sent_len != count)
     {
         int ret =  req_ipc_print_console(buf + sent_len, count - sent_len);
         if (ret < 0 || ret >= 10000000)
         {
-            tty_debug_print("some error happen, give up retry. ret: %d, total sendlen: %d, total count: %d\n", ret, sent_len, count);
+            tty_debug_print("[tty] some error happen, give up retry. ret: %d, total sendlen: %d, total count: %d\n", ret, sent_len, count);
             break;
 
         }
         sent_len += ret;
-        tty_debug_print("already send %d\n", sent_len);
+        tty_debug_print("[tty] already send %d\n", sent_len);
     }
-        /* ((char*)(vData))[count] = 0; */
-    /* tty_debug_print("hello [%s] %d\n", (char*)vData, count); */
     total_send_len += sent_len;
-    tty_debug_print("sos_write finish, totat sent till now: %d\n", total_send_len);
+    tty_debug_print("[tty] sos_write finish, tty totally sent till now: %d\n", total_send_len);
     return sent_len;
-    //implement this to use your syscall
-    /* return sos_debug_print(vData, count); */
-    /* return sos_debug_print(vData, count); */
 }
 
