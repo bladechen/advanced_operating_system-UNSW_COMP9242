@@ -43,7 +43,7 @@ int main(void){
     ttyout_init();
 
     do {
-        printf("task:\tHello world, I'm\ttty_test!\n");
+        printf("task:\tHello world, I'm\ttty_test! long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test, long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test, long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test long text test\n");
         thread_block();
         // sleep(1);	// Implement this as a syscall
     } while(1);

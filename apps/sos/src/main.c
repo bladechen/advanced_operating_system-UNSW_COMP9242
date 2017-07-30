@@ -55,6 +55,7 @@ extern char _cpio_archive[];
 
 const seL4_BootInfo* _boot_info;
 
+struct serial * serial_ptr;
 
 struct {
 
@@ -85,11 +86,9 @@ seL4_CPtr _sos_interrupt_ep_cap;
  */
 extern fhandle_t mnt_point;
 
-
 void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
-
 
     syscall_number = seL4_GetMR(0);
 
@@ -100,19 +99,27 @@ void handle_syscall(seL4_Word badge, int num_args) {
     /* Process system call */
     switch (syscall_number) {
     case SOS_SYSCALL0:
-        dprintf(0, "syscall: thread made syscall 0!\n");
+        {
+            dprintf(0, "syscall: thread made syscall 0!\n");
+            seL4_IPCBuffer *ipc = seL4_GetIPCBuffer();
+            // dprintf(0, "ipc->msg[2]: %s\n", (char*)&(ipc->msg[2]));      
+            // dprintf(0, "num_args: %d\n", num_args);  
+            // dprintf(0, "ipc->msg[1]: %d\n", ipc->msg[1]);
 
-        seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-        seL4_SetMR(0, 0);
-        seL4_Send(reply_cap, reply);
+            // output to netcat
+            serial_send(serial_ptr, (char*)&(ipc->msg[2]), ipc->msg[1]);
 
+            // useless reply, but for each seL4_Call we should reply, otherwise
+            // the thread call seL4_Call will be blocked forever.
+            seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 0);
+            seL4_Send(reply_cap, reply);
+        }
         break;
 
     default:
         printf("%s:%d (%s) Unknown syscall %d\n",
                    __FILE__, __LINE__, __func__, syscall_number);
         /* we don't want to reply to an unknown syscall */
-
     }
 
     /* Free the saved reply cap */
@@ -126,6 +133,7 @@ void syscall_loop(seL4_CPtr ep) {
         seL4_Word label;
         seL4_MessageInfo_t message;
 
+        // variable message is the tag of received message
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);
         if(badge & IRQ_EP_BADGE){
@@ -143,8 +151,7 @@ void syscall_loop(seL4_CPtr ep) {
             assert(!"Unable to handle vm faults");
         }else if(label == seL4_NoFault) {
             /* System call */
-            handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
-
+            handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1); // -1 is to do not consider the tag, tag is 32bit
         }else{
             printf("Rootserver got an unknown message\n");
         }
@@ -418,6 +425,8 @@ int main(void) {
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
+
+    serial_ptr = serial_init();
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
