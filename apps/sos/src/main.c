@@ -103,9 +103,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
             dprintf(0, "syscall: thread made syscall 0!\n");
             seL4_IPCBuffer *ipc = seL4_GetIPCBuffer();
             // dprintf(0, "ipc->msg[2]: %s\n", (char*)&(ipc->msg[2]));      
-            // dprintf(0, "num_args: %d\n", num_args);  
+            // dprintf(0, "num_args: %d\n", num_args);
             // dprintf(0, "ipc->msg[1]: %d\n", ipc->msg[1]);
-
+            
             // output to netcat
             serial_send(serial_ptr, (char*)&(ipc->msg[2]), ipc->msg[1]);
 
