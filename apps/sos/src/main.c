@@ -106,8 +106,12 @@ void handle_syscall(seL4_Word badge, int num_args) {
             // dprintf(0, "num_args: %d\n", num_args);
             // dprintf(0, "ipc->msg[1]: %d\n", ipc->msg[1]);
             
+            // we can't trust user input
+            int message_length = ipc->msg[1] < (seL4_MsgMaxLength - 2) * 4 ? 
+                ipc->msg[1] : (seL4_MsgMaxLength - 2) * 4;
+
             // output to netcat
-            serial_send(serial_ptr, (char*)&(ipc->msg[2]), ipc->msg[1]);
+            serial_send(serial_ptr, (char*)&(ipc->msg[2]), message_length);
 
             // useless reply, but for each seL4_Call we should reply, otherwise
             // the thread call seL4_Call will be blocked forever.
