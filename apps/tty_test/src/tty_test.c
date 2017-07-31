@@ -44,12 +44,13 @@ int main(void){
     ttyout_init();
 
 
-    for (int i = 0; i < 1000; i ++)
+    // 50000 maybe too large to udp lost packet
+    for (int i = 0; i < 10000; i ++)
     {
-        printf ("hello");
+        printf ("helloworld");
     }
     do {
-        printf("task:\tHello world, I'm\ttty_test!\n");
+        /* printf("task:\tHello world, I'm\ttty_test!\n"); */
         fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall

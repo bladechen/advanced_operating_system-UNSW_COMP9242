@@ -99,15 +99,25 @@ static int send2nc(struct serial* serial, char* data, int len)
 // try best to send buf to serial, no retry at server side, let client do retry.
 static void handle_ipc_print_console(seL4_CPtr session)
 {
+    static int total_sent = 0;
+    static int total_sent_count = 0;
     int msg_len = seL4_GetMR(1);
     color_print(ANSI_COLOR_YELLOW, "[sos] recieved from tty, len: %d\n", msg_len);
     seL4_IPCBuffer* ipc_buffer = seL4_GetIPCBuffer();
     char* msg = (char*)(ipc_buffer->msg + 2);
+    // truncate the message if the length is larger than the ipc buffer
+    if (msg_len > (seL4_MsgMaxLength - 2 ) * 4)
+    {
+        msg_len = (seL4_MsgMaxLength - 2 ) * 4;
+    }
     int ret = send2nc(serial_handler, msg, msg_len);
-    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d\n", ret);
+    total_sent += ret;
+    total_sent_count ++;
+    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n", ret, total_sent, total_sent_count);
 
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, ret);
+    /* color_print(ANSI_COLOR_YELLOW, "[sos] sen"); */
+    seL4_SetMR(0, ret); // actually sent length
     seL4_Send(session, reply);
     return;
 }
