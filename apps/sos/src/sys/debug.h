@@ -14,6 +14,18 @@
 #include <stdio.h>
 
 
+<<<<<<< HEAD
+=======
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_WHITE    "\x1b[37m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
+>>>>>>> 198596c49b6afa9a2c2afb98dbf7d9d30c77d09c
 void plogf(const char *msg, ...);
 
 #define _dprintf(v, col, args...) \
@@ -25,6 +37,12 @@ void plogf(const char *msg, ...);
                 } \
             } while (0)
 
+<<<<<<< HEAD
+=======
+
+#define color_print(col, ...) _dprintf(0, col, __VA_ARGS__)
+
+>>>>>>> 198596c49b6afa9a2c2afb98dbf7d9d30c77d09c
 #define dprintf(v, ...) _dprintf(v, "\033[22;33m", __VA_ARGS__)
 
 #define WARN(...) _dprintf(-1, "\033[1;31mWARNING: ", __VA_ARGS__)
