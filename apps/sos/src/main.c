@@ -1118,3 +1118,8 @@ int main(void) {
 }
 
 
+uint64_t __timestamp_ms()
+{
+    // FIXME
+    return 0;
+}
