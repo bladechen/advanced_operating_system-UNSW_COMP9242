@@ -259,9 +259,6 @@ static epit_t g_epit1;
 static epit_t g_epit2;
 static timestamp_t g_cur_timestamp_ms = 0;
 
-
-
-
 // gpt used for interrupt to update time_stamp
 // epit2 used for background tick
 static void setup_regular_clock(seL4_CPtr interrupt_ep)
@@ -341,7 +338,6 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
 
     g_epit2.epit_map->epitcr |= 1;
     return;
-
 }
 
 static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
@@ -355,7 +351,6 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
 
     g_epit1.epit_map->epitcr = 0;
 
-
     g_epit1.epit_map->epitcr = BIT(EPIT_SWR);
     g_epit1.epit_map->epitcr = (EPIT_CLKSRC_IPG << EPIT_CLKSRC) | /* Clock source = IPG */
         (0x042 << EPIT_PRESCALER) | /* Set the prescaler */
@@ -365,7 +360,7 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
         BIT(EPIT_ENMOD) | /* Count from modulus on restart */
         0;
     g_epit1.epit_map->epitcmpr = 0;
-    int counterValue = 1000000; // FIXME 1s
+    int counterValue = 10000; // FIXME 1s
     g_epit1.epit_map->epitlr = counterValue;
     while (g_epit1.epit_map->epitlr != counterValue) {
         g_epit1.epit_map->epitlr = counterValue;
@@ -375,7 +370,6 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
     /* Interrupt when compare with 0. */
 
     g_epit1.epit_map->epitcr |= 1;
-
 }
 
 int start_timer(seL4_CPtr interrupt_ep)
@@ -471,7 +465,26 @@ timestamp_t __timestamp_ms(void)
 }
 
 
-int stop_timer(void);
+int stop_timer(void)
+{
+    // in the timer callback function, should not destroy timer.
+    if (get_current_timer_id() != 0)
+    {
+        return CLOCK_R_FAIL;
+    }
+    g_gpt.gpt_map->gptcr  = 0;
+    g_gpt.gpt_map->gptir = 0;
+
+    g_epit1.epit_map->epitcr = 0;
+    g_epit1.epit_map->epitcr = BIT(EPIT_SWR);
+
+    g_epit2.epit_map->epitcr = 0;
+    g_epit2.epit_map->epitcr = BIT(EPIT_SWR);
+
+    destroy_timer_unit(g_timer);
+    g_timer = NULL;
+    return 0;
+}
 
 
 // timer int
