@@ -142,11 +142,6 @@ seL4_CPtr _sos_interrupt_ep_cap;
  */
 extern fhandle_t mnt_point;
 
-<<<<<<< HEAD
-static struct serial * serial_handler = NULL;
-
-#define SYSCALL_IPC_PRINT_COLSOLE 2
-=======
 /* Physical locations for counter registers, and macros for register offsets */
 #define EPIT1_IRQ         88
 #define EPIT1_PHYS_START  0x20D0000
