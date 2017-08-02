@@ -261,9 +261,6 @@ static epit_t g_epit1;
 static epit_t g_epit2;
 static timestamp_t g_cur_timestamp_ms = 0;
 
-
-
-
 // gpt used for interrupt to update time_stamp
 // epit2 used for background tick
 static void setup_regular_clock(seL4_CPtr interrupt_ep)
@@ -300,8 +297,6 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
 
     g_gpt.gpt_map->gptcr |= 1;
 
-
-
     g_epit2.epit_map = map_device((void *) EPIT2_MEMORY_MAP_START, EPIT2_MEMORY_SIZE);
     /*
     1. Disable the EPIT - set EN=0 in EPIT_EPITCR.
@@ -335,16 +330,13 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
 
     g_epit2.epit_map->epitcr |= 1;
     return;
-
 }
 
 static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
 {
-
     g_epit1.epit_map = map_device((void *) EPIT1_MEMORY_MAP_START, EPIT1_MEMORY_SIZE);
 
     g_epit1.epit_map->epitcr = 0;
-
 
     g_epit1.epit_map->epitcr = BIT(EPIT_SWR);
     g_epit1.epit_map->epitcr = (EPIT_CLKSRC_IPG << EPIT_CLKSRC) | /* Clock source = IPG */
@@ -365,7 +357,6 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
     /* Interrupt when compare with 0. */
 
     g_epit1.epit_map->epitcr |= 1;
-
 }
 
 int start_timer(seL4_CPtr interrupt_ep)
@@ -435,7 +426,20 @@ timestamp_t __timestamp_ms(void)
 }
 
 
-int stop_timer(void);
+int stop_timer(void)
+{
+    g_gpt.gpt_map->gptcr  = 0;
+    g_gpt.gpt_map->gptir = 0;
+
+    g_epit1.epit_map->epitcr = 0;
+    g_epit1.epit_map->epitcr = BIT(EPIT_SWR);
+
+    g_epit2.epit_map->epitcr = 0;
+    g_epit2.epit_map->epitcr = BIT(EPIT_SWR);
+
+    destroy_timer_unit(g_timer);
+    g_timer = NULL;
+}
 
 
 // timer int
