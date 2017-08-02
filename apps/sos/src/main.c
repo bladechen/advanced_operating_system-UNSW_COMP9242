@@ -35,6 +35,8 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+#include "m1_test.h"
+
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
 #define USER_EP_CAP          (1)
@@ -471,7 +473,7 @@ int main(void) {
     assert(0 == start_timer(_sos_interrupt_ep_cap));
     serial_handler = serial_init();
 
-
+    test_register_timer();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
