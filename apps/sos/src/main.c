@@ -23,7 +23,7 @@
 
 #include "network.h"
 #include "elf.h"
-#include "comm/define.h"
+#include "comm/comm.h"
 
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
@@ -92,6 +92,9 @@ static struct serial * serial_handler = NULL;
 #define SYSCALL_IPC_PRINT_COLSOLE 2
 
 
+
+
+
 static int send2nc(struct serial* serial, char* data, int len)
 {
     return serial_send(serial, (data), (len));
@@ -157,6 +160,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
+void update_timestamp(void);
+void handle_epit1_irq(void);
+void handle_gpt_irq(void);
 void syscall_loop(seL4_CPtr ep) {
 
     while (1) {
@@ -169,18 +175,19 @@ void syscall_loop(seL4_CPtr ep) {
         if(badge & IRQ_EP_BADGE)
         {
             /* Interrupt */
+            /* color_print(ANSI_COLOR_GREEN, "int: %x\n", badge); */
             if (badge & IRQ_BADGE_NETWORK)
             {
                 network_irq();
             }
             if (badge & IRQ_EPIT1_BADGE)
             {
-                timer_interrupt();
+                handle_epit1_irq();
             }
 
             if (badge & IRQ_GPT_BADGE)
             {
-                update_timestamp();
+                handle_gpt_irq();
             }
 
         }
@@ -445,12 +452,6 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     _sos_ipc_init(ipc_ep, async_ep);
 }
 
-static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
-    seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights, seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
-    conditional_panic(!badged_cap, "Failed to allocate badged cap");
-    return badged_cap;
-}
-
 /*
  * Main entry point - called by crt.
  */
@@ -467,7 +468,10 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
+    assert(0 == start_timer(_sos_interrupt_ep_cap));
     serial_handler = serial_init();
+
+
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);

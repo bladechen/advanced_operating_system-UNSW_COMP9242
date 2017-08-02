@@ -1,11 +1,15 @@
-#include "comm/define.h"
+#include "comm/comm.h"
 #include "timerlist.h"
+#include "mapping.h"
 #include <clock/clock.h>
 
+#define verbose 5
+#include <sys/debug.h>
 
 static struct TimerUnit* g_timer = NULL;
 
 
+seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge);
 
 #define IPG_CLOCK_FREQ 0x42 // 66MHZ, gpt and epit1/2 will use IPG.
 
@@ -282,18 +286,20 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
     g_gpt.gpt_map->gptcr  = 0;
     g_gpt.gpt_map->gptir = 0;
 
-    g_gpt.gpt_map->gptcr |= GPT_CLKSRC_IPG << GPT_CLKSRC;
-    g_gpt.gpt_map->gptcr |= BIT(GPT_SWR);
-    g_gpt.gpt_map->gptcr |= GPT_ENMOD | ((0b011) << GPT_OM1); // set output pin?
+    g_gpt.gpt_map->gptcr = BIT(GPT_SWR);
+    g_gpt.gpt_map->gptcr = GPT_CLKSRC_IPG << GPT_CLKSRC;
+    g_gpt.gpt_map->gptcr |= GPT_ENMOD ; // set output pin?
     g_gpt.gpt_map->gptpr = IPG_CLOCK_FREQ; // scale to 1MHZ
     g_gpt.gpt_map->gptsr = GPT_SR_CLEAR;
     g_gpt.gpt_map->gptcr1 = 10000; // every 1/1MHZ * 10000 = 10ms to trigger updating the time_stamp.
 
     g_gpt.gpt_map->gptcr &= (~BIT(GPT_SWR));
-    g_gpt.gpt_map->gptcr |= 1;
 
     g_gpt.gpt_map->gptir = 1;
     g_gpt.irq = enable_irq(GPT_IRQ, interrupt_ep);
+
+    g_gpt.gpt_map->gptcr |= 1;
+
 
 
     g_epit2.epit_map = map_device((void *) EPIT2_MEMORY_MAP_START, EPIT2_MEMORY_SIZE);
@@ -342,19 +348,19 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
 
     g_epit1.epit_map->epitcr = BIT(EPIT_SWR);
     g_epit1.epit_map->epitcr = (EPIT_CLKSRC_IPG << EPIT_CLKSRC) | /* Clock source = IPG */
-        (0x042 << EPIT_PRESCALERPRESCALER) | /* Set the prescaler */
+        (0x042 << EPIT_PRESCALER) | /* Set the prescaler */
         BIT(EPIT_IOVW) | /* Overwrite counter immediately on write */
         BIT(EPIT_RLD) | /* Reload counter from modulus register on overflow */
         BIT(EPIT_OCIEN) | /* Enable interrupt on comparison event */
         BIT(EPIT_ENMOD) | /* Count from modulus on restart */
         0;
     g_epit1.epit_map->epitcmpr = 0;
-    counterValue = 1000000; // FIXME 1s
+    int counterValue = 1000000; // FIXME 1s
     g_epit1.epit_map->epitlr = counterValue;
     while (g_epit1.epit_map->epitlr != counterValue) {
         g_epit1.epit_map->epitlr = counterValue;
     }
-    g_epit1.epit_map->epitcr &= (~BIT(SWR));
+    g_epit1.epit_map->epitcr &= (~BIT(EPIT_SWR));
     g_epit1.irq = enable_irq(EPIT1_IRQ, interrupt_ep);
     /* Interrupt when compare with 0. */
 
@@ -371,8 +377,8 @@ int start_timer(seL4_CPtr interrupt_ep)
         return -1;
     }
     /* conditional_panic(g_timer == NULL, "init global timer fail, maybe no enough memory!\n"); */
-    setup_regular_clock(badge_irq_ep(interrupt_ep, IRQ_EPIT1_BADGE));
-    setup_timer_interrupt(badge_irq_ep(interrupt_ep, IRQ_GPT_BADGE));
+    setup_regular_clock(badge_irq_ep(interrupt_ep, IRQ_GPT_BADGE));
+    setup_timer_interrupt(badge_irq_ep(interrupt_ep, IRQ_EPIT1_BADGE));
     return 0;
 }
 
@@ -385,7 +391,7 @@ int remove_timer(uint32_t id);
 
 int timer_interrupt(void)
 {
-    color_print("timer: %llu\n", time_stamp());
+    color_print(ANSI_COLOR_GREEN, "timer: %llu\n", time_stamp());
     return 0;
 }
 
@@ -398,12 +404,12 @@ void update_timestamp(void)
 
     if (cur_counter > last_counter)
     {
-        g_cur_timestamp_ms += (g_epit2.counter_start - cur + last) / 1000;
+        g_cur_timestamp_ms += (g_epit2.counter_start -  cur_counter + last_counter) / 1000;
         /* last_usecond += (g_epit2.counter_start - cur + last) % 1000; */
     }
     else
     {
-        g_cur_timestamp_ms += (last - cur) / 1000;
+        g_cur_timestamp_ms += (last_counter - cur_counter) / 1000;
         /* cur_ts_us += (last - cur) % 1000; */
     }
 
@@ -423,6 +429,40 @@ timestamp_t time_stamp(void)
     return g_cur_timestamp_ms;
 }
 
+timestamp_t __timestamp_ms(void)
+{
+    return time_stamp();
+}
 
 
 int stop_timer(void);
+
+
+// timer int
+void handle_epit1_irq(void)
+{
+
+    g_epit1.epit_map->epitcr &= (~1);
+    g_epit1.epit_map->epitsr = 1;
+
+    timer_interrupt();
+
+    int err = seL4_IRQHandler_Ack(g_epit1.irq);
+
+    g_epit1.epit_map->epitcr |= 1;
+    conditional_panic(err, "Failed to acknowledge epit interrupt\n");
+}
+
+// background tick
+void handle_gpt_irq(void)
+{
+    g_gpt.gpt_map->gptcr &= (~1);
+
+    g_gpt.gpt_map->gptsr = 0x3f;
+
+    update_timestamp();
+
+    int err = seL4_IRQHandler_Ack(g_gpt.irq);
+    g_gpt.gpt_map->gptcr |= (1);
+    conditional_panic(err, "Failed to acknowledge gpt interrupt\n");
+}

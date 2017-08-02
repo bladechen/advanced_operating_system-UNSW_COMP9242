@@ -36,6 +36,7 @@
 #include "dma.h"
 #include "mapping.h"
 #include "ut_manager/ut.h"
+#include "comm/comm.h"
 
 #define verbose 0
 #include <sys/debug.h>
@@ -82,7 +83,7 @@ static void
 sos_unmap_device(void *cookie, void *addr, size_t size) {
 }
 
-void 
+void
 sos_usleep(int usecs) {
     /* We need to spin because we do not as yet have a timer interrupt */
     while(usecs-- > 0){
@@ -99,7 +100,7 @@ sos_usleep(int usecs) {
 /*******************
  *** IRQ handler ***
  *******************/
-void 
+void
 network_irq(void) {
     int err;
     /* skip if the network was not initialised */
@@ -111,21 +112,7 @@ network_irq(void) {
     assert(!err);
 }
 
-static seL4_CPtr
-enable_irq(int irq, seL4_CPtr aep) {
-    seL4_CPtr cap;
-    int err;
-    /* Create an IRQ handler */
-    cap = cspace_irq_control_get_cap(cur_cspace, seL4_CapIRQControl, irq);
-    conditional_panic(!cap, "Failed to acquire and IRQ control cap");
-    /* Assign to an end point */
-    err = seL4_IRQHandler_SetEndpoint(cap, aep);
-    conditional_panic(err, "Failed to set interrupt endpoint");
-    /* Ack the handler before continuing */
-    err = seL4_IRQHandler_Ack(cap);
-    conditional_panic(err, "Failure to acknowledge pending interrupts");
-    return cap;
-}
+
 
 /********************
  *** Network init ***
@@ -149,7 +136,7 @@ network_prime_arp(struct ip_addr *gw){
     }
 }
 
-void 
+void
 network_init(seL4_CPtr interrupt_ep) {
     struct ip_addr netmask, ipaddr, gw;
     int err;
@@ -206,10 +193,10 @@ network_init(seL4_CPtr interrupt_ep) {
     netif_set_default(lwip_iface->netif);
 
     /*
-     * LWIP does not queue packets while waiting for an ARP response 
+     * LWIP does not queue packets while waiting for an ARP response
      * Generally this is okay as we block waiting for a response to our
      * request before sending another. On the other hand, priming the
-     * table is cheap and can save a lot of heart ache 
+     * table is cheap and can save a lot of heart ache
      */
     network_prime_arp(&gw);
 
