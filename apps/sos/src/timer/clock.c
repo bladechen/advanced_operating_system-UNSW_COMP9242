@@ -9,8 +9,6 @@
 static struct TimerUnit* g_timer = NULL;
 
 
-seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge);
-
 #define IPG_CLOCK_FREQ 0x42 // 66MHZ, gpt and epit1/2 will use IPG.
 
 // refer to i.mx6 manual - 3.2 AP interrupts
@@ -268,7 +266,12 @@ static timestamp_t g_cur_timestamp_ms = 0;
 // epit2 used for background tick
 static void setup_regular_clock(seL4_CPtr interrupt_ep)
 {
-    g_gpt.gpt_map = map_device((void *) GPT_MEMORY_MAP_STRAT, GPT_MEMORY_SIZE);
+    if (g_gpt.gpt_map == NULL)
+    {
+        g_gpt.gpt_map = map_device((void *) GPT_MEMORY_MAP_STRAT, GPT_MEMORY_SIZE);
+    }
+
+    assert(g_gpt.gpt_map != NULL);
 
     /*
     following the initial seq from manual, i am not good at hardware, but it works.
@@ -300,9 +303,12 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
 
     g_gpt.gpt_map->gptcr |= 1;
 
+    if (g_epit2.epit_map == NULL)
+    {
+        g_epit2.epit_map = map_device((void *) EPIT2_MEMORY_MAP_START, EPIT2_MEMORY_SIZE);
+    }
 
-
-    g_epit2.epit_map = map_device((void *) EPIT2_MEMORY_MAP_START, EPIT2_MEMORY_SIZE);
+    assert(g_epit2.epit_map != NULL);
     /*
     1. Disable the EPIT - set EN=0 in EPIT_EPITCR.
     2. Disable EPIT ouput - program OM=00 in the EPIT_EPITCR.
@@ -341,7 +347,11 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
 static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
 {
 
-    g_epit1.epit_map = map_device((void *) EPIT1_MEMORY_MAP_START, EPIT1_MEMORY_SIZE);
+    if (g_epit1.epit_map == NULL)
+    {
+        g_epit1.epit_map = map_device((void *) EPIT1_MEMORY_MAP_START, EPIT1_MEMORY_SIZE);
+    }
+    assert(g_epit1.epit_map != NULL);
 
     g_epit1.epit_map->epitcr = 0;
 
@@ -370,34 +380,67 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
 
 int start_timer(seL4_CPtr interrupt_ep)
 {
+    if (g_timer != NULL)
+    {
+        return CLOCK_R_OK;
+    }
     g_timer = init_timer_unit(MAX_REGISTERED_TIMER_CLOCK);
     if (g_timer == NULL)
     {
         color_print(ANSI_COLOR_RED, "init global timer fail, maybe no enough memory!\n");
-        return -1;
+        return CLOCK_R_FAIL;
     }
     /* conditional_panic(g_timer == NULL, "init global timer fail, maybe no enough memory!\n"); */
     setup_regular_clock(badge_irq_ep(interrupt_ep, IRQ_GPT_BADGE));
     setup_timer_interrupt(badge_irq_ep(interrupt_ep, IRQ_EPIT1_BADGE));
-    return 0;
+    return CLOCK_R_OK;
 }
 
-uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data);
+uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data)
+{
+    if (g_timer == NULL)
+    {
+        return CLOCK_R_UINT;
+
+    }
+    uint32_t id = get_current_timer_id();
+    int ret = 0;
+    if (get_current_timer_id() == 0)
+    {
+        ret = attach_timer(g_timer, delay, callback, data, &id);
+    }
+    else
+    {
+        ret = rettach_timer(g_timer, delay, callback, data, id);
+    }
+    return (ret != 0) ? 0: id;
+
+}
 
 
-int remove_timer(uint32_t id);
+int remove_timer(uint32_t id)
+{
+    if (g_timer == NULL)
+    {
+        return CLOCK_R_UINT;
+    }
+    return (dettach_timer(g_timer, id) == 0) ? CLOCK_R_OK: CLOCK_R_FAIL;
+}
 
 
 
 int timer_interrupt(void)
 {
-    color_print(ANSI_COLOR_GREEN, "timer: %llu\n", time_stamp());
+    if (g_timer == NULL)
+    {
+        return CLOCK_R_UINT;
+    }
+    check_expired(g_timer, time_stamp());
     return 0;
 }
 
-void update_timestamp(void)
+static void update_timestamp(void)
 {
-
     static long long last_counter = 0;
     /* static long long last_usecond = 0; */
     long long cur_counter = g_epit2.epit_map->epitcnt; // every 1 count stands for 1us
@@ -405,19 +448,11 @@ void update_timestamp(void)
     if (cur_counter > last_counter)
     {
         g_cur_timestamp_ms += (g_epit2.counter_start -  cur_counter + last_counter) / 1000;
-        /* last_usecond += (g_epit2.counter_start - cur + last) % 1000; */
     }
     else
     {
         g_cur_timestamp_ms += (last_counter - cur_counter) / 1000;
-        /* cur_ts_us += (last - cur) % 1000; */
     }
-
-    /* if (last_usecond >= 1000) */
-    /* { */
-    /*     g_cur_timestamp_ms ++; */
-    /*     last_usecond -= 1000; */
-    /* } */
 
     last_counter = cur_counter;
     return;
@@ -429,6 +464,7 @@ timestamp_t time_stamp(void)
     return g_cur_timestamp_ms;
 }
 
+// this is for timerlist.c api
 timestamp_t __timestamp_ms(void)
 {
     return time_stamp();

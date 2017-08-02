@@ -100,8 +100,7 @@ static int send2nc(struct serial* serial, char* data, int len)
     return serial_send(serial, (data), (len));
 }
 
-// try best to send buf to serial, no retry at server side, let client do retry.
-static void handle_ipc_print_console(seL4_CPtr session)
+// try best to send buf to serial, no retry at server side, let client do retry.  static void handle_ipc_print_console(seL4_CPtr session)
 {
     int msg_len = seL4_GetMR(1);
     color_print(ANSI_COLOR_YELLOW, "[sos] recieved from tty, len: %d\n", msg_len);
@@ -472,6 +471,7 @@ int main(void) {
     serial_handler = serial_init();
 
 
+    m1_test();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);

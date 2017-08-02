@@ -142,8 +142,6 @@ int dettach_timer(struct TimerUnit* unit, uint32_t id)
     return 0;
 }
 
-
-
 static int _attach_timer(struct TimerUnit* unit, struct TimerObj* obj, int timeout)
 {
     struct TimerList* tl = get_timer_list(unit, timeout);
@@ -180,7 +178,7 @@ int attach_timer(struct TimerUnit* unit,  int timeout, timer_callback_t func, vo
 
 static void timer_notify(struct TimerObj* obj)
 {
-    assert(obj != NULL );
+    assert(obj != NULL);
     obj->cb_func(obj->id, obj->cb_data);
 }
 
@@ -229,6 +227,14 @@ int rettach_timer(struct TimerUnit* unit, int timeout, timer_callback_t func, vo
     }
     return 0;
 }
+
+static int processing_timer_id = 0;
+int get_current_timer_id(void)
+{
+    return processing_timer_id;
+
+}
+
 int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
 {
     int count = 0;
@@ -250,8 +256,6 @@ int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
             assert(obj ->status & TIMEROBJ_IN_TIMERLIST);
 
             _remove_from_timerlist(unit, obj);
-            /* link_detach(obj, link_obj); */
-            /* obj->status &= (~TIMEROBJ_IN_TIMERLIST); */
             timer_notify(obj);
             if ((obj->status & TIMEROBJ_IN_TIMERLIST) == 0 )
             {
@@ -261,6 +265,8 @@ int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
             count ++;
         }
     }
+    processing_timer_id = 0;
+
 
     remove_empty_timer_list(unit);
     return count;
