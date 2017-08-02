@@ -78,4 +78,7 @@ int rettach_timer(struct TimerUnit* unit, int timeout, timer_callback_t func, vo
 
 int check_expired(struct TimerUnit* unit, int64_t cur_timestamp);
 
+
+int get_current_timer_id(void);
+
 #endif
