@@ -174,7 +174,7 @@ int attach_timer(struct TimerUnit* unit,  int timeout, timer_callback_t func, vo
     }
     obj->obj_exp = timeout + __timestamp_ms();
     obj->cb_func = func;
-    obj-> cb_data = data;
+    obj->cb_data = data;
     if (0 != _attach_timer(unit, obj, timeout))
     {
         _free_timer_obj(unit, obj);

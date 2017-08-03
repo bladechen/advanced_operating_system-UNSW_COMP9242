@@ -258,14 +258,13 @@ typedef struct gpt {
 static gpt_t g_gpt;
 static epit_t g_epit1;
 static epit_t g_epit2;
-/* static volatile timestamp_t g_cur_timestamp_ms = 0; */
 static volatile timestamp_t g_cur_timestamp_us = 0;
 
 static volatile bool g_timedriver_is_init = 0;
 
 // gpt used for interrupt to update time_stamp
 // epit2 used for background tick
-static void setup_regular_clock(seL4_CPtr interrupt_ep)
+static void _setup_regular_clock(seL4_CPtr interrupt_ep)
 {
     if (g_gpt.gpt_map == NULL)
     {
@@ -344,7 +343,7 @@ static void setup_regular_clock(seL4_CPtr interrupt_ep)
     return;
 }
 
-static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
+static void _setup_timer_interrupt(seL4_CPtr interrupt_ep)
 {
 
     if (g_epit1.epit_map == NULL)
@@ -381,8 +380,8 @@ static void setup_timer_interrupt(seL4_CPtr interrupt_ep)
 static void _init_timedriver(seL4_CPtr interrupt_ep)
 {
     color_print(ANSI_COLOR_GREEN, "_init_timedriver...\n");
-    setup_regular_clock(badge_irq_ep(interrupt_ep, IRQ_GPT_BADGE));
-    setup_timer_interrupt(badge_irq_ep(interrupt_ep, IRQ_EPIT1_BADGE));
+    _setup_regular_clock(badge_irq_ep(interrupt_ep, IRQ_GPT_BADGE));
+    _setup_timer_interrupt(badge_irq_ep(interrupt_ep, IRQ_EPIT1_BADGE));
     return;
 }
 
@@ -479,10 +478,10 @@ int timer_interrupt(void)
         return CLOCK_R_UINT;
     }
     check_expired(g_timer, time_stamp());
-    return 0;
+    return CLOCK_R_OK;
 }
 
-static void update_timestamp(void)
+static void _update_timestamp(void)
 {
     static long long last_counter = 0;
     static long long last_usecond = 0;
@@ -495,8 +494,6 @@ static void update_timestamp(void)
     else
     {
         g_cur_timestamp_us += (last_counter - cur_counter) ;
-
-
     }
 
     last_counter = cur_counter;
@@ -575,7 +572,7 @@ void handle_gpt_irq(void)
 
 
 
-    update_timestamp();
+    _update_timestamp();
     /* color_print(ANSI_COLOR_GREEN, "in handle_gpt_irq: %llu\n", time_stamp()); */
     timer_interrupt();
 

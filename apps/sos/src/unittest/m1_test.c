@@ -110,11 +110,8 @@ static void test_accuracy(void)
     assert(id > 0);
     color_print(ANSI_COLOR_WHITE, "[%d], test_accuracy\n", id);
 
-
-
-
-
 }
+
 void cb4(uint32_t id, void* data)
 {
     color_print(ANSI_COLOR_YELLOW, "[%d, %llu], trigger every %d\n",id, time_stamp() / 1000,*(int*)data );
@@ -148,13 +145,17 @@ void test_move(void)
 }
 void m1_test(void)
 {
-    test_start_stop_timer();
-    test_add_remove();
-    /* test_one_register(); // 100ms */
-    test_remove_later();
-    test_move();
-    test_accuracy();
-    test_multi_timer();
+    int count= 1000;
+    while (count --)
+    {
+        test_start_stop_timer();
+        test_add_remove();
+        test_one_register(); // 100ms
+        test_remove_later();
+        test_move();
+        test_accuracy();
+        test_multi_timer();
+    }
 
     return;
 }
