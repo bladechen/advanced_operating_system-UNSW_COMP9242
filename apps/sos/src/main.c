@@ -35,7 +35,7 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
-#include "test/m1_test.h"
+#include "unittest/test.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -102,7 +102,7 @@ static int send2nc(struct serial* serial, char* data, int len)
     return serial_send(serial, (data), (len));
 }
 
-// try best to send buf to serial, no retry at server side, let client do retry.  
+// try best to send buf to serial, no retry at server side, let client do retry.
 static void handle_ipc_print_console(seL4_CPtr session)
 {
     static int total_sent = 0;
@@ -483,8 +483,7 @@ int main(void) {
     assert(0 == start_timer(_sos_interrupt_ep_cap));
     serial_handler = serial_init();
 
-    test_register_timer();
-
+    m1_test();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);

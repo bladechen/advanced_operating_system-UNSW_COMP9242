@@ -40,6 +40,9 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 }
 
 
+// static inline void
+
+
 static inline seL4_CPtr
 enable_irq(int irq, seL4_CPtr aep) {
     seL4_CPtr cap;

@@ -1,5 +1,9 @@
 #include "timerlist.h"
 
+
+#define verbose 5
+#include <sys/debug.h>
+
 /* static struct TimerUnit*  */
 
 extern timestamp_t __timestamp_ms();// timestamp_t is uint64_t
@@ -137,6 +141,10 @@ int dettach_timer(struct TimerUnit* unit, uint32_t id)
     {
         return -1;
     }
+    if (unit->free_timer[id].obj.status == 0)
+    {
+        return -2;
+    }
     _remove_from_timerlist(unit, &(unit->free_timer[id].obj));
     _free_timer_obj(unit, &(unit->free_timer[id].obj));
     return 0;
@@ -218,6 +226,7 @@ int rettach_timer(struct TimerUnit* unit, int timeout, timer_callback_t func, vo
     unit->free_timer[id].obj.cb_func = func;
 
     unit->free_timer[id].obj.obj_exp = timeout + __timestamp_ms();
+    /* color_print(ANSI_COLOR_GREEN, "[%d] rettach_timer, delay: %d, current: %llu, next: %llu\n",id, timeout, __timestamp_ms(), unit->free_timer[id].obj.obj_exp); */
     unit->free_timer[id].obj.cb_data = data;
     /* printf ("rettach: %d, %d\n", id, timeout); */
     if (0 != _attach_timer(unit, obj, timeout))
@@ -243,12 +252,14 @@ int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
     {
         cur_timestamp = __timestamp_ms();
     }
+
     list_for_each_entry (tl, &(unit->timer_list_head.head), link_obj)
     {
         struct list_head *tmp, *pos;
         list_for_each_safe(pos, tmp, &(tl->timer_list.head))
         {
             struct TimerObj* obj = list_entry(pos, struct TimerObj, link_obj);
+            /* if (obj->obj_exp - TIMER_ADJUST_INTERVAL > cur_timestamp) */
             if (obj->obj_exp > cur_timestamp)
             {
                 break;
@@ -256,6 +267,7 @@ int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
             assert(obj ->status & TIMEROBJ_IN_TIMERLIST);
 
             _remove_from_timerlist(unit, obj);
+            processing_timer_id = obj->id;
             timer_notify(obj);
             if ((obj->status & TIMEROBJ_IN_TIMERLIST) == 0 )
             {
