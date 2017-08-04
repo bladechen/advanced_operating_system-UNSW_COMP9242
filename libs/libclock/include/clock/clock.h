@@ -13,6 +13,8 @@
 
 #include <sel4/sel4.h>
 
+
+#define MAX_REGISTERED_TIMER_CLOCK 100
 /*
  * Return codes for driver functions
  */

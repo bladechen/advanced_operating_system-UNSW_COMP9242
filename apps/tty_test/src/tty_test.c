@@ -43,10 +43,11 @@ int main(void){
     /* initialise communication */
     ttyout_init();
 
-    for (int i = 0; i < 1000; i ++)
-    {
-        printf ("hello");
-    }
+    // 50000 maybe too large to udp lost packet
+    /* for (int i = 0; i < 10000; i ++) */
+    /* { */
+    /*     printf ("helloworld"); */
+    /* } */
     do {
         printf("task:\tHello world, I'm\ttty_test!\n");
         fflush(NULL);

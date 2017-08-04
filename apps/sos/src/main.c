@@ -19,9 +19,11 @@
 #include <nfs/nfs.h>
 #include <elf/elf.h>
 #include <serial/serial.h>
+#include <clock/clock.h>
 
 #include "network.h"
 #include "elf.h"
+#include "comm/comm.h"
 
 #include "ut_manager/ut.h"
 #include "vmem_layout.h"
@@ -33,6 +35,8 @@
 #include <sys/debug.h>
 #include <sys/panic.h>
 
+#include "unittest/test.h"
+
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
 #define USER_EP_CAP          (1)
@@ -43,7 +47,6 @@
 #define IRQ_EP_BADGE         (1 << (seL4_BadgeBits - 1))
 /* All badged IRQs set high bet, then we use uniq bits to
  * distinguish interrupt sources */
-#define IRQ_BADGE_NETWORK (1 << 0)
 
 #define TTY_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
@@ -90,6 +93,9 @@ static struct serial * serial_handler = NULL;
 #define SYSCALL_IPC_PRINT_COLSOLE 2
 
 
+
+
+
 static int send2nc(struct serial* serial, char* data, int len)
 {
     return serial_send(serial, (data), (len));
@@ -98,15 +104,25 @@ static int send2nc(struct serial* serial, char* data, int len)
 // try best to send buf to serial, no retry at server side, let client do retry.
 static void handle_ipc_print_console(seL4_CPtr session)
 {
+    static int total_sent = 0;
+    static int total_sent_count = 0;
     int msg_len = seL4_GetMR(1);
     color_print(ANSI_COLOR_YELLOW, "[sos] recieved from tty, len: %d\n", msg_len);
     seL4_IPCBuffer* ipc_buffer = seL4_GetIPCBuffer();
     char* msg = (char*)(ipc_buffer->msg + 2);
+    // truncate the message if the length is larger than the ipc buffer
+    if (msg_len > (seL4_MsgMaxLength - 2 ) * 4)
+    {
+        msg_len = (seL4_MsgMaxLength - 2 ) * 4;
+    }
     int ret = send2nc(serial_handler, msg, msg_len);
-    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d\n", ret);
+    total_sent += ret;
+    total_sent_count ++;
+    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n", ret, total_sent, total_sent_count);
 
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, ret);
+    /* color_print(ANSI_COLOR_YELLOW, "[sos] sen"); */
+    seL4_SetMR(0, ret); // actually sent length
     seL4_Send(session, reply);
     return;
 }
@@ -152,6 +168,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
     cspace_free_slot(cur_cspace, reply_cap);
 }
 
+void update_timestamp(void);
+void handle_epit1_irq(void);
+void handle_gpt_irq(void);
 void syscall_loop(seL4_CPtr ep) {
 
     while (1) {
@@ -161,13 +180,29 @@ void syscall_loop(seL4_CPtr ep) {
 
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);
-        if(badge & IRQ_EP_BADGE){
+        if(badge & IRQ_EP_BADGE)
+        {
             /* Interrupt */
-            if (badge & IRQ_BADGE_NETWORK) {
+            /* color_print(ANSI_COLOR_GREEN, "int: %x\n", badge); */
+            if (badge & IRQ_BADGE_NETWORK)
+            {
                 network_irq();
             }
+            // currently no use for epit1, should not here
+            if (badge & IRQ_EPIT1_BADGE)
+            {
+                assert(0);
+                handle_epit1_irq();
+            }
 
-        }else if(label == seL4_VMFault){
+            if (badge & IRQ_GPT_BADGE)
+            {
+                handle_gpt_irq();
+            }
+
+        }
+        else if(label == seL4_VMFault)
+        {
             /* Page fault */
             dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
                     seL4_GetMR(0),
@@ -428,12 +463,6 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     _sos_ipc_init(ipc_ep, async_ep);
 }
 
-static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
-    seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights, seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
-    conditional_panic(!badged_cap, "Failed to allocate badged cap");
-    return badged_cap;
-}
-
 /*
  * Main entry point - called by crt.
  */
@@ -450,7 +479,10 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
+    assert(0 == start_timer(_sos_interrupt_ep_cap));
     serial_handler = serial_init();
+
+    m1_test();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);

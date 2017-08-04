@@ -27,6 +27,7 @@
 #define debug(x...)
 #endif
 
+
 /* The amount of data to receive needs to be limited such that the
  * number of fragments does not exceed IP_REASS_MAX_PBUFS.
  * This is a global limit and may affect performance in strange
@@ -76,11 +77,11 @@
 //statfsres   NFSPROC_STATFS(fhandle)
 #define       NFSPROC_STATFS                17
 
-/* 
- * This is the maximum amount (in bytes) of requested data that the server 
+/*
+ * This is the maximum amount (in bytes) of requested data that the server
  * will return. The data returned includes cookies, file ids, file name length,
  * the file name itself and a signal for the end of the list.
- * It must be small enough to fit in a response packet but large enough to 
+ * It must be small enough to fit in a response packet but large enough to
  * retrieve at least one entry to ensure progress.
  *
  * READDIR_BUF_SIZE > 4 longs + max name length = 4*4 + 256 = 272
@@ -89,7 +90,7 @@
 
 static struct udp_pcb *_nfs_pcb = NULL;
 
-void 
+void
 nfs_timeout(void)
 {
     rpc_timeout(100);
@@ -110,15 +111,17 @@ nfs_print_exports(void)
 }
 
 /******************************************
- *** NFS Initialisation 
+ *** NFS Initialisation
  ******************************************/
 
 /* this should be called once at beginning to setup everything */
+struct ip_addr nfs_server;
 enum rpc_stat
 nfs_init(const struct ip_addr *server)
 {
     int port;
     /* Initialise our RPC transport layer */
+    memcpy(&nfs_server, server, sizeof(struct ip_addr));
     if(init_rpc(server)){
         printf("Error receiving time using UDP time protocol\n");
         return RPCERR_NOSUP;
@@ -151,7 +154,7 @@ _nfs_getattr_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
 {
     uint32_t status = NFSERR_COMM;
     fattr_t pattrs;
-    struct rpc_reply_hdr hdr; 
+    struct rpc_reply_hdr hdr;
     int pos;
     nfs_getattr_cb_t cb = callback;
 
@@ -197,7 +200,7 @@ _nfs_lookup_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
     uint32_t status = NFSERR_COMM;
     fhandle_t new_fh;
     fattr_t pattrs;
-    struct rpc_reply_hdr hdr; 
+    struct rpc_reply_hdr hdr;
     int pos;
     nfs_lookup_cb_t cb = callback;
 
@@ -245,7 +248,7 @@ _nfs_read_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
     fattr_t pattrs;
     char *data = NULL;
     uint32_t size = 0;
-    struct rpc_reply_hdr hdr; 
+    struct rpc_reply_hdr hdr;
     int pos;
     nfs_read_cb_t cb = callback;
 
@@ -275,7 +278,7 @@ _nfs_read_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
 }
 
 enum rpc_stat
-nfs_read(const fhandle_t *fh, int offset, int count, 
+nfs_read(const fhandle_t *fh, int offset, int count,
          nfs_read_cb_t func, uintptr_t token)
 {
     struct pbuf *pbuf;
@@ -358,7 +361,7 @@ nfs_write(const fhandle_t *fh, int offset, int count, const void *data,
 
     /* Create our call arg */
     pb_write(pbuf, fh, sizeof(*fh), &pos);
-    pb_writel(pbuf, 0 /* Unused: see RFC */, &pos); 
+    pb_writel(pbuf, 0 /* Unused: see RFC */, &pos);
     pb_writel(pbuf, offset, &pos);
     pb_writel(pbuf, 0 /* Unused: see RFC */, &pos);
     /* Limit the number of bytes to send to fit the packet */
@@ -387,7 +390,7 @@ _nfs_create_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
     uint32_t status = NFSERR_COMM;
     fhandle_t new_fh;
     fattr_t pattrs;
-    struct rpc_reply_hdr hdr; 
+    struct rpc_reply_hdr hdr;
     int pos;
     nfs_create_cb_t cb = callback;
 
@@ -435,7 +438,7 @@ void
 _nfs_remove_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
 {
     uint32_t status = NFSERR_COMM;
-    struct rpc_reply_hdr hdr; 
+    struct rpc_reply_hdr hdr;
     int pos;
     nfs_remove_cb_t cb = callback;
 
@@ -451,7 +454,7 @@ _nfs_remove_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
 }
 
 enum rpc_stat
-nfs_remove(const fhandle_t *fh, const char *name, 
+nfs_remove(const fhandle_t *fh, const char *name,
            nfs_remove_cb_t func, uintptr_t token)
 {
     struct pbuf *pbuf;
@@ -480,7 +483,7 @@ _nfs_readdir_cb(void * callback, uintptr_t token, struct pbuf *pbuf)
     char **entries = NULL;
     uint32_t next_cookie = 0;
     uint32_t status = NFSERR_COMM;
-    struct rpc_reply_hdr hdr; 
+    struct rpc_reply_hdr hdr;
     int pos;
 
     debug("NFS READDIR CALLBACK\n");
@@ -564,7 +567,7 @@ nfs_readdir(const fhandle_t *pfh, nfscookie_t cookie,
     /* Create the call */
     pb_write(pbuf, pfh, sizeof(*pfh), &pos);
     pb_writel(pbuf, cookie, &pos);
-    pb_writel(pbuf, READDIR_BUF_SIZE, &pos); 
+    pb_writel(pbuf, READDIR_BUF_SIZE, &pos);
     /* make the call! */
     return rpc_send(pbuf, pos, _nfs_pcb, &_nfs_readdir_cb, func, token);
 }
