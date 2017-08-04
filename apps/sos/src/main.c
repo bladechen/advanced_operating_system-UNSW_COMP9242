@@ -192,8 +192,10 @@ void syscall_loop(seL4_CPtr ep) {
             {
                 network_irq();
             }
+            // currently no use for epit1, should not here
             if (badge & IRQ_EPIT1_BADGE)
             {
+                assert(0);
                 handle_epit1_irq();
             }
 

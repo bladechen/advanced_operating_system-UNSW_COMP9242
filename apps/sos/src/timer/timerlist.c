@@ -4,7 +4,6 @@
 #define verbose 5
 #include <sys/debug.h>
 
-/* static struct TimerUnit*  */
 
 extern timestamp_t __timestamp_ms();// timestamp_t is uint64_t
 struct TimerUnit* init_timer_unit(int max_timer_count)
@@ -14,6 +13,7 @@ struct TimerUnit* init_timer_unit(int max_timer_count)
     {
         return NULL;
     }
+    u->processing_timer_id = 0;
 
 
     list_init(&(u->timer_list_head));
@@ -237,11 +237,9 @@ int rettach_timer(struct TimerUnit* unit, int timeout, timer_callback_t func, vo
     return 0;
 }
 
-static int processing_timer_id = 0;
-int get_current_timer_id(void)
+int get_current_timer_id(const struct TimerUnit* unit)
 {
-    return processing_timer_id;
-
+    return unit->processing_timer_id;
 }
 
 int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
@@ -267,7 +265,7 @@ int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
             assert(obj ->status & TIMEROBJ_IN_TIMERLIST);
 
             _remove_from_timerlist(unit, obj);
-            processing_timer_id = obj->id;
+            unit->processing_timer_id = obj->id;
             timer_notify(obj);
             if ((obj->status & TIMEROBJ_IN_TIMERLIST) == 0 )
             {
@@ -277,9 +275,7 @@ int check_expired(struct TimerUnit* unit, int64_t cur_timestamp)
             count ++;
         }
     }
-    processing_timer_id = 0;
-
-
+    unit->processing_timer_id = 0;
     remove_empty_timer_list(unit);
     return count;
 }

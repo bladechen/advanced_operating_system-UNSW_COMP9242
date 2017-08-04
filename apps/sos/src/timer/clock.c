@@ -345,6 +345,8 @@ static void _setup_regular_clock(seL4_CPtr interrupt_ep)
 
 static void _setup_timer_interrupt(seL4_CPtr interrupt_ep)
 {
+    // no use epit1
+    return;
 
     if (g_epit1.epit_map == NULL)
     {
@@ -388,11 +390,11 @@ static void _init_timedriver(seL4_CPtr interrupt_ep)
 static void _enable_timerdriver(void)
 {
     assert(g_epit2.epit_map != NULL);
-    assert(g_epit1.epit_map != NULL);
+    /* assert(g_epit1.epit_map != NULL); */
     assert(g_gpt.gpt_map != NULL);
     g_gpt.gpt_map->gptcr|= (1);
     g_epit2.epit_map->epitcr |= (1);
-    g_epit1.epit_map->epitcr |= (1);
+    /* g_epit1.epit_map->epitcr |= (1); */
 
 
 }
@@ -401,12 +403,12 @@ static void _enable_timerdriver(void)
 static void _disable_timerdriver(void)
 {
     assert(g_epit2.epit_map != NULL);
-    assert(g_epit1.epit_map != NULL);
+    /* assert(g_epit1.epit_map != NULL); */
     assert(g_gpt.gpt_map != NULL);
 
     g_gpt.gpt_map->gptcr &= (~1);
     g_epit2.epit_map->epitcr &= (~1);
-    g_epit1.epit_map->epitcr &= (~1);
+    /* g_epit1.epit_map->epitcr &= (~1); */
 }
 
 
@@ -443,9 +445,9 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data)
         return CLOCK_R_UINT;
 
     }
-    uint32_t id = get_current_timer_id();
+    uint32_t id = get_current_timer_id(g_timer);
     int ret = 0;
-    if (get_current_timer_id() == 0)
+    if (id == 0)
     {
         ret = attach_timer(g_timer, delay, callback, data, &id);
         /* color_print(ANSI_COLOR_GREEN, "attach_timer: %d\n", ret); */
@@ -484,7 +486,7 @@ int timer_interrupt(void)
 static void _update_timestamp(void)
 {
     static long long last_counter = 0;
-    static long long last_usecond = 0;
+    /* static long long last_usecond = 0; */
     long long cur_counter = g_epit2.epit_map->epitcnt; // every 1 count stands for 1us
 
     if (cur_counter > last_counter)
@@ -516,32 +518,17 @@ timestamp_t __timestamp_ms(void)
 int stop_timer(void)
 {
     // in the timer callback function, should not destroy timer.
-    if (get_current_timer_id() != 0)
-    {
-        return CLOCK_R_FAIL;
-    }
     if (g_timer == NULL)
     {
         return CLOCK_R_UINT;
     }
 
-    _disable_timerdriver();
-    /* remove_irq_ep(g_gpt.irq); */
-    /* g_gpt.irq = 0; */
-    /*  */
-    /* g_gpt.gpt_map->gptcr  = 0; */
-    /* g_gpt.gpt_map->gptir = 0; */
-    /*  */
-    /* g_epit1.epit_map->epitcr = 0; */
-    /* g_epit1.epit_map->epitcr = BIT(EPIT_SWR); */
-    /*  */
-    /*  */
-    /*  */
-    /* remove_irq_ep(g_epit2.irq); */
-    /* g_epit2.irq = 0; */
-    /* g_epit2.epit_map->epitcr = 0; */
-    /* g_epit2.epit_map->epitcr = BIT(EPIT_SWR); */
-    /*  */
+
+    if (get_current_timer_id(g_timer) != 0)
+    {
+        return CLOCK_R_FAIL;
+    }
+        _disable_timerdriver();
     destroy_timer_unit(g_timer);
     g_timer = NULL;
     return 0;
@@ -568,16 +555,11 @@ void handle_epit1_irq(void)
 // background tick
 void handle_gpt_irq(void)
 {
-    /* g_gpt.gpt_map->gptcr &= (~1); */
-
-
 
     _update_timestamp();
     /* color_print(ANSI_COLOR_GREEN, "in handle_gpt_irq: %llu\n", time_stamp()); */
     timer_interrupt();
 
-
-    /* update_timestamp(); */
 
     g_gpt.gpt_map->gptsr = 0x3f; // XXX why? */
     int err = seL4_IRQHandler_Ack(g_gpt.irq);
