@@ -1,3 +1,5 @@
+// TODO Designs that avoid deleting and retyping a frame object for every frame free and frame alloc request. For example, by using a high- and low-water mark.
+// using a list to store free-ed frame. which can be alloc in O(1) without deleting and retyping
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -19,6 +21,10 @@ static frame_table _frame_table = NULL;
 static seL4_Word   _managed_frame_num = 0;
 static seL4_Word   _ut_hi = 0;
 static seL4_Word   _ut_lo = 0;
+
+static int _free_frame_index = -1; // point to the frame which is free-ed, but not deleted and unmaped
+
+static int _free_frame_count = 0;
 
 /* function declarations */
 static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size);
@@ -70,6 +76,16 @@ static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr) {
         return -1;
     }
 	return (PAGE_SHIFT(vaddr - WINDOW_START));
+
+}
+
+static sos_vaddr_t frame_translate_index_to_vaddr(int index)
+{
+    if (index < 0 || index >= _managed_frame_num)
+    {
+        return (sos_vaddr_t)NULL;
+    }
+    return (WINDOW_START + PAGE_UNSHIFT(index));
 }
 
 /* static int frame_translate_paddr_to_index(sos_vaddr_t vaddr) { */
@@ -117,8 +133,11 @@ void frametable_init(void) {
     for (int i = 0; i < _managed_frame_num; i ++)
     {
         _frame_table[i].page_cap = 0;
+        _frame_table[i].next_free = -1;
     }
 
+    _free_frame_index = -1;
+    _free_frame_count =  0;
     dprintf(0, "After initialization: ut_lo:%x ut_high:%x\n", _ut_lo, _ut_hi);
     dprintf(0, "virtual address of frame_table: %x\n", _frame_table);
 }
@@ -156,6 +175,24 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
 sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
 
     conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
+    // some free frame already available, no need to ut_alloc
+    if (_free_frame_index != -1)
+    {
+        /* static int true_alloc = 0; */
+        /* true_alloc ++; */
+        /* color_print(ANSI_COLOR_GREEN, "fake alloc %d\n", true_alloc); */
+
+        _free_frame_count --;
+        int index = _free_frame_index;
+        _free_frame_index = _frame_table[index].next_free;
+        _frame_table[index].next_free = -1;
+        assert(_frame_table[index].page_cap != 0);
+        *vaddr_ptr = frame_translate_index_to_vaddr(index);
+        return *vaddr_ptr;
+    }
+    /* static int true_alloc = 0; */
+    /* true_alloc ++; */
+    /* color_print(ANSI_COLOR_RED, "true alloc %d\n", true_alloc); */
 	sos_paddr_t paddr = ut_alloc(seL4_PageBits);
 	if (paddr == (sos_paddr_t)NULL) {
 		*vaddr_ptr = (sos_vaddr_t) NULL;
@@ -178,7 +215,8 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
 	}
 }
 
-void frame_free(sos_vaddr_t vaddr){
+void frame_free(sos_vaddr_t vaddr)
+{
 
     conditional_panic((_frame_table == NULL), "Frame table uninitialised");
 
@@ -195,19 +233,34 @@ void frame_free(sos_vaddr_t vaddr){
         color_print(ANSI_COLOR_RED, "try free vaddr: 0x%x error\n", vaddr);
         return;
     }
+
     frame_table_entry* fte = _frame_table + index;
 
-    // unmap from our window
-    int err = seL4_ARM_Page_Unmap(fte->page_cap);
-    conditional_panic(err, "Failed to unmap page from SOS window\n");
+    if (_free_frame_count >= seL4_MAX_FREE_FRAME_POOL)
+    {
+        assert(_free_frame_count == seL4_MAX_FREE_FRAME_POOL);
 
-    // Delete SmallPageObject cap from SOS cspace
-    err = cspace_delete_cap(cur_cspace, fte->page_cap);
-    conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n");
+        // unmap from our window
+        int err = seL4_ARM_Page_Unmap(fte->page_cap);
+        conditional_panic(err, "Failed to unmap page from SOS window\n");
 
-    // return the frame to ut
-    ut_free(paddr, seL4_PageBits);
+        // Delete SmallPageObject cap from SOS cspace
+        err = cspace_delete_cap(cur_cspace, fte->page_cap);
+        conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n");
 
-    // clear the table entry
-    fte->page_cap = 0;
+        // return the frame to ut
+        ut_free(paddr, seL4_PageBits);
+
+        // clear the table entry
+        fte->page_cap = 0;
+        /* color_print(ANSI_COLOR_RED, "true free\n"); */
+    }
+    else
+    {
+        /* color_print(ANSI_COLOR_GREEN, "fake free\n"); */
+        assert(fte->next_free == -1);
+        fte->next_free = _free_frame_index;
+        _free_frame_index = index;
+        _free_frame_count ++;
+    }
 }

@@ -8,6 +8,8 @@
 // derive seL4 page size from seL4_PageBits
 #define seL4_PAGE_SIZE          (1 << seL4_PageBits)
 
+#define seL4_MAX_FREE_FRAME_POOL (4000) // 4000 * 4k = 16M
+
 
 typedef seL4_Word sos_paddr_t;
 typedef seL4_Word sos_vaddr_t;
@@ -16,8 +18,8 @@ typedef struct frame_table_entry {
     // SmallPageObject cap mapping frame into SOS window
     seL4_ARM_Page page_cap;
 
-    // Corresponding virtual address
-    // seL4_Word vaddr;
+    // index for the free frame.
+    int next_free;
 } frame_table_entry;
 
 typedef frame_table_entry *frame_table;

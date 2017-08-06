@@ -20,8 +20,7 @@ static void test_normal_alloc(void)
 	}
 }
 
-static void test_alloc_free(void)
-{
+static void test_alloc_free(void) {
     /* Test that you never run out of memory if you always free frames. */
 	for (int i = 0; i < 10000; i++) {
 	     /* Allocate a page */
@@ -42,6 +41,36 @@ static void test_alloc_free(void)
 	}
     return;
 }
+
+static void test_multi_alloc_free(void) {
+    /* Test that you never run out of memory if you always free frames. */
+
+    seL4_Word start = 0;
+	for (int i = 0; i < 5000; i++) {
+	     /* Allocate a page */
+	     seL4_Word vaddr = 0;
+	     seL4_Word page = frame_alloc(&vaddr);
+	     assert(vaddr != 0);
+         if (start == 0) start = vaddr;
+
+	     /* Test you can touch the page */
+	     *((seL4_Word *)vaddr) = 0x37;
+	     assert(*((seL4_Word *)vaddr) == 0x37);
+
+	     /* print every 1000 iterations */
+	     if (i % 1000 == 0) {
+	        color_print(ANSI_COLOR_WHITE, "Page #%d allocated at 0x%x\n",  i, vaddr);
+	     }
+
+	     /* frame_free(page); */
+	}
+    for (int i = 0; i < 5000;i ++)
+    {
+        frame_free(start+ i * 4096);
+    }
+    return;
+}
+
 
 static void test_infinite_alloc(void)
 {
@@ -71,5 +100,6 @@ void m2_test(void) {
 
     test_normal_alloc();
     test_alloc_free();
+    test_multi_alloc_free();
     test_infinite_alloc();
 }
