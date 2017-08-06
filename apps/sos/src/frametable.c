@@ -75,7 +75,7 @@ static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr) {
     {
         return -1;
     }
-	return (PAGE_SHIFT(vaddr - WINDOW_START));
+    return (PAGE_SHIFT(vaddr - WINDOW_START));
 
 }
 
@@ -93,16 +93,16 @@ static sos_vaddr_t frame_translate_index_to_vaddr(int index)
 /*     { */
 /*         return -1; */
 /*     } */
-/* 	return PAGE_SHIFT(paddr - _ut_lo ); */
+/*     return PAGE_SHIFT(paddr - _ut_lo ); */
 /* } */
 
 
 /* Initialize frame table */
 void frametable_init(void) {
-	int err;
+    int err;
     uint32_t frame_table_size;
     uint32_t frames_to_be_managed;
-	sos_vaddr_t frame_table_start_vaddr;
+    sos_vaddr_t frame_table_start_vaddr;
 
     // Die on double init
     conditional_panic((_frame_table != NULL), "Frame table has already been initialised");
@@ -144,7 +144,7 @@ void frametable_init(void) {
 
 /* allocate frame_table */
 static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size) {
-	int i;
+    int i;
     sos_vaddr_t cur_vaddr = frame_table_start_vaddr;
     assert(!(frame_table_size & (seL4_PAGE_SIZE - 1)));
     seL4_Word num_frames = frame_table_size >> seL4_PageBits;
@@ -155,14 +155,14 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
         if (paddr) {
 
             // TODO maybe we need record the frame itself cap
-		    seL4_Word temp_cap;
+            seL4_Word temp_cap;
             int ret = _build_paddr_to_vaddr_frame(paddr, cur_vaddr, &temp_cap);
             if (ret != 0) {
                 return -1;
             }
             cur_vaddr += seL4_PAGE_SIZE;
         } else {
-        	return -2;
+            return -2;
         }
     }
 
@@ -193,26 +193,26 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
     /* static int true_alloc = 0; */
     /* true_alloc ++; */
     /* color_print(ANSI_COLOR_RED, "true alloc %d\n", true_alloc); */
-	sos_paddr_t paddr = ut_alloc(seL4_PageBits);
-	if (paddr == (sos_paddr_t)NULL) {
-		*vaddr_ptr = (sos_vaddr_t) NULL;
-		return (sos_vaddr_t) NULL;
-	} else {
+    sos_paddr_t paddr = ut_alloc(seL4_PageBits);
+    if (paddr == (sos_paddr_t)NULL) {
+        *vaddr_ptr = (sos_vaddr_t) NULL;
+        return (sos_vaddr_t) NULL;
+    } else {
         assert(paddr >= _ut_lo && paddr < _ut_hi);
-		sos_vaddr_t vaddr = frame_translate_paddr_to_vaddr(paddr);
+        sos_vaddr_t vaddr = frame_translate_paddr_to_vaddr(paddr);
 
-	    seL4_Word temp_cap;
+        seL4_Word temp_cap;
         assert (0 == _build_paddr_to_vaddr_frame(paddr, vaddr, &temp_cap));
 
-	    uint32_t index = frame_translate_vaddr_to_index(vaddr);
+        uint32_t index = frame_translate_vaddr_to_index(vaddr);
 
         assert((_frame_table + index)->page_cap == 0); // something error with ut_alloc ?
-	    (_frame_table + index)->page_cap = temp_cap;
-	    /* (_frame_table + index)->vaddr = vaddr; */
+        (_frame_table + index)->page_cap = temp_cap;
+        /* (_frame_table + index)->vaddr = vaddr; */
 
-	    *vaddr_ptr = vaddr;
-	    return vaddr;
-	}
+        *vaddr_ptr = vaddr;
+        return vaddr;
+    }
 }
 
 void frame_free(sos_vaddr_t vaddr)
