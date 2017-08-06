@@ -8,6 +8,6 @@
 #include "sys/debug.h"
 
 void m1_test(void);
-
+void m2_test(void);
 
 #endif

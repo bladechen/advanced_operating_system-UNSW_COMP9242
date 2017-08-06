@@ -17,6 +17,14 @@
 #define DMA_SIZE_BITS       (22)
 #define DMA_VEND            (DMA_VSTART + (1ull << DMA_SIZE_BITS))
 
+
+/* Starting virtual address for SOS managed frames*/
+#define WINDOW_START 0x20000000
+
+/* Operations to get/recover the frame number*/
+#define PAGE_SHIFT(X)      ((X) >> seL4_PageBits)
+#define PAGE_UNSHIFT(X)    ((X) << seL4_PageBits)
+
 /* From this address onwards is where any devices will get mapped in
  * by the map_device function. You should not use any addresses beyond
  * here without first modifying map_device */
