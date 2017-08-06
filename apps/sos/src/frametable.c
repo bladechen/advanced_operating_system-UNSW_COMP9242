@@ -127,8 +127,8 @@ seL4_Word frame_alloc(seL4_Word * vaddr_ptr) {
 	// dprintf(0, "in frame_alloc, paddr get from ut_alloc: %x\n", paddr);
 
 	if (paddr == 0) {
-		*vaddr_ptr = NULL;
-		return NULL;
+		*vaddr_ptr = (seL4_Word)NULL;
+		return (seL4_Word)NULL;
 	} else {
 		seL4_Word vaddr = frame_translate_paddr_to_vaddr(paddr);
 
