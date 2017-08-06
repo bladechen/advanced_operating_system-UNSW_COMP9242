@@ -485,27 +485,18 @@ int main(void) {
     serial_handler = serial_init();
 
     // m1_test();
+    //
+    dprintf(0, "initialise frametable...\n");
+    frametable_init();
 
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
 
-    // int i;
-    // for(i = 0; i<10; i++) {
-    //     seL4_Word paddr = ut_alloc(seL4_PageBits);
-    //     dprintf(0, "%x\n", paddr);
-    // }
-
-
-    dprintf(0, "initialise frametable...\n");
-    frametable_init();
-
     m2_test();
+    dprintf(0, "finish m2_test\n");
 
-    seL4_Word low, high;
-    ut_find_memory(&low, &high);
-    dprintf(0, "after m2_test, low:%x high:%x\n", low, high);
 
-    /* Wait on synchronous endpoint for IPC */
+        /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     syscall_loop(_sos_ipc_ep_cap);
 

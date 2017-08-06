@@ -15,13 +15,38 @@
 
 #include "frametable.h"
 
-static frame_table _frame_table;
-static seL4_Word _ut_hi;
-static seL4_Word _ut_lo;
+static frame_table _frame_table = NULL;
+static seL4_Word   _managed_frame_num = 0;
+static seL4_Word   _ut_hi = 0;
+static seL4_Word   _ut_lo = 0;
 
 /* function declarations */
-static int allocate_frame_table(seL4_Word frame_table_start_vaddr, uint32_t frame_table_size);
+static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size);
 
+
+static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL4_CPtr* cap)
+{
+
+    *cap = 0;
+    int ret;
+    ret = cspace_ut_retype_addr(paddr, seL4_ARM_SmallPageObject, 12,
+                                cur_cspace, cap);
+    if (ret != 0)
+    {
+        color_print(ANSI_COLOR_RED, "_build_paddr_to_vaddr_frame:cspace_ut_retype_addr ret: %d\n", ret);
+        return ret;
+    }
+
+    ret = map_page(*cap, seL4_CapInitThreadPD, vaddr, seL4_AllRights,
+                   seL4_ARM_Default_VMAttributes);
+    if (ret != 0)
+    {
+        color_print(ANSI_COLOR_RED, "_build_paddr_to_vaddr_frame:map_page  paddr: %p, vaddr: %p map_page ret: %d\n", paddr, vaddr,  ret);
+        return ret;
+    }
+    return 0;
+
+}
 
 /* function definitions */
 
@@ -29,89 +54,96 @@ static int allocate_frame_table(seL4_Word frame_table_start_vaddr, uint32_t fram
  * virtual address to frame_table array index is also 1-to-1 mapping*/
 
 // return corresponding physical address
-seL4_Word frame_translate_vaddr_to_paddr(seL4_Word vaddr) {
+static sos_paddr_t frame_translate_vaddr_to_paddr(sos_vaddr_t vaddr) {
+    assert(!(vaddr & (seL4_PAGE_SIZE - 1)));
     return (vaddr - WINDOW_START + _ut_lo);
 }
 // return corresponding virtual address
-seL4_Word frame_translate_paddr_to_vaddr(seL4_Word paddr) {
+static sos_vaddr_t frame_translate_paddr_to_vaddr(sos_paddr_t paddr) {
+    assert(!(paddr & (seL4_PAGE_SIZE - 1)));
     return (paddr - _ut_lo + WINDOW_START);
 }
 
-seL4_Word frame_translate_vaddr_to_index(seL4_Word vaddr) {
+static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr) {
+    if (vaddr < WINDOW_START || vaddr >= (WINDOW_START + _managed_frame_num * seL4_PAGE_SIZE) )
+    {
+        return -1;
+    }
 	return (PAGE_SHIFT(vaddr - WINDOW_START));
 }
 
-seL4_Word frame_translate_index_to_vaddr(uint32_t index) {
-	return (PAGE_UNSHIFT(index + WINDOW_START));
-}
+/* static int frame_translate_paddr_to_index(sos_vaddr_t vaddr) { */
+/*     if (vaddr <  _ut_lo || vaddr >= _ut_hi ) ) */
+/*     { */
+/*         return -1; */
+/*     } */
+/* 	return PAGE_SHIFT(paddr - _ut_lo ); */
+/* } */
+
 
 /* Initialize frame table */
 void frametable_init(void) {
 	int err;
     uint32_t frame_table_size;
     uint32_t frames_to_be_managed;
-	seL4_Word frame_table_start_vaddr;
+	sos_vaddr_t frame_table_start_vaddr;
 
     // Die on double init
     conditional_panic((_frame_table != NULL), "Frame table has already been initialised");
 
     // initialize ut_lo and ut_hi
     ut_find_memory(&_ut_lo, &_ut_hi);
+    // low level ut mem ensure that it is 4k aligned
+    assert(!(_ut_lo & (seL4_PAGE_SIZE -1 )));
+    assert(!(_ut_hi & (seL4_PAGE_SIZE -1 )));
 
     /* dynamically calculate the size of frame_table */
     frames_to_be_managed = DIVROUND((_ut_hi - _ut_lo), seL4_PAGE_SIZE);
+    _managed_frame_num = frames_to_be_managed;
     frame_table_size = frames_to_be_managed * sizeof(frame_table_entry);
+
+    frame_table_size = DIVROUND(frame_table_size, seL4_PAGE_SIZE) * seL4_PAGE_SIZE;
     // do this instead of directly WINDOW_START is to keep the address aligned
     // otherwise it may execeed the WINDOW_START when doing allocation
-    frame_table_start_vaddr = 
-    	WINDOW_START - DIVROUND(frame_table_size, seL4_PAGE_SIZE) * seL4_PAGE_SIZE;
 
-    err = allocate_frame_table(frame_table_start_vaddr, frame_table_size);
+    frame_table_start_vaddr = WINDOW_START - frame_table_size;
+
+    err = _allocate_frame_table(frame_table_start_vaddr, frame_table_size);
     conditional_panic(err, "Failed to allocate frame table");
-
-    // after allocation, we need to update _ut_lo, since part of ut_mem have
-    // been allocated as frame table
-    // ut_find_memory(&_ut_lo, &_ut_hi);
-    // _ut_lo += DIVROUND(frame_table_size, seL4_PAGE_SIZE) * seL4_PAGE_SIZE;
 
     assert(frame_table_start_vaddr > DMA_VEND);
 
     _frame_table = (frame_table) frame_table_start_vaddr;
-
+    for (int i = 0; i < _managed_frame_num; i ++)
+    {
+        _frame_table[i].page_cap = 0;
+    }
 
     dprintf(0, "After initialization: ut_lo:%x ut_high:%x\n", _ut_lo, _ut_hi);
     dprintf(0, "virtual address of frame_table: %x\n", _frame_table);
 }
 
 /* allocate frame_table */
-static int allocate_frame_table(seL4_Word frame_table_start_vaddr, uint32_t frame_table_size) {
+static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size) {
 	int i;
-    seL4_Word cur_vaddr = frame_table_start_vaddr;
-    seL4_Word num_frames = DIVROUND(frame_table_size, seL4_PAGE_SIZE);
+    sos_vaddr_t cur_vaddr = frame_table_start_vaddr;
+    assert(!(frame_table_size & (seL4_PAGE_SIZE - 1)));
+    seL4_Word num_frames = frame_table_size >> seL4_PageBits;
 
     for(i = 0; i < num_frames; i++) {
-        seL4_Word paddr = ut_alloc(seL4_PageBits);
+        sos_paddr_t paddr = ut_alloc(seL4_PageBits);
         // dprintf(0, "allocated frame paddr:%x\n", paddr);
         if (paddr) {
-            int err;
-		    seL4_Word temp_cap; 
-		    err = cspace_ut_retype_addr(paddr, 
-		    	seL4_ARM_SmallPageObject, 
-		    	seL4_PageBits,
-		        cur_cspace, 
-		        &temp_cap);
-		    conditional_panic(err, "Failed to retype frame");
 
-		    err = map_page(temp_cap, 
-		    	seL4_CapInitThreadPD, 
-		    	cur_vaddr, 
-		    	seL4_AllRights,
-		        seL4_ARM_Default_VMAttributes);
-		    conditional_panic(err, "Failed to map page of frame into SOS");
-
+            // TODO maybe we need record the frame itself cap
+		    seL4_Word temp_cap;
+            int ret = _build_paddr_to_vaddr_frame(paddr, cur_vaddr, &temp_cap);
+            if (ret != 0) {
+                return -1;
+            }
             cur_vaddr += seL4_PAGE_SIZE;
         } else {
-        	return 1;
+        	return -2;
         }
     }
 
@@ -121,58 +153,52 @@ static int allocate_frame_table(seL4_Word frame_table_start_vaddr, uint32_t fram
 }
 
 /* allocate a frame */
-seL4_Word frame_alloc(seL4_Word * vaddr_ptr) {
-	seL4_Word paddr = ut_alloc(seL4_PageBits);
+sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
 
-	// dprintf(0, "in frame_alloc, paddr get from ut_alloc: %x\n", paddr);
-
-	if (paddr == 0) {
-		*vaddr_ptr = (seL4_Word)NULL;
-		return (seL4_Word)NULL;
+    conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
+	sos_paddr_t paddr = ut_alloc(seL4_PageBits);
+	if (paddr == (sos_paddr_t)NULL) {
+		*vaddr_ptr = (sos_vaddr_t) NULL;
+		return (sos_vaddr_t) NULL;
 	} else {
-		seL4_Word vaddr = frame_translate_paddr_to_vaddr(paddr);
+        assert(paddr >= _ut_lo && paddr < _ut_hi);
+		sos_vaddr_t vaddr = frame_translate_paddr_to_vaddr(paddr);
 
-		int err;
-	    seL4_Word temp_cap; 
-	    err = cspace_ut_retype_addr(paddr, 
-	    	seL4_ARM_SmallPageObject, 
-	    	seL4_PageBits,
-	        cur_cspace, 
-	        &temp_cap);
-	    conditional_panic(err, "Failed to retype frame");
-
-	    err = map_page(temp_cap, 
-	    	seL4_CapInitThreadPD, 
-	    	vaddr, 
-	    	seL4_AllRights,
-	        seL4_ARM_Default_VMAttributes);
-	    conditional_panic(err, "Failed to map page of frame into SOS");
+	    seL4_Word temp_cap;
+        assert (0 == _build_paddr_to_vaddr_frame(paddr, vaddr, &temp_cap));
 
 	    uint32_t index = frame_translate_vaddr_to_index(vaddr);
 
+        assert((_frame_table + index)->page_cap == 0); // something error with ut_alloc ?
 	    (_frame_table + index)->page_cap = temp_cap;
-	    (_frame_table + index)->vaddr = vaddr;
+	    /* (_frame_table + index)->vaddr = vaddr; */
 
 	    *vaddr_ptr = vaddr;
 	    return vaddr;
 	}
 }
 
-void frame_free(seL4_Word vaddr){
-	int err;
-    uint32_t index;
-    seL4_Word paddr;
-    frame_table_entry *fte;
+void frame_free(sos_vaddr_t vaddr){
 
-    // Die if uninitialised
     conditional_panic((_frame_table == NULL), "Frame table uninitialised");
 
-    paddr = frame_translate_vaddr_to_paddr(vaddr);
-    index = frame_translate_vaddr_to_index(vaddr);
-    fte = _frame_table + index;
+    if (vaddr == (sos_vaddr_t)NULL || (vaddr & (seL4_PAGE_SIZE - 1)))
+    {
+        color_print(ANSI_COLOR_RED, "invalid vaddr to free: 0x%x\n", vaddr);
+        return;
+    }
+
+    sos_paddr_t paddr = frame_translate_vaddr_to_paddr(vaddr);
+    int index = frame_translate_vaddr_to_index(vaddr);
+    if (index < 0 || _frame_table[index].page_cap == 0)
+    {
+        color_print(ANSI_COLOR_RED, "try free vaddr: 0x%x error\n", vaddr);
+        return;
+    }
+    frame_table_entry* fte = _frame_table + index;
 
     // unmap from our window
-    err = seL4_ARM_Page_Unmap(fte->page_cap);
+    int err = seL4_ARM_Page_Unmap(fte->page_cap);
     conditional_panic(err, "Failed to unmap page from SOS window\n");
 
     // Delete SmallPageObject cap from SOS cspace
@@ -183,6 +209,5 @@ void frame_free(seL4_Word vaddr){
     ut_free(paddr, seL4_PageBits);
 
     // clear the table entry
-    fte->page_cap = NULL;
-    fte->vaddr = NULL;
+    fte->page_cap = 0;
 }

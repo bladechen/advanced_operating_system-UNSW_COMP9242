@@ -3,11 +3,12 @@
 #include "sys/debug.h"
 #include "../frametable.h"
 
-void m2_test(void) {
-	/* Allocate 10 pages and make sure you can touch them all */
+static void test_normal_alloc(void)
+{
+    /* Allocate 10 pages and make sure you can touch them all */
 	for (int i = 0; i < 10; i++) {
 	    /* Allocate a page */
-	    seL4_Word vaddr;
+	    seL4_Word vaddr = 0;
 	    frame_alloc(&vaddr);
 	    assert(vaddr);
 
@@ -15,13 +16,16 @@ void m2_test(void) {
 	    *((seL4_Word *)vaddr) = 0x37;
 	    assert(*((seL4_Word *)vaddr) == 0x37);
 
-	    dprintf(0, "Page #%d allocated at %x\n",  i, vaddr);
+	    color_print(ANSI_COLOR_WHITE, "Page #%d allocated at 0x%x\n",  i, vaddr);
 	}
+}
 
-	/* Test that you never run out of memory if you always free frames. */
+static void test_alloc_free(void)
+{
+    /* Test that you never run out of memory if you always free frames. */
 	for (int i = 0; i < 10000; i++) {
 	     /* Allocate a page */
-	     seL4_Word vaddr;
+	     seL4_Word vaddr = 0;
 	     seL4_Word page = frame_alloc(&vaddr);
 	     assert(vaddr != 0);
 
@@ -31,21 +35,25 @@ void m2_test(void) {
 
 	     /* print every 1000 iterations */
 	     if (i % 1000 == 0) {
-	        dprintf(0, "Page #%d allocated at %x\n",  i, vaddr);
+	        color_print(ANSI_COLOR_WHITE, "Page #%d allocated at 0x%x\n",  i, vaddr);
 	     }
 
 	     frame_free(page);
 	}
+    return;
+}
 
-	/* Test that you eventually run out of memory gracefully,
+static void test_infinite_alloc(void)
+{
+    /* Test that you eventually run out of memory gracefully,
 	   and doesn't crash */
 	seL4_Word vaddr;
-	seL4_Word last_vaddr;
+	seL4_Word last_vaddr = 0;
 	while (true) {
 	     /* Allocate a page */
 	     frame_alloc(&vaddr);
 	     if (!vaddr) {
-		    dprintf(0, "Out of memory!\n");
+		    color_print(ANSI_COLOR_RED, "Out of memory!\n");
 		    break;
 	     }
 
@@ -55,5 +63,13 @@ void m2_test(void) {
 
 	     last_vaddr = vaddr;
 	}
-	dprintf(0, "after loop to exausting the ut_mem, the vaddr: %x\n", last_vaddr);
+	color_print(ANSI_COLOR_WHITE, "after loop to exausting the ut_mem, the vaddr: 0x%x\n", last_vaddr);
+    return;
+}
+
+void m2_test(void) {
+
+    test_normal_alloc();
+    test_alloc_free();
+    test_infinite_alloc();
 }
