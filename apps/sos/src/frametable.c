@@ -15,12 +15,6 @@
 
 #include "frametable.h"
 
-/* Integer division, rounded up (rather than truncating) */
-#define DIVROUND(a,b) (((a) + ((b) - 1)) / (b))
-// derive seL4 page size from seL4_PageBits
-#define seL4_PAGE_SIZE          (1 << seL4_PageBits)
-
-
 static frame_table _frame_table;
 static seL4_Word _ut_hi;
 static seL4_Word _ut_lo;
@@ -32,7 +26,7 @@ static int allocate_frame_table(seL4_Word frame_table_start_vaddr, uint32_t fram
 /* function definitions */
 
 /* 1-to-1 mapping for physical address to virtual address
- * and the virtual address to frame_table array index is also 1-to-1 mapping*/
+ * virtual address to frame_table array index is also 1-to-1 mapping*/
 
 // return corresponding physical address
 seL4_Word frame_translate_vaddr_to_paddr(seL4_Word vaddr) {
@@ -155,8 +149,6 @@ seL4_Word frame_alloc(seL4_Word * vaddr_ptr) {
 	    conditional_panic(err, "Failed to map page of frame into SOS");
 
 	    uint32_t index = frame_translate_vaddr_to_index(vaddr);
-
-	    // assert((_frame_table + index)->page_cap == NULL);
 
 	    (_frame_table + index)->page_cap = temp_cap;
 	    (_frame_table + index)->vaddr = vaddr;

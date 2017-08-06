@@ -501,7 +501,6 @@ int main(void) {
 
     m2_test();
 
-
     seL4_Word low, high;
     ut_find_memory(&low, &high);
     dprintf(0, "after m2_test, low:%x high:%x\n", low, high);
