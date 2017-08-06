@@ -19,7 +19,7 @@ void m2_test(void) {
 	}
 
 	/* Test that you never run out of memory if you always free frames. */
-	for (int i = 0; i < 10000; i++) {
+	for (int i = 0; i < 50000; i++) {
 	     /* Allocate a page */
 	     seL4_Word vaddr;
 	     seL4_Word page = frame_alloc(&vaddr);
