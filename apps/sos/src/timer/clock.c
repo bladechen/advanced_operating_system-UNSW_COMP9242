@@ -260,7 +260,11 @@ static epit_t g_epit1;
 static epit_t g_epit2;
 static volatile timestamp_t g_cur_timestamp_us = 0;
 
+static volatile long long last_counter = 0;
+
 static volatile bool g_timedriver_is_init = 0;
+
+static void _update_timestamp(void);
 
 // gpt used for interrupt to update time_stamp
 // epit2 used for background tick
@@ -416,6 +420,8 @@ static void _disable_timerdriver(void)
 
 int start_timer(seL4_CPtr interrupt_ep)
 {
+
+    /* color_print(ANSI_COLOR_GREEN, "g_us: %llu\n", g_cur_timestamp_us); */
     if (g_timer != NULL) // if already g_timer is not null, timer driver should be init already.
     {
         return CLOCK_R_OK;
@@ -434,6 +440,9 @@ int start_timer(seL4_CPtr interrupt_ep)
         return CLOCK_R_FAIL;
     }
     _enable_timerdriver();
+    g_cur_timestamp_us = 0;
+    last_counter = 0;
+    _update_timestamp();
     /* conditional_panic(g_timer == NULL, "init global timer fail, maybe no enough memory!\n"); */
     return CLOCK_R_OK;
 }
@@ -485,9 +494,14 @@ int timer_interrupt(void)
 
 static void _update_timestamp(void)
 {
-    static long long last_counter = 0;
     /* static long long last_usecond = 0; */
     long long cur_counter = g_epit2.epit_map->epitcnt; // every 1 count stands for 1us
+    /* color_print(ANSI_COLOR_GREEN, "_update_timestamp\n"); */
+    if (last_counter == 0)
+    {
+        last_counter = cur_counter;
+        return;
+    }
 
     if (cur_counter > last_counter)
     {
@@ -504,7 +518,7 @@ static void _update_timestamp(void)
 
 timestamp_t time_stamp(void)
 {
-    /* update_timestamp(); */
+    /* _update_timestamp(); */
     return g_cur_timestamp_us/1000;
 }
 
@@ -528,7 +542,7 @@ int stop_timer(void)
     {
         return CLOCK_R_FAIL;
     }
-        _disable_timerdriver();
+    _disable_timerdriver();
     destroy_timer_unit(g_timer);
     g_timer = NULL;
     return 0;
@@ -557,7 +571,7 @@ void handle_gpt_irq(void)
 {
 
     _update_timestamp();
-    /* color_print(ANSI_COLOR_GREEN, "in handle_gpt_irq: %llu\n", time_stamp()); */
+    /* color_print(ANSI_COLOR_GREEN, "in handle_gpt_irq: %llu\n", g_cur_timestamp_us); */
     timer_interrupt();
 
 
