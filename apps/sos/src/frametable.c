@@ -171,6 +171,7 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
     return 0;
 }
 
+int my_cap = 0;
 /* allocate a frame */
 sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
 
@@ -188,6 +189,7 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
         _frame_table[index].next_free = -1;
         assert(_frame_table[index].page_cap != 0);
         *vaddr_ptr = frame_translate_index_to_vaddr(index);
+        my_cap = _frame_table[index].page_cap;
         return *vaddr_ptr;
     }
     /* static int true_alloc = 0; */
@@ -208,6 +210,7 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
 
         assert((_frame_table + index)->page_cap == 0); // something error with ut_alloc ?
         (_frame_table + index)->page_cap = temp_cap;
+        my_cap =  temp_cap;
         /* (_frame_table + index)->vaddr = vaddr; */
 
         *vaddr_ptr = vaddr;

@@ -13,7 +13,7 @@
 #include <ut_manager/ut.h>
 #include "vmem_layout.h"
 
-#define verbose 0
+#define verbose 5
 #include <sys/panic.h>
 #include <sys/debug.h>
 #include <cspace/cspace.h>
@@ -26,7 +26,7 @@ extern const seL4_BootInfo* _boot_info;
  * @param vaddr The virtual address of the mapping
  * @return 0 on success
  */
-static int 
+int
 _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
     seL4_Word pt_addr;
     seL4_ARM_PageTable pt_cap;
@@ -38,7 +38,7 @@ _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
         return !0;
     }
     /* Create the frame cap */
-    err =  cspace_ut_retype_addr(pt_addr, 
+    err =  cspace_ut_retype_addr(pt_addr,
                                  seL4_ARM_PageTableObject,
                                  seL4_PageTableBits,
                                  cur_cspace,
@@ -47,15 +47,15 @@ _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
         return !0;
     }
     /* Tell seL4 to map the PT in for us */
-    err = seL4_ARM_PageTable_Map(pt_cap, 
-                                 pd, 
-                                 vaddr, 
+    err = seL4_ARM_PageTable_Map(pt_cap,
+                                 pd,
+                                 vaddr,
                                  seL4_ARM_Default_VMAttributes);
     return err;
 }
 
-int 
-map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr, 
+int
+map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,
                 seL4_CapRights rights, seL4_ARM_VMAttributes attr){
     int err;
 
@@ -73,7 +73,7 @@ map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,
     return err;
 }
 
-void* 
+void*
 map_device(void* paddr, int size){
     static seL4_Word virt = DEVICE_START;
     seL4_Word phys = (seL4_Word)paddr;
@@ -92,9 +92,9 @@ map_device(void* paddr, int size){
                                     &frame_cap);
         conditional_panic(err, "Unable to retype device memory");
         /* Map in the page */
-        err = map_page(frame_cap, 
-                       seL4_CapInitThreadPD, 
-                       virt, 
+        err = map_page(frame_cap,
+                       seL4_CapInitThreadPD,
+                       virt,
                        seL4_AllRights,
                        0);
         conditional_panic(err, "Unable to map device");

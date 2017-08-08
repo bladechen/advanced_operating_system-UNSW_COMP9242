@@ -173,6 +173,94 @@ void handle_syscall(seL4_Word badge, int num_args) {
 void update_timestamp(void);
 void handle_epit1_irq(void);
 void handle_gpt_irq(void);
+static void reply_fault(void)
+{
+
+    seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
+    assert(reply_cap != CSPACE_NULL);
+
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, 0);
+    seL4_Send(reply_cap, reply);
+
+
+
+}
+extern int my_cap;
+uint32_t my_vaddr = 0;
+uint32_t vv = 0;
+int _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr);
+
+void free_page(uint32_t);
+void cb(uint32_t id, void* data)
+{
+    color_print(ANSI_COLOR_RED, "cb\n");
+    free_page(vv);
+    return;
+}
+static void handle_stack_fault(uint32_t fault_addr)
+{
+
+    fault_addr &= 0xFFFFF000;
+    my_vaddr = fault_addr;
+
+    sos_vaddr_t addr = NULL;
+    addr = frame_alloc(&addr);
+
+    for (int i = 0; i < 1024 ; i ++)
+        *((uint32_t* )(addr + i * 4)) = 100000;
+    vv = addr;
+    assert(addr != NULL);
+    seL4_CPtr cap = cspace_copy_cap(cur_cspace, cur_cspace, my_cap, seL4_AllRights); //XXX why cur_space?
+    assert(cap > 0);
+    my_cap = cap;
+    color_print(ANSI_COLOR_RED, "%d, alloc :0x%x\n",my_cap, fault_addr);
+
+
+/* int  */
+/* map_page(seL4_CPtr frame_cap, seL4_ARM_PageDirectory pd, seL4_Word vaddr,  */
+/*                 seL4_CapRights rights, seL4_ARM_VMAttributes attr){ */
+     int err;
+
+     /* Attempt the mapping */
+     err = seL4_ARM_Page_Map(cap , tty_test_process.vroot, fault_addr, seL4_CanWrite|seL4_CanRead, seL4_ARM_Default_VMAttributes);
+     if(err == seL4_FailedLookup){
+         /* Assume the error was because we have no page table */
+
+         color_print(ANSI_COLOR_GREEN, "seL4_FailedLookup\n");
+         err = _map_page_table(tty_test_process.vroot, fault_addr);
+         if(!err){
+
+             err = seL4_ARM_Page_Map(cap , tty_test_process.vroot, fault_addr, seL4_CanWrite|seL4_CanRead, seL4_ARM_Default_VMAttributes);
+             assert(err == 0);
+         }
+    }
+     register_timer(2000, cb, NULL);
+
+    /* return err; */
+}
+
+
+void free_page(uint32_t vaddr)
+{
+    vaddr &= 0xfffff000;
+    int err = 0;
+
+    assert(0 ==  seL4_ARM_Page_Unmap(my_cap));
+    assert(0 ==  cspace_delete_cap(cur_cspace, my_cap));
+
+
+    for (int i = 0; i < 1024 ; i ++)
+        *((uint32_t* )(vv+ i * 4)) = 99;
+
+    frame_free(vaddr);
+
+    color_print(ANSI_COLOR_RED, "%d, free :0x%x\n",my_cap, vaddr);
+    /* assert(0 ==  cspace_delete_cap(tty_test_process.croot, my_cap)); */
+    return;
+}
+
+
 void syscall_loop(seL4_CPtr ep) {
 
     while (1) {
@@ -210,7 +298,11 @@ void syscall_loop(seL4_CPtr ep) {
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
 
-            assert(!"Unable to handle vm faults");
+
+            handle_stack_fault(seL4_GetMR(1));
+            reply_fault();
+
+            /* assert(!"Unable to handle vm faults"); */
         }else if(label == seL4_NoFault) {
             /* System call */
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
@@ -484,6 +576,7 @@ int main(void) {
     assert(0 == start_timer(_sos_interrupt_ep_cap));
     serial_handler = serial_init();
 
+
     // m1_test();
     //
     dprintf(0, "initialise frametable...\n");
@@ -492,7 +585,7 @@ int main(void) {
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
 
-    m2_test();
+    /* m2_test(); */
     dprintf(0, "finish m2_test\n");
 
 

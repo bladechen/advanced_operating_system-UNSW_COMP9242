@@ -38,6 +38,13 @@ thread_block(void){
 
     seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
 }
+void delay(int count)
+{
+    int sum;
+    for (int i = 0; i < count; i ++)
+        sum *= i;
+    printf("%d\n", sum);
+}
 
 int main(void){
     /* initialise communication */
@@ -48,8 +55,26 @@ int main(void){
     /* { */
     /*     printf ("helloworld"); */
     /* } */
+    int a = 1;
+    int *p = &a;
     do {
         printf("task:\tHello world, I'm\ttty_test!\n");
+        p -= (4096 * (1<<6));
+        printf("now read the stack addr %p, which should fault!!!\n", p);
+        printf("%d\n", *p);
+        *p = 100;
+        printf("success!!\n", p);
+
+        delay(1000000000);
+        delay(1000000000);
+        delay(1000000000);
+        /* p -= (4096 * (1<<6)); */
+        printf("now read the stack addr %p, which should fault!!!\n", p);
+        *p = 100;
+        printf("success!!\n", p);
+
+
+
         fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall
