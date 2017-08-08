@@ -35,7 +35,7 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
 
     *cap = 0;
     int ret;
-    ret = cspace_ut_retype_addr(paddr, seL4_ARM_SmallPageObject, 12,
+    ret = cspace_ut_retype_addr(paddr, seL4_ARM_SmallPageObject, seL4_PageBits,
                                 cur_cspace, cap);
     if (ret != 0)
     {
