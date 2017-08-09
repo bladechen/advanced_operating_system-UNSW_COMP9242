@@ -8,7 +8,7 @@
 // derive seL4 page size from seL4_PageBits
 #define seL4_PAGE_SIZE          (1 << seL4_PageBits)
 
-#define seL4_FRAME_NUMBER_MASK  ()
+#define seL4_FRAME_MASK  (0xFFFFF000)
 
 #define seL4_MAX_FREE_FRAME_POOL (4000) // 4000 * 4k = 16M
 
@@ -27,8 +27,19 @@ typedef struct frame_table_entry {
 typedef frame_table_entry *frame_table;
 
 void frametable_init(void);
-seL4_Word frame_alloc(seL4_Word * vaddr_ptr);
+sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr); // TODO memset(0)
 void frame_free(seL4_Word vaddr);
+
+
+void deattach_page_frame(sos_vaddr_t vaddr);
+
+int attach_page_frame(sos_vaddr_t vaddr);
+
+
+
+//
+// vaddr_t alloc_page_frame();
+//
 
 
 #endif /* _MAPPING_H_ */

@@ -100,6 +100,6 @@ void m2_test(void) {
 
     test_normal_alloc();
     test_alloc_free();
-    test_multi_alloc_free();
+    /* test_multi_alloc_free(); */
     test_infinite_alloc();
 }

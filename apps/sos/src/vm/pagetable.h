@@ -5,7 +5,19 @@
 #include "comm.h"
 
 #define LEVEL1_PAGE_ENTRY_COUNT (1024)
+#define LEVEL1_PAGE_MASK        (0xFFC00000)
 #define LEVEL2_PAGE_ENTRY_COUNT (1024)
+#define LEVEL2_PAGE_MASK        (0x003FF000)
+
+#define seL4_PAGE_MASK  (0xFFFFF000U)
+
+
+enum PAGETABLE_ERR
+{
+    PAGETABLE_SUCCESS = 0,
+    PAGETABLE_OOM     = -1,
+
+};
 struct pagetable_entry
 {
     uint32_t entity; // [12,31] is for frame_number, other bits reserved for further Milestones.

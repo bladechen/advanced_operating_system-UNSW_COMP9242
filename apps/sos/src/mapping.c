@@ -24,7 +24,7 @@ extern const seL4_BootInfo* _boot_info;
 void my_unmap_page_table( sos_object* obj)
 {
     assert (0 == seL4_ARM_PageTable_Unmap(obj->cap));
-    free_sos_object(obj);
+    free_sos_object(obj, seL4_PageTableBits);
 }
 
 int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr, sos_object* obj)
