@@ -9,6 +9,7 @@
  */
 
 #include "mapping.h"
+#include "comm.h"
 
 #include <ut_manager/ut.h>
 #include "vmem_layout.h"
@@ -20,14 +21,42 @@
 
 extern const seL4_BootInfo* _boot_info;
 
+void my_unmap_page_table( sos_object* obj)
+{
+    assert (0 == seL4_ARM_PageTable_Unmap(obj->cap));
+    free_sos_object(obj);
+}
 
+int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr, sos_object* obj)
+{
+    free_sos_object(obj);
+    seL4_Word pt_addr;
+    seL4_ARM_PageTable pt_cap;
+    int err;
+    err = init_sos_object(obj, seL4_ARM_PageTableObject, seL4_PageTableBits);
+    if (err != 0)
+    {
+        return -1;
+    }
+
+    err = seL4_ARM_PageTable_Map(obj->cap,
+                                 pd,
+                                 vaddr,
+                                 seL4_ARM_Default_VMAttributes);
+    if (err != 0)
+    {
+        color_print(ANSI_COLOR_RED, "seL4_ARM_PageTable_Map return: %d\n", err);
+    }
+    return err;
+
+}
 /**
  * Maps a page table into the root servers page directory
  * @param vaddr The virtual address of the mapping
  * @return 0 on success
  */
-int
-_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
+
+int _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
     seL4_Word pt_addr;
     seL4_ARM_PageTable pt_cap;
     int err;

@@ -74,7 +74,6 @@ int main(void){
         printf("success!!\n", p);
 
 
-
         fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall
