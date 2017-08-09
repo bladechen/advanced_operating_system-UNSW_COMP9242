@@ -31,6 +31,8 @@ enum region_permission
 
 struct as_region_metadata
 {
+    // TODO add a cap field
+
     vaddr_t region_vaddr;
     size_t  npages; //maximum region support pages, 4K
 
@@ -43,7 +45,7 @@ struct as_region_metadata
     // Advanced part for demand loading
     // struct vnode *region_vnode;
 
-    char*              p_elfbase; // for further fault handler load code/data section into page/frame table
+    char* p_elfbase; // for further fault handler load code/data section into page/frame table
     // Link to the next data struct
     struct list_head link;
 };

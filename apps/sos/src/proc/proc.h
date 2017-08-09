@@ -16,7 +16,7 @@ struct proc
     struct pagetable*  p_pagetable;
 
 
-    struct sos_object  p_tcb;
+    struct sos_object*  p_tcb;
     // struct sos_object  p_vroot; // moved to pagetable
 
     // seL4_Word ipc_buffer_addr; moved into p_addrspace
