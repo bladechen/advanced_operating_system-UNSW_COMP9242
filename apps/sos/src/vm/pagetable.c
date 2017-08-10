@@ -76,7 +76,7 @@ void destroy_pagetable(struct pagetable* pt )
         }
 
     }
-    free_sos_object(&(pt->vroot), seL4_PageDirBits);
+    free_sos_object(&(pt->vroot), seL4_PageDirBits, NULL);
 
 }
 

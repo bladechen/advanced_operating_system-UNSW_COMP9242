@@ -93,6 +93,7 @@ seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
 
 
 // int elf_load(struct vnode *v, vaddr_t *entrypoint);
+// it is called in proc_create() to initialize the program
 int elf_load(seL4_ARM_PageDirectory dest_vspace, char* elf_base);
 
 // used in TCB configure

@@ -40,12 +40,21 @@ static inline void clear_sos_object(struct sos_object* obj, )
 }
 
 // !!!! cur_cspace !!!
-static inline void free_sos_object(struct sos_object* obj, int size_bits )
+static inline void free_sos_object(struct sos_object* obj, int size_bits, cspact_t * cspace)
 {
     assign(obj != NULL);
+    cspact_t * target_cspace;
+
+    if (cspace == NULL)
+    {
+        target_cspace = cur_cspace;
+    } else {
+        target_cspace = cspace;
+    }
+
     if (obj->cap != 0)
     {
-        assert(0 == cspace_delete_cap(cur_cspace, obj->cap));
+        assert(0 == cspace_delete_cap(target_cspace, obj->cap));
     }
     if (obj->addr != 0)
     {
@@ -54,15 +63,17 @@ static inline void free_sos_object(struct sos_object* obj, int size_bits )
     clear_sos_object(obj);
     return;
 }
+
 static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType type, int size_bits)
 {
-    free_sos_object(obj, size_bits);
+    free_sos_object(obj, size_bits, NULL);
 
-    obj->addr = ut_alloc(seL4_PageDirBits);
+    // previously is seL4_PageDirBits, but shouldn't it be size_bits?
+    obj->addr = ut_alloc(size_bits);
     if (obj->addr == 0)
     {
         color_print("ut_alloc return 0\n");
-        free_sos_object(obj);
+        free_sos_object(obj, size_bits, NULL);
         return -1;
     }
     int ret = cspace_ut_retype_addr(obj->addr,
@@ -73,7 +84,7 @@ static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType ty
     if (ret != 0)
     {
         color_print("cspace_ut_retype_addr ret: %d\n", ret);
-        free_sos_object(obj);
+        free_sos_object(obj, size_bits, NULL);
         return -2;
     }
 

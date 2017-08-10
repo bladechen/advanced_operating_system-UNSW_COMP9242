@@ -57,6 +57,8 @@
 #define APP_PROCESS_STACK_TOP         (0x8FFFE000)
 #define APP_PROCESS_STACK_TOP_GUARD   (0x90000000)
 
+// #define PROCESS_STACK_TOP   (0x90000000) is different from this design?
+
 
 #define APP_PROCESS_IPC_BUFFER  (0xA0000000)
 #define APP_PROCESS_IPC_GUARD   (0xA0001000)
