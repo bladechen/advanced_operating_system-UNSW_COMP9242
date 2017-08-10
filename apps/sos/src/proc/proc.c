@@ -11,13 +11,14 @@
 #include <cspace/cspace.h>
 #include <mapping.h>
 #include <ut_manager/ut.h>
-#include <vmem_layout.h>
+#include <vm/vmem_layout.h>
 
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
 
 #include "proc.h"
+#include "vm/address_space.h"
 
 // TODO, now we assume there is only one process, and the badge
 // 
@@ -42,11 +43,13 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     process->p_addrspace = as_create();
     if (process->p_addrspace == NULL) {
         color_print(ANSI_COLOR_RED, "proc_create: get a null p_addrspace\n");
+        proc_destroy(process);
         return NULL;
     }
     process->p_pagetable = create_pagetable();
     if (process->p_addrspace == NULL) {
         color_print(ANSI_COLOR_RED, "proc_create: get a null p_pagetable\n");
+        proc_destroy(process);
         return NULL;
     }
 
@@ -68,40 +71,104 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     conditional_panic(err, "Failed to create TCB");
     process->p_tcb = tcb_obj;
 
-    /* ################## This part not done ####################### */
     // configure TCB
-    // TODO get the IPC_BUFFER_CAP
     err = seL4_TCB_Configure(process->tcb_obj->cap, process->p_ep_cap, TTY_PRIORITY,
-                             process->p_croot->root_cnode, seL4_NilData,
-                             process->p_pagetable->vroot->cap, seL4_NilData, PROCESS_IPC_BUFFER,
-                             process->p_addrspace->ipc_buffer_cap);
+                              process->p_croot->root_cnode, seL4_NilData,
+                              process->p_pagetable->vroot.cap, seL4_NilData, PROCESS_IPC_BUFFER,
+                              get_IPCBufferCap_By_Addrspace(process->p_addrspace));
     conditional_panic(err, "Unable to configure new TCB");
-    /*############################################################*/
-
     
     /*###################### elf_load haven't done #############*/
     // parse the cpio image 
     unsigned long elf_size;
-    char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size); // extern char _cpio_archive[];
+    // # `extern char _cpio_archive[];` have been defined in main.c
+    char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);  
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
     // load the elf image 
-    err = elf_load(process->p_pagetable->vroot, elf_base);
+    err = elf_load(process->p_pagetable->vroot.cap, elf_base);
     conditional_panic(err, "Failed to load elf image");
     /*#########################################################*/
     
     
     // TODO create a new activate function
     /* Start the new process */
+
+}
+
+
+int proc_activate(struct * proc) 
+{
     seL4_UserContext context;
     memset(&context, 0, sizeof(context));
-    context.pc = elf_getEntryPoint(elf_base);
+    context.pc = elf_getEntryPoint(proc->p_addrspace->elf_base);
     context.sp = PROCESS_STACK_TOP;
     seL4_TCB_WriteRegisters(tty_test_process.tcb_cap, 1, 0, 2, &context);
 }
 
 
+
+
 // TODO free struct proc
+
+
+
+int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file) {
+
+    int num_headers;
+    int err;
+    int i;
+
+    /* Ensure that the ELF file looks sane. */
+    if (elf_checkFile(elf_file)){
+        return seL4_InvalidArgument;
+    }
+
+    num_headers = elf_getNumProgramHeaders(elf_file);
+    for (i = 0; i < num_headers; i++) {
+        char *source_addr;
+        unsigned long flags, file_size, segment_size, vaddr;
+
+        /* Skip non-loadable segments (such as debugging data). */
+        if (elf_getProgramHeaderType(elf_file, i) != PT_LOAD)
+            continue;
+
+        /* Fetch information about this segment. */
+        source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i);
+        file_size = elf_getProgramHeaderFileSize(elf_file, i);
+        segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
+        vaddr = elf_getProgramHeaderVaddr(elf_file, i);
+        flags = elf_getProgramHeaderFlags(elf_file, i);
+
+        /* Copy it across into the vspace. */
+        dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
+        err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
+                                       get_sel4_rights_from_elf(flags) & seL4_AllRights);
+        conditional_panic(err != 0, "Elf loading failed!\n");
+    }
+
+    return 0;
+}
+
+
+
+
+
+struct {
+
+    seL4_Word tcb_addr;
+    seL4_TCB tcb_cap;
+
+    seL4_Word vroot_addr;
+    seL4_ARM_PageDirectory vroot;
+
+    seL4_Word ipc_buffer_addr;
+    seL4_CPtr ipc_buffer_cap;
+
+    cspace_t *croot;
+
+} tty_test_process;
+
 
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     int err;

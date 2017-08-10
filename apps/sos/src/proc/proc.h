@@ -42,6 +42,8 @@ int proc_resume(struct proc* proc);
 
 int proc_destroy(struct proc* proc); // XXX we may no need proc_exit
 
+int proc_activate(struct proc* proc);
+
 
 /* Fetch the address space of the current process. */
 struct addrspace *proc_getas(void);
