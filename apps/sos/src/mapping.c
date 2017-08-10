@@ -9,10 +9,10 @@
  */
 
 #include "mapping.h"
-#include "comm.h"
+#include "comm/comm.h"
 
 #include <ut_manager/ut.h>
-#include "vmem_layout.h"
+#include "vm/vmem_layout.h"
 
 #define verbose 0
 #include <sys/panic.h>
@@ -21,17 +21,15 @@
 
 extern const seL4_BootInfo* _boot_info;
 
-void my_unmap_page_table( sos_object* obj)
+void my_unmap_page_table(struct sos_object* obj)
 {
     assert (0 == seL4_ARM_PageTable_Unmap(obj->cap));
     free_sos_object(obj, seL4_PageTableBits);
 }
 
-int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr, sos_object* obj)
+int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr,struct sos_object* obj)
 {
-    free_sos_object(obj);
-    seL4_Word pt_addr;
-    seL4_ARM_PageTable pt_cap;
+    free_sos_object(obj, seL4_PageTableBits);
     int err;
     err = init_sos_object(obj, seL4_ARM_PageTableObject, seL4_PageTableBits);
     if (err != 0)
@@ -56,6 +54,7 @@ int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr, sos_object* ob
  * @return 0 on success
  */
 
+static
 int _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
     seL4_Word pt_addr;
     seL4_ARM_PageTable pt_cap;
@@ -81,6 +80,11 @@ int _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
                                  vaddr,
                                  seL4_ARM_Default_VMAttributes);
     return err;
+}
+
+int map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr)
+{
+    return _map_page_table(pd, vaddr);
 }
 
 int

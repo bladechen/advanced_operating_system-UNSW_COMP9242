@@ -22,17 +22,24 @@
 #include <sys/panic.h>
 #include <sel4/sel4.h>
 
+#include <ut_manager/ut.h>
+// #include "ut/ut.h"
 
-typedef uint32_t pid_t
+#ifndef verbose
+    #define verbose 5
+    #include <sys/debug.h>
+    #define comm_verbose 1
+#endif
+
+
 // mess sel4 cap+addr unit
 struct sos_object
 {
     seL4_Word addr;
     seL4_CPtr cap;
-
 };
 
-static inline void clear_sos_object(struct sos_object* obj, )
+static inline void clear_sos_object(struct sos_object* obj)
 {
     assert(obj != NULL);
     obj->addr = 0;
@@ -42,7 +49,7 @@ static inline void clear_sos_object(struct sos_object* obj, )
 // !!!! cur_cspace !!!
 static inline void free_sos_object(struct sos_object* obj, int size_bits )
 {
-    assign(obj != NULL);
+    assert(obj != NULL);
     if (obj->cap != 0)
     {
         assert(0 == cspace_delete_cap(cur_cspace, obj->cap));
@@ -61,8 +68,8 @@ static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType ty
     obj->addr = ut_alloc(seL4_PageDirBits);
     if (obj->addr == 0)
     {
-        color_print("ut_alloc return 0\n");
-        free_sos_object(obj);
+        color_print(ANSI_COLOR_RED, "ut_alloc return 0\n");
+        free_sos_object(obj, size_bits);
         return -1;
     }
     int ret = cspace_ut_retype_addr(obj->addr,
@@ -72,8 +79,8 @@ static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType ty
                                     &(obj->cap));
     if (ret != 0)
     {
-        color_print("cspace_ut_retype_addr ret: %d\n", ret);
-        free_sos_object(obj);
+        color_print(ANSI_COLOR_RED, "cspace_ut_retype_addr ret: %d\n", ret);
+        free_sos_object(obj, size_bits);
         return -2;
     }
 
@@ -117,4 +124,9 @@ enable_irq(int irq, seL4_CPtr aep) {
     conditional_panic(err, "Failure to acknowledge pending interrupts");
     return cap;
 }
+// #undef verbose
+#ifdef comm_verbose
+#undef verbose
 #endif
+#endif
+

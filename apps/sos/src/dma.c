@@ -24,7 +24,7 @@
 #include <dma.h>
 #include <mapping.h>
 #include <ut_manager/ut.h>
-#include <vmem_layout.h>
+#include <vm/vmem_layout.h>
 
 #define verbose 5
 #include <sys/debug.h>
@@ -66,7 +66,7 @@ _dma_fill(seL4_Word pstart, seL4_Word pend, int cached){
                                         seL4_PageBits, cur_cspace, caps);
             assert(!err);
             /* Map in the frame */
-            err = map_page(*caps, seL4_CapInitThreadPD, VIRT(pstart), 
+            err = map_page(*caps, seL4_CapInitThreadPD, VIRT(pstart),
                            seL4_AllRights, vm_attr);
             assert(!err);
         }
@@ -77,7 +77,7 @@ _dma_fill(seL4_Word pstart, seL4_Word pend, int cached){
 }
 
 
-int 
+int
 dma_init(seL4_Word dma_paddr_start, int sizebits){
     assert(_dma_pstart == 0);
 

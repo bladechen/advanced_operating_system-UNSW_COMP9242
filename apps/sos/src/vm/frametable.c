@@ -9,7 +9,7 @@
 #include <cspace/cspace.h>
 #include <mapping.h>
 #include <ut_manager/ut.h>
-#include <vmem_layout.h>
+#include "vm/vmem_layout.h"
 
 #define verbose 5
 #include <sys/debug.h>
@@ -88,6 +88,57 @@ static sos_vaddr_t frame_translate_index_to_vaddr(int index)
     return (WINDOW_START + PAGE_UNSHIFT(index));
 }
 
+static void _zero_frame(sos_vaddr_t vaddr)
+{
+    memset((void*)vaddr, 0, seL4_PAGE_SIZE);
+}
+
+
+static bool _is_valid_vaddr(sos_vaddr_t vaddr)
+{
+    if (vaddr & (~seL4_FRAME_MASK))
+    {
+        return false;
+    }
+
+    if (vaddr < WINDOW_START || vaddr >= (WINDOW_START + _managed_frame_num * seL4_PAGE_SIZE) )
+    {
+        return false;
+    }
+    return true;
+
+
+}
+static frame_table_entry* _get_ft_entry(sos_vaddr_t vaddr)
+{
+    assert((vaddr & (~seL4_FRAME_MASK)) == 0);
+    int index = frame_translate_vaddr_to_index(vaddr);
+    assert (index >= 0);
+    frame_table_entry* e = _frame_table + index;
+    return e;
+
+}
+
+static int _frame_entry_status(frame_table_entry* e)
+{
+    /* frame_table_entry* e = _get_ft_entry(vaddr); */
+    if (e->sos_cap == 0)
+    {
+        assert(e->app_cap == 0);
+        return FRAME_FREE;
+    }
+    else if (e->app_cap == 0)
+    {
+        return FRAME_SOS;
+    }
+    else if (e->app_cap != 0 && e->sos_cap != 0)
+    {
+        return FRAME_APP;
+    }
+    assert(0);
+    return 0;
+}
+
 /* static int frame_translate_paddr_to_index(sos_vaddr_t vaddr) { */
 /*     if (vaddr <  _ut_lo || vaddr >= _ut_hi ) ) */
 /*     { */
@@ -132,7 +183,7 @@ void frametable_init(void) {
     _frame_table = (frame_table) frame_table_start_vaddr;
     for (int i = 0; i < _managed_frame_num; i ++)
     {
-        _frame_table[i].page_cap = 0;
+        _frame_table[i].sos_cap = 0;
         _frame_table[i].next_free = -1;
     }
 
@@ -153,7 +204,6 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
         sos_paddr_t paddr = ut_alloc(seL4_PageBits);
         // dprintf(0, "allocated frame paddr:%x\n", paddr);
         if (paddr) {
-
             // TODO maybe we need record the frame itself cap
             seL4_Word temp_cap;
             int ret = _build_paddr_to_vaddr_frame(paddr, cur_vaddr, &temp_cap);
@@ -172,23 +222,24 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
 }
 
 /* allocate a frame */
-sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
+sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr)
+{
 
     conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
     // some free frame already available, no need to ut_alloc
     if (_free_frame_index != -1)
     {
-        /* static int true_alloc = 0; */
-        /* true_alloc ++; */
-        /* color_print(ANSI_COLOR_GREEN, "fake alloc %d\n", true_alloc); */
+        sos_vaddr_t vaddr = 0;
 
         _free_frame_count --;
         int index = _free_frame_index;
         _free_frame_index = _frame_table[index].next_free;
         _frame_table[index].next_free = -1;
-        assert(_frame_table[index].page_cap != 0);
-        *vaddr_ptr = frame_translate_index_to_vaddr(index);
-        return *vaddr_ptr;
+        assert(_frame_table[index].sos_cap != 0);
+        vaddr = frame_translate_index_to_vaddr(index);
+        if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
+        _zero_frame(vaddr);
+        return vaddr;
     }
     /* static int true_alloc = 0; */
     /* true_alloc ++; */
@@ -206,11 +257,13 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr) {
 
         uint32_t index = frame_translate_vaddr_to_index(vaddr);
 
-        assert((_frame_table + index)->page_cap == 0); // something error with ut_alloc ?
-        (_frame_table + index)->page_cap = temp_cap;
+        assert((_frame_table + index)->sos_cap == 0); // something error with ut_alloc ?
+        (_frame_table + index)->sos_cap = temp_cap;
         /* (_frame_table + index)->vaddr = vaddr; */
 
-        *vaddr_ptr = vaddr;
+
+        if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
+        _zero_frame(vaddr);
         return vaddr;
     }
 }
@@ -228,7 +281,7 @@ void frame_free(sos_vaddr_t vaddr)
 
     sos_paddr_t paddr = frame_translate_vaddr_to_paddr(vaddr);
     int index = frame_translate_vaddr_to_index(vaddr);
-    if (index < 0 || _frame_table[index].page_cap == 0)
+    if (index < 0 || _frame_table[index].sos_cap == 0)
     {
         color_print(ANSI_COLOR_RED, "try free vaddr: 0x%x error\n", vaddr);
         return;
@@ -241,18 +294,18 @@ void frame_free(sos_vaddr_t vaddr)
         assert(_free_frame_count == seL4_MAX_FREE_FRAME_POOL);
 
         // unmap from our window
-        int err = seL4_ARM_Page_Unmap(fte->page_cap);
+        int err = seL4_ARM_Page_Unmap(fte->sos_cap);
         conditional_panic(err, "Failed to unmap page from SOS window\n");
 
         // Delete SmallPageObject cap from SOS cspace
-        err = cspace_delete_cap(cur_cspace, fte->page_cap);
+        err = cspace_delete_cap(cur_cspace, fte->sos_cap);
         conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n");
 
         // return the frame to ut
         ut_free(paddr, seL4_PageBits);
 
         // clear the table entry
-        fte->page_cap = 0;
+        fte->sos_cap = 0;
         /* color_print(ANSI_COLOR_RED, "true free\n"); */
     }
     else
@@ -264,3 +317,98 @@ void frame_free(sos_vaddr_t vaddr)
         _free_frame_count ++;
     }
 }
+
+
+int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
+{
+    if (_is_valid_vaddr(vaddr) == false)
+    {
+        return FRAME_TABLE_PARA_ERROR;
+    }
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    int status  = _frame_entry_status(e);
+    if (status == FRAME_SOS)
+    {
+        assert(cap != 0);
+        e->app_cap = cap;
+        return 0;
+
+    }
+    else if(status == FRAME_FREE)
+    {
+        assert(0);
+
+    }
+    else if(status == FRAME_APP)
+    {
+        assert(cap == 0);
+        e->app_cap = cap;
+        return 0;
+    }
+    return -1;
+}
+
+
+uint32_t get_frame_app_cap(sos_vaddr_t vaddr)
+{
+    if (_is_valid_vaddr(vaddr) == false)
+    {
+        return 0;
+    }
+
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    return e->app_cap;
+}
+
+uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
+{
+    if (_is_valid_vaddr(vaddr) == false)
+    {
+        return 0;
+    }
+
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    return e->sos_cap;
+}
+
+
+
+/* int attach_page_frame(sos_vaddr_t vaddr, */
+/*                       seL4_ARM_VMAttributes vm_attr, */
+/*                       seL4_CapRights cap_right, */
+/*                       seL4_CPtr pd) */
+/* { */
+/*     if (_is_valid_vaddr(vaddr) == false) */
+/*     { */
+/*         return FRAME_TABLE_PARA_ERROR; */
+/*     } */
+/*     int status  = _frame_entry_status(vaddr); */
+/*     if (status != FRAME_SOS) */
+/*     { */
+/*         color_print("_frame_entry_status error: %d\n", status); */
+/*         return FRAME_TABLE_INVALID_STATUS; */
+/*     } */
+/*     frame_table_entry* e = _get_ft_entry(vaddr); */
+/*  */
+/*     e->app_cap = cspace_copy_cap(cur_cspace, cur_cspace, e->sos_cap, seL4_AllRights); */
+/*      if (e->app_cap == 0) */
+/*      { */
+/*          color_print("cspace_copy_cap "); */
+/*          return FRAME_TABLE_SEL4_ERROR; */
+/*      } */
+/*  */
+/*      int ret = seL4_ARM_Page_Map(e->app_cap , pd, vaddr, cap_right, vm_attr); */
+/*      if(ret == seL4_FailedLookup){ */
+/*          #<{(| Assume the error was because we have no page table |)}># */
+/*  */
+/*          #<{(| color_print(ANSI_COLOR_GREEN, "seL4_FailedLookup\n"); |)}># */
+/*          err = _map_page_table(tty_test_process.vroot, fault_addr); */
+/*          if(!err){ */
+/*  */
+/*              err = seL4_ARM_Page_Map(cap , tty_test_process.vroot, fault_addr, seL4_CanWrite|seL4_CanRead, seL4_ARM_Default_VMAttributes); */
+/*              assert(err == 0); */
+/*          } */
+/*      } */
+/*      #<{(| assert(cap > 0); |)}># */
+/*  */
+/* } */
