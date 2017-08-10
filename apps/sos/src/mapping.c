@@ -82,9 +82,34 @@ int _map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr){
     return err;
 }
 
-int map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr)
+int map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr,struct  sos_object* pt)
 {
-    return _map_page_table(pd, vaddr);
+
+    /* seL4_Word pt_addr; */
+    /* seL4_ARM_PageTable pt_cap; */
+    int err;
+
+    /* Allocate a PT object */
+    pt->addr = ut_alloc(seL4_PageTableBits);
+    if(pt->addr == 0){
+        return !0;
+    }
+    /* Create the frame cap */
+    err =  cspace_ut_retype_addr(pt->addr,
+                                 seL4_ARM_PageTableObject,
+                                 seL4_PageTableBits,
+                                 cur_cspace,
+                                 &pt->cap);
+    if(err){
+        return !0;
+    }
+    /* Tell seL4 to map the PT in for us */
+    err = seL4_ARM_PageTable_Map(pt->cap,
+                                 pd,
+                                 vaddr,
+                                 seL4_ARM_Default_VMAttributes);
+    return err;
+
 }
 
 int
