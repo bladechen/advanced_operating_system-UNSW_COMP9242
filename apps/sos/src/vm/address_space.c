@@ -16,13 +16,13 @@
 
 #include "address_space.h"
 
+/*  */
+/* int elf_load(seL4_ARM_PageDirectory dest_vspace, char* elf_base) */
+/* { */
+/* 	 */
+/* } */
 
-int elf_load(seL4_ARM_PageDirectory dest_vspace, char* elf_base)
-{
-	
-}
-
-seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as) 
+seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as)
 {
 
 }
