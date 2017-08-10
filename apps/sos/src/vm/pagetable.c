@@ -22,6 +22,7 @@ struct pagetable* create_pagetable(void)
 
     pt->pt_list = NULL;
     pt->page_dir = NULL;
+    clear_sos_object(&pt->vroot);
 
     pt->page_dir = (void*)frame_alloc(NULL);
     if (pt->page_dir == NULL)
@@ -54,7 +55,7 @@ void destroy_pagetable(struct pagetable* pt )
         {
             if (pt->page_dir[i] != NULL)
             {
-                 struct pagetable_entry* l1 = (pt->page_dir[i]);
+                struct pagetable_entry* l1 = (pt->page_dir[i]);
                 for (int j = 0; j < LEVEL2_PAGE_ENTRY_COUNT; ++ j)
                 {
                     if (l1[j].entity != 0)
@@ -80,7 +81,8 @@ void destroy_pagetable(struct pagetable* pt )
 
     }
     free_sos_object(&(pt->vroot), seL4_PageDirBits);
-
+    frame_free((sos_vaddr_t)pt);
+    return;
 }
 
 static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
@@ -99,7 +101,6 @@ static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
 
     }
     return pt->page_dir[l1_index][l2_index].entity;
-
 }
 
 static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t paddr)
@@ -120,7 +121,7 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t 
             return -2;
         }
     }
-    assert(_valid_page_addr(pt->page_dir[l1_index][l2_index].entity) == 0);
+    assert(pt->page_dir[l1_index][l2_index].entity == 0);
     pt->page_dir[l1_index][l2_index].entity = paddr;
     return 0;
 }
@@ -133,9 +134,13 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     assert(entity != 0 && (seL4_PAGE_MASK & entity ) != 0);
     paddr_t paddr = (entity & seL4_PAGE_MASK);
     seL4_CPtr app_cap = get_frame_app_cap(paddr);
-    assert(0 ==  seL4_ARM_Page_Unmap(app_cap));
-    assert(0 ==  cspace_delete_cap(cur_cspace, app_cap));
+    assert(app_cap != 0);
+    // delete the app cap(memory)
+    assert(0 == seL4_ARM_Page_Unmap(app_cap));
+    assert(0 == cspace_delete_cap(cur_cspace, app_cap));
     set_frame_app_cap(paddr, 0);
+    // then free the sos frame
+    frame_free(paddr);
 }
 
 int alloc_page(struct pagetable* pt,
@@ -143,9 +148,9 @@ int alloc_page(struct pagetable* pt,
                seL4_ARM_VMAttributes vm_attr,
                seL4_CapRights cap_right)
 {
+    assert(pt != NULL);
     vaddr &= seL4_PAGE_MASK;
 
-    assert(pt != NULL);
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     assert(entity == 0);
 
@@ -155,12 +160,13 @@ int alloc_page(struct pagetable* pt,
         color_print(ANSI_COLOR_RED, "frame_alloc return NULL\n");
         return PAGETABLE_OOM;
     }
+    // FIXME maybe we need alloc page table first then frame.
     int ret = _insert_pagetable_entry(pt, vaddr, paddr);
     if (ret != 0)
     {
+        frame_free(paddr);
         return PAGETABLE_OOM;
     }
-
 
     seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
     if (sos_cap == 0)
@@ -176,18 +182,20 @@ int alloc_page(struct pagetable* pt,
     }
 
     ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr);
-    if(ret == seL4_FailedLookup){
+    if(ret == seL4_FailedLookup)
+    {
         /* Assume the error was because we have no page table */
 
-        /* color_print(ANSI_COLOR_GREEN, "seL4_FailedLookup\n"); */
         ret = map_page_table(pt->vroot.cap, vaddr);
 
         assert(ret == 0);
-        if(!ret){
+        if(!ret)
+        {
             int ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr);
             assert(ret == 0);
         }
     }
+    assert(ret == 0);
     assert(0 == set_frame_app_cap(paddr, app_cap));
     return 0;
 }
