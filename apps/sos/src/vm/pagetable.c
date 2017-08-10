@@ -146,6 +146,10 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     assert(pt != NULL);
     vaddr &= seL4_PAGE_MASK;
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
+    if (entity == 0)
+    {
+        return;
+    }
     assert(entity != 0 && (seL4_PAGE_MASK & entity ) != 0);
     paddr_t paddr = (entity & seL4_PAGE_MASK);
     seL4_CPtr app_cap = get_frame_app_cap(paddr);
