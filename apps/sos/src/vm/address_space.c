@@ -153,6 +153,7 @@ int as_define_region(struct addrspace *as,
     {
         return ENOMEM;
     }
+    region->elf_vaddr = vaddr;
     /* we align the start vaddr, so we should record the actuall starting addr where to load the file */
 	/* Align the region. First, the base... */
 	memsz += vaddr & ~(vaddr_t)  seL4_PAGE_MASK;

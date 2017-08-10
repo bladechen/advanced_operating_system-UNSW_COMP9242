@@ -49,8 +49,9 @@ struct as_region_metadata
     // struct vnode *region_vnode;
 
     char* p_elfbase; // for further fault handler load code/data section into page/frame table
-    size_t elf_offset;
-    size_t elf_size;
+    vaddr_t elf_vaddr; // the vaddr specified by the elf file, which is the starting vaddr to load the elf binary
+    size_t elf_offset; // the start loading elf file offset, corresponding to  elf_vaddr
+    size_t elf_size; // actual loaded content from file
     // Link to the next data struct
     struct list_head link;
 };
