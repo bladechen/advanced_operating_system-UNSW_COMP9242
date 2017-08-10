@@ -165,18 +165,21 @@ int alloc_page(struct pagetable* pt,
     if (ret != 0)
     {
         frame_free(paddr);
+        color_print(ANSI_COLOR_RED, "no enough mem for page table\n");
         return PAGETABLE_OOM;
     }
 
     seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
     if (sos_cap == 0)
     {
+        frame_free(paddr);
+        color_print(ANSI_COLOR_RED, "invalid frame table status!!!!!\n");
         return PAGETABLE_INVALID_STATUS;
-
     }
     seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
     if (app_cap == 0)
     {
+        frame_free(paddr);
         color_print(ANSI_COLOR_RED, "cspace_copy_cap error\n");
         return PAGETABEL_SEL4_ERROR;
     }
