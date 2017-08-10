@@ -41,9 +41,17 @@ int elf_load(seL4_ARM_PageDirectory dest_vspace, struct addrspace * dest_as, cha
         vaddr = elf_getProgramHeaderVaddr(elf_file, i);
         flags = elf_getProgramHeaderFlags(elf_file, i);
 
+        char * name = elf_getSectionName(elf_file, i);
+
+        if (strcmp(name, ".text") == 0) {
+
+        } else if (strcmp(name, '.rodata') == 0) {
+
+        }
+
         /* Copy it across into the vspace. */
-        dprintf(1, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
-        err = load_segment_into_vspace(dest_as, source_addr, segment_size, file_size, vaddr,
+        dprintf(0, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
+        err = load_segment_into_vspace(dest_vspace, source_addr, segment_size, file_size, vaddr,
                                        get_sel4_rights_from_elf(flags) & seL4_AllRights);
         conditional_panic(err != 0, "Elf loading failed!\n");
     }
@@ -51,6 +59,96 @@ int elf_load(seL4_ARM_PageDirectory dest_vspace, struct addrspace * dest_as, cha
     return 0;
 }
 
+
+/*
+ * Inject data into the given vspace.
+ * TODO: Don't keep these pages mapped in
+ */
+static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
+                                    char *src, unsigned long segment_size,
+                                    unsigned long file_size, unsigned long dst,
+                                    unsigned long permissions) {
+
+    /* Overview of ELF segment loading
+
+       dst: destination base virtual address of the segment being loaded
+       segment_size: obvious
+
+       So the segment range to "load" is [dst, dst + segment_size).
+
+       The content to load is either zeros or the content of the ELF
+       file itself, or both.
+
+       The split between file content and zeros is a follows.
+
+       File content: [dst, dst + file_size)
+       Zeros:        [dst + file_size, dst + segment_size)
+
+       Note: if file_size == segment_size, there is no zero-filled region.
+       Note: if file_size == 0, the whole segment is just zero filled.
+
+       The code below relies on seL4's frame allocator already
+       zero-filling a newly allocated frame.
+
+    */
+      
+      
+     assert(file_size <= segment_size); 
+      
+     unsigned long pos; 
+    /*  */
+    /* #<{(| We work a page at a time in the destination vspace. |)}># */
+     pos = 0; 
+     while(pos < segment_size) { 
+         seL4_Word paddr; 
+         seL4_CPtr sos_cap, tty_cap; 
+         seL4_Word vpage, kvpage; 
+         unsigned long kdst; 
+         int nbytes; 
+         int err; 
+      
+         kdst   = dst + PROCESS_SCRATCH; 
+         vpage  = PAGE_ALIGN(dst); 
+         kvpage = PAGE_ALIGN(kdst); 
+    /*  */
+    /*     #<{(| First we need to create a frame |)}># */
+         paddr = ut_alloc(seL4_PageBits); 
+         conditional_panic(!paddr, "Out of memory - could not allocate frame"); 
+         err = cspace_ut_retype_addr(paddr, 
+                                     seL4_ARM_SmallPageObject, 
+                                     seL4_PageBits, 
+                                     cur_cspace, 
+                                     &tty_cap); 
+         conditional_panic(err, "Failed to retype to a frame object"); 
+    /*  */
+    /*     #<{(| Copy the frame cap as we need to map it into 2 address spaces |)}># */
+         sos_cap = cspace_copy_cap(cur_cspace, cur_cspace, tty_cap, seL4_AllRights); 
+         conditional_panic(sos_cap == 0, "Failed to copy frame cap"); 
+    /*  */
+    /*     #<{(| Map the frame into tty_test address spaces |)}># */
+         err = map_page(tty_cap, dest_as, vpage, permissions, 
+                        seL4_ARM_Default_VMAttributes); 
+         conditional_panic(err, "Failed to map to tty address space"); 
+         // #<{(| Map the frame into sos address spaces |)}># 
+         err = map_page(sos_cap, seL4_CapInitThreadPD, kvpage, seL4_AllRights, 
+                        seL4_ARM_Default_VMAttributes); 
+         conditional_panic(err, "Failed to map sos address space"); 
+      
+         // #<{(| Now copy our data into the destination vspace. |)}># 
+         nbytes = PAGESIZE - (dst & PAGEMASK); 
+         if (pos < file_size){ 
+             memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos)); 
+         } 
+      
+         #<{(| Not observable to I-cache yet so flush the frame |)}># 
+         seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE); 
+      
+         pos += nbytes; 
+         dst += nbytes; 
+         src += nbytes; 
+     } 
+    return 0;
+}
 
 int elf_load(seL4_ARM_PageDirectory dest_as, char *elf_file) 
 {
