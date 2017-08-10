@@ -47,10 +47,10 @@ static inline void clear_sos_object(struct sos_object* obj)
 }
 
 // !!!! cur_cspace !!!
-static inline void free_sos_object(struct sos_object* obj, int size_bits, cspact_t * cspace)
+static inline void free_sos_object(struct sos_object* obj, int size_bits, cspace_t * cspace)
 {
-    assign(obj != NULL);
-    cspact_t * target_cspace;
+    assert(obj != NULL);
+    cspace_t * target_cspace;
 
     if (cspace == NULL)
     {
