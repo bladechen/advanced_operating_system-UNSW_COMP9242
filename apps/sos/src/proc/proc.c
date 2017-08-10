@@ -19,7 +19,8 @@
 
 #include "proc.h"
 
-// TODO, now we assume there is only one process
+// TODO, now we assume there is only one process, and the badge
+// 
 #define TEMP_ONE_PROCESS_BADGE (1<<3)   
 
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
@@ -34,12 +35,20 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     /* 
     *  pagetable will take care of the virtual address root
     *  IPC buffer will be created and defined in address space
-    *  Stack 
+    *  Stack will be created and defined in address space
     */
-    // Init address space and page table
-    process->p_addrspace = as_create(); // NULL
-    process->p_pagetable = create_pagetable(); // NULL
 
+    // Init address space and page table 
+    process->p_addrspace = as_create();
+    if (process->p_addrspace == NULL) {
+        color_print(ANSI_COLOR_RED, "proc_create: get a null p_addrspace\n");
+        return NULL;
+    }
+    process->p_pagetable = create_pagetable();
+    if (process->p_addrspace == NULL) {
+        color_print(ANSI_COLOR_RED, "proc_create: get a null p_pagetable\n");
+        return NULL;
+    }
 
     // Create a simple 1 level CSpace
     process->p_croot = cspace_create(1);
@@ -55,17 +64,11 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     // Create a new TCB object
     struct sos_object * tcb_obj = (struct sos_object *)malloc(sizeof(struct sos_object));
-    tcb_obj->addr = ut_alloc(seL4_TCBBits);
-    conditional_panic(tcb_obj->addr, "No memory for new TCB");
-    err =  cspace_ut_retype_addr(tcb_obj->tcb_addr,
-                                 seL4_TCBObject,
-                                 seL4_TCBBits,
-                                 process->p_croot,
-                                 &(tcb_obj->cap));
+    err = init_sos_object(tcb_obj, seL4_TCBObject, seL4_TCBBits);
     conditional_panic(err, "Failed to create TCB");
     process->p_tcb = tcb_obj;
 
-    /*################## This part not done #######################*/
+    /* ################## This part not done ####################### */
     // configure TCB
     // TODO get the IPC_BUFFER_CAP
     err = seL4_TCB_Configure(process->tcb_obj->cap, process->p_ep_cap, TTY_PRIORITY,
@@ -94,8 +97,11 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     memset(&context, 0, sizeof(context));
     context.pc = elf_getEntryPoint(elf_base);
     context.sp = PROCESS_STACK_TOP;
-    seL4_TCB_WriteRegisters(tty_test_process.tcb_cap, 1, 0, 2, &context);   
+    seL4_TCB_WriteRegisters(tty_test_process.tcb_cap, 1, 0, 2, &context);
 }
+
+
+// TODO free struct proc
 
 void start_first_process(char* app_name, seL4_CPtr fault_ep) {
     int err;

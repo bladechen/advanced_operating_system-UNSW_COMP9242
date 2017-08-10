@@ -93,5 +93,8 @@ seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
 // int elf_load(struct vnode *v, vaddr_t *entrypoint);
 int elf_load(seL4_ARM_PageDirectory dest_as, char* elf_base);
 
+// used in TCB configure
+seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as);
+
 
 #endif

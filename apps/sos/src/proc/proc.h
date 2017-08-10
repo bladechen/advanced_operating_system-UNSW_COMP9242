@@ -40,7 +40,7 @@ int proc_suspend(struct proc* proc);
 /* resume the proc TODO later in M8 */
 int proc_resume(struct proc* proc);
 
-void proc_destroy(struct proc* proc); // XXX we may no need proc_exit
+int proc_destroy(struct proc* proc); // XXX we may no need proc_exit
 
 
 /* Fetch the address space of the current process. */
