@@ -110,17 +110,30 @@ void proc_activate(struct * proc process)
 // TODO free struct proc
 int proc_destroy(struct * proc process)
 { 
-    free(process->p_name);
-
-    as_destroy(process->p_addrspace);
-    process->p_addrspace = NULL;
-    destroy_pagetable(process->p_pagetable);
-    process->p_pagetable = NULL;
-
-    seL4_TCB_Suspend(process->p_tcb->cap);
-    free_sos_object(process->p_tcb, seL4_TCBBits, process->p_croot);
-    process->p_tcb = NULL;
-
+    if (process->p_name != NULL)
+    {
+        free(process->p_name);  
+    }
+    
+    if (process->p_addrspace != NULL) 
+    {
+        as_destroy(process->p_addrspace);
+        process->p_addrspace = NULL;  
+    }
+    
+    if (process->p_pagetable != NULL)
+    {
+        destroy_pagetable(process->p_pagetable);
+        process->p_pagetable = NULL;  
+    }
+    
+    if (process->p_tcb != NULL) 
+    {
+        seL4_TCB_Suspend(process->p_tcb->cap);
+        free_sos_object(process->p_tcb, seL4_TCBBits, process->p_croot);
+        process->p_tcb = NULL;  
+    }
+    
     // revoke capability, didn't find cap remove function
     cspace_revoke_cap(process->p_croot, process->p_ep_cap);
 
