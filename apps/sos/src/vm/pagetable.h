@@ -2,7 +2,7 @@
 #define _PAGE_TABLE_H_
 #include "vm.h"
 #include "vmem_layout.h"
-#include "comm.h"
+#include "comm/comm.h"
 
 #define LEVEL1_PAGE_ENTRY_COUNT (1024)
 #define LEVEL1_PAGE_MASK        (0xFFC00000)
@@ -16,6 +16,8 @@ enum PAGETABLE_ERR
 {
     PAGETABLE_SUCCESS = 0,
     PAGETABLE_OOM     = -1,
+    PAGETABLE_INVALID_STATUS     = -2,
+    PAGETABEL_SEL4_ERROR = -3,
 
 };
 struct pagetable_entry

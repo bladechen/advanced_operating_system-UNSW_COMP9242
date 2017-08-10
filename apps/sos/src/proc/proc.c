@@ -79,7 +79,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     process->p_tcb = tcb_obj;
 
     // configure TCB
-    err = seL4_TCB_Configure(process->tcb_obj->cap, process->p_ep_cap, TTY_PRIORITY,
+    err = seL4_TCB_Configure(process->p_tcb->cap, process->p_ep_cap, TTY_PRIORITY,
                               process->p_croot->root_cnode, seL4_NilData,
                               process->p_pagetable->vroot.cap, seL4_NilData, PROCESS_IPC_BUFFER,
                               get_IPCBufferCap_By_Addrspace(process->p_addrspace));

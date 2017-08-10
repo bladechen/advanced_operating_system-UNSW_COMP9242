@@ -50,19 +50,19 @@ int main(void){
     /* } */
     do {
         printf("task:\tHello world, I'm\ttty_test!\n");
-        p -= (4096 * (1<<6));
-        printf("now read the stack addr %p, which should fault!!!\n", p);
-        printf("%d\n", *p);
-        *p = 100;
-        printf("success!!\n", p);
-
-        delay(1000000000);
-        delay(1000000000);
-        delay(1000000000);
         /* p -= (4096 * (1<<6)); */
-        printf("now read the stack addr %p, which should fault!!!\n", p);
-        *p = 100;
-        printf("success!!\n", p);
+        /* printf("now read the stack addr %p, which should fault!!!\n", p); */
+        /* printf("%d\n", *p); */
+        /* *p = 100; */
+        /* printf("success!!\n", p); */
+        /*  */
+        /* delay(1000000000); */
+        /* delay(1000000000); */
+        /* delay(1000000000); */
+        /* #<{(| p -= (4096 * (1<<6)); |)}># */
+        /* printf("now read the stack addr %p, which should fault!!!\n", p); */
+        /* *p = 100; */
+        /* printf("success!!\n", p); */
 
 
         fflush(NULL);

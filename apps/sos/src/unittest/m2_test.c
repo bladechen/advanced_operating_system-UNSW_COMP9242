@@ -1,7 +1,7 @@
 #include "test.h"
 #define verbose 5
 #include "sys/debug.h"
-#include "../frametable.h"
+#include "vm/frametable.h"
 
 static void test_normal_alloc(void)
 {

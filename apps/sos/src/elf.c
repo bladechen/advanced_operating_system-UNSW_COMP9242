@@ -16,7 +16,7 @@
 
 #include "elf.h"
 
-#include <vmem_layout.h>
+#include <vm/vmem_layout.h>
 #include <ut_manager/ut.h>
 #include <mapping.h>
 
@@ -64,7 +64,7 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
 
        dst: destination base virtual address of the segment being loaded
        segment_size: obvious
-       
+
        So the segment range to "load" is [dst, dst + segment_size).
 
        The content to load is either zeros or the content of the ELF
@@ -83,62 +83,62 @@ static int load_segment_into_vspace(seL4_ARM_PageDirectory dest_as,
 
     */
 
-
-
-    assert(file_size <= segment_size);
-
-    unsigned long pos;
-
-    /* We work a page at a time in the destination vspace. */
-    pos = 0;
-    while(pos < segment_size) {
-        seL4_Word paddr;
-        seL4_CPtr sos_cap, tty_cap;
-        seL4_Word vpage, kvpage;
-        unsigned long kdst;
-        int nbytes;
-        int err;
-
-        kdst   = dst + PROCESS_SCRATCH;
-        vpage  = PAGE_ALIGN(dst);
-        kvpage = PAGE_ALIGN(kdst);
-
-        /* First we need to create a frame */
-        paddr = ut_alloc(seL4_PageBits);
-        conditional_panic(!paddr, "Out of memory - could not allocate frame");
-        err = cspace_ut_retype_addr(paddr,
-                                    seL4_ARM_SmallPageObject,
-                                    seL4_PageBits,
-                                    cur_cspace,
-                                    &tty_cap);
-        conditional_panic(err, "Failed to retype to a frame object");
-
-        /* Copy the frame cap as we need to map it into 2 address spaces */
-        sos_cap = cspace_copy_cap(cur_cspace, cur_cspace, tty_cap, seL4_AllRights);
-        conditional_panic(sos_cap == 0, "Failed to copy frame cap");
-
-        /* Map the frame into tty_test address spaces */
-        err = map_page(tty_cap, dest_as, vpage, permissions, 
-                       seL4_ARM_Default_VMAttributes);
-        conditional_panic(err, "Failed to map to tty address space");
-        /* Map the frame into sos address spaces */
-        err = map_page(sos_cap, seL4_CapInitThreadPD, kvpage, seL4_AllRights, 
-                       seL4_ARM_Default_VMAttributes);
-        conditional_panic(err, "Failed to map sos address space");
-
-        /* Now copy our data into the destination vspace. */
-        nbytes = PAGESIZE - (dst & PAGEMASK);
-        if (pos < file_size){
-            memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos));
-        }
-
-        /* Not observable to I-cache yet so flush the frame */
-        seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE);
-
-        pos += nbytes;
-        dst += nbytes;
-        src += nbytes;
-    }
+    /*  */
+    /*  */
+    /* assert(file_size <= segment_size); */
+    /*  */
+    /* unsigned long pos; */
+    /*  */
+    /* #<{(| We work a page at a time in the destination vspace. |)}># */
+    /* pos = 0; */
+    /* while(pos < segment_size) { */
+    /*     seL4_Word paddr; */
+    /*     seL4_CPtr sos_cap, tty_cap; */
+    /*     seL4_Word vpage, kvpage; */
+    /*     unsigned long kdst; */
+    /*     int nbytes; */
+    /*     int err; */
+    /*  */
+    /*     kdst   = dst + PROCESS_SCRATCH; */
+    /*     vpage  = PAGE_ALIGN(dst); */
+    /*     kvpage = PAGE_ALIGN(kdst); */
+    /*  */
+    /*     #<{(| First we need to create a frame |)}># */
+    /*     paddr = ut_alloc(seL4_PageBits); */
+    /*     conditional_panic(!paddr, "Out of memory - could not allocate frame"); */
+    /*     err = cspace_ut_retype_addr(paddr, */
+    /*                                 seL4_ARM_SmallPageObject, */
+    /*                                 seL4_PageBits, */
+    /*                                 cur_cspace, */
+    /*                                 &tty_cap); */
+    /*     conditional_panic(err, "Failed to retype to a frame object"); */
+    /*  */
+    /*     #<{(| Copy the frame cap as we need to map it into 2 address spaces |)}># */
+    /*     sos_cap = cspace_copy_cap(cur_cspace, cur_cspace, tty_cap, seL4_AllRights); */
+    /*     conditional_panic(sos_cap == 0, "Failed to copy frame cap"); */
+    /*  */
+    /*     #<{(| Map the frame into tty_test address spaces |)}># */
+    /*     err = map_page(tty_cap, dest_as, vpage, permissions, */
+    /*                    seL4_ARM_Default_VMAttributes); */
+    /*     conditional_panic(err, "Failed to map to tty address space"); */
+    /*     #<{(| Map the frame into sos address spaces |)}># */
+    /*     err = map_page(sos_cap, seL4_CapInitThreadPD, kvpage, seL4_AllRights, */
+    /*                    seL4_ARM_Default_VMAttributes); */
+    /*     conditional_panic(err, "Failed to map sos address space"); */
+    /*  */
+    /*     #<{(| Now copy our data into the destination vspace. |)}># */
+    /*     nbytes = PAGESIZE - (dst & PAGEMASK); */
+    /*     if (pos < file_size){ */
+    /*         memcpy((void*)kdst, (void*)src, MIN(nbytes, file_size - pos)); */
+    /*     } */
+    /*  */
+    /*     #<{(| Not observable to I-cache yet so flush the frame |)}># */
+    /*     seL4_ARM_Page_Unify_Instruction(sos_cap, 0, PAGESIZE); */
+    /*  */
+    /*     pos += nbytes; */
+    /*     dst += nbytes; */
+    /*     src += nbytes; */
+    /* } */
     return 0;
 }
 
