@@ -1,16 +1,17 @@
 #ifndef _PROC_H_
 #define _PROC_H_
 
-#include "comm.h"
-#include "pagetable.h"
-#include "address_space.h"
+#include "comm/comm.h"
+#include "vm/pagetable.h"
+#include "vm/address_space.h"
 // struct addrspace;
 // struct page
 
+typedef uint32_t pid_t ;
 struct proc
 {
     char*              p_name;
-    pid_t              p_pid; // hard code make it to 2, TODO in M8 need manage pid
+    uint32_t p_pid; // hard code make it to 2, TODO in M8 need manage pid
     // char*              p_elfbase; // for further fault handler load code/data section into page/frame table
     struct addrspace*  p_addrspace;
     struct pagetable*  p_pagetable;

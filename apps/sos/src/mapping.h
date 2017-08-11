@@ -16,7 +16,7 @@
 
 
 
-int map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr);
+int map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr,struct  sos_object* pt);
 
 void my_unmap_page_table(struct sos_object* obj);
 

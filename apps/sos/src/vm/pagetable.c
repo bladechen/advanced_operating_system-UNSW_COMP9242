@@ -126,11 +126,30 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t 
     return 0;
 }
 
+static void _insert_sel4_pt(struct pagetable* pt, struct sos_object* obj)
+{
+    //FIXME?
+
+    assert(pt != NULL && obj->addr !=0 && obj->cap !=0);
+    struct sel4_pagetable * p = malloc(sizeof (struct sel4_pagetable));
+    assert(p != NULL);
+    p->next = pt->pt_list;
+    pt->pt_list = p;
+    p->sel4_pt.addr = obj->addr;
+    p->sel4_pt.cap = obj->cap;
+    return;
+
+}
+
 void free_page(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
     vaddr &= seL4_PAGE_MASK;
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
+    if (entity == 0)
+    {
+        return;
+    }
     assert(entity != 0 && (seL4_PAGE_MASK & entity ) != 0);
     paddr_t paddr = (entity & seL4_PAGE_MASK);
     seL4_CPtr app_cap = get_frame_app_cap(paddr);
@@ -153,7 +172,7 @@ int alloc_page(struct pagetable* pt,
 
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     assert(entity == 0);
-
+ 
     paddr_t paddr = frame_alloc(NULL);
     if (paddr == 0)
     {
@@ -189,7 +208,10 @@ int alloc_page(struct pagetable* pt,
     {
         /* Assume the error was because we have no page table */
 
-        ret = map_page_table(pt->vroot.cap, vaddr);
+
+        struct sos_object sel4_pt;
+        clear_sos_object(&sel4_pt);
+        ret = map_page_table(pt->vroot.cap, vaddr, &sel4_pt);
 
         assert(ret == 0);
         if(!ret)
@@ -197,6 +219,7 @@ int alloc_page(struct pagetable* pt,
             int ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr);
             assert(ret == 0);
         }
+        _insert_sel4_pt(pt, &sel4_pt);
     }
     assert(ret == 0);
     assert(0 == set_frame_app_cap(paddr, app_cap));

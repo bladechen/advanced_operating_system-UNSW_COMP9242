@@ -1,9 +1,11 @@
 #ifndef _ADDRESS_SPACE_H_
 #define _ADDRESS_SPACE_H_
-#include "comm.h"
-#include "list.h"
+#include "elf/elf.h"
+#include "comm/comm.h"
+#include "comm/list.h"
 #include "vmem_layout.h"
 #include "vm.h"
+#include "proc/proc.h"
 
 
 /*
@@ -20,12 +22,13 @@ enum region_type
     OTHER,
 };
 
-enum region_permission
-{
-    PF_X,
-    PF_W,
-    PF_R,
-};
+// already defined in elf.h
+// enum region_permission
+// {
+//     PF_X,
+//     PF_W,
+//     PF_R,
+// };
 
 
 
@@ -46,6 +49,9 @@ struct as_region_metadata
     // struct vnode *region_vnode;
 
     char* p_elfbase; // for further fault handler load code/data section into page/frame table
+    vaddr_t elf_vaddr; // the vaddr specified by the elf file, which is the starting vaddr to load the elf binary
+    size_t elf_offset; // the start loading elf file offset, corresponding to  elf_vaddr
+    size_t elf_size; // actual loaded content from file
     // Link to the next data struct
     struct list_head link;
 };
@@ -57,9 +63,11 @@ struct addrspace
     // struct as_region_metadata *list;
     struct list *list;
     // char is_loading;
-    char* elf_base; // will be set in elf_load(), corresponding value is the elf_base passed into 
+    char* elf_base; // will be set in elf_load(), corresponding value is the elf_base passed into
                     // the elf_load() function, and for now it is at least useful for proc_activate()
+    struct proc* proc;
 };
+
 
 
 struct addrspace *as_create(void);
@@ -67,15 +75,21 @@ struct addrspace *as_create(void);
 void              as_destroy(struct addrspace *);
 
 int               as_define_region(struct addrspace *as,
-                                   vaddr_t vaddr, size_t memsz, size_t filesz,
+                                   vaddr_t vaddr,
+                                   char* elf_region_start,
+                                   size_t elf_region_offset,
+                                   size_t memsz,
+                                   size_t filesz,
                                    int readable,
                                    int writeable,
-                                   int executable);
+                                   int executable,
+                                   enum region_type type);
 
 int               as_define_stack(struct addrspace* as, vaddr_t* stack_pointer);
 int               as_define_heap (struct addrspace* as);
 int               as_define_ipc  (struct addrspace* as);
 int               as_define_mmap (struct addrspace* as); // TODO
+
 
 
 // Additions
@@ -94,10 +108,12 @@ seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
 
 // int elf_load(struct vnode *v, vaddr_t *entrypoint);
 // it is called in proc_create() to initialize the program
-int elf_load(seL4_ARM_PageDirectory dest_vspace, struct addrspace * dest_as, char* elf_base);
+int vm_elf_load(struct addrspace* as, seL4_ARM_PageDirectory dest_vspace, char* elf_base);
 
 // used in TCB configure
 seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as);
 
+// See the implementation, we can reuse build_pagetable_link function 
+// int    as_load_region_frame(struct pagetable* pt, struct as_region_metadata* region, vaddr_t fault_addr);
 
 #endif

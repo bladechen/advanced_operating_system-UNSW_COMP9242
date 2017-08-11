@@ -31,6 +31,7 @@
     #define comm_verbose 1
 #endif
 
+#define DIVROUND(a,b) (((a) + ((b) - 1)) / (b))
 
 // mess sel4 cap+addr unit
 struct sos_object
