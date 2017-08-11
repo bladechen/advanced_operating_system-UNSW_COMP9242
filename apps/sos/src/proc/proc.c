@@ -13,6 +13,7 @@
 #include <ut_manager/ut.h>
 #include <vm/vmem_layout.h>
 #include <elf/elf.h>
+#include <cpio/cpio.h>
 
 #define verbose 5
 #include <sys/debug.h>
@@ -24,6 +25,8 @@
 // TODO, now we assume there is only one process, and the badge
 // is hard coded, may try create badge dynamically
 #define TEMP_ONE_PROCESS_BADGE (1<<3)
+
+extern char _cpio_archive[];
 
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
@@ -83,7 +86,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // hardcode priority as 0
     err = seL4_TCB_Configure(process->p_tcb->cap, process->p_ep_cap, 0,
                               process->p_croot->root_cnode, seL4_NilData,
-                              process->p_pagetable->vroot.cap, seL4_NilData, PROCESS_IPC_BUFFER,
+                              process->p_pagetable->vroot.cap, seL4_NilData, APP_PROCESS_IPC_BUFFER,
                               get_IPCBufferCap_By_Addrspace(process->p_addrspace));
     conditional_panic(err, "Unable to configure new TCB");
 
@@ -96,13 +99,13 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
 
     /*** load the elf image info, set up addrspace ***/
-    // DATA and CODE region is set up by elf_load
-    err = elf_load(process->p_pagetable->vroot.cap, elf_base);
+    // DATA and CODE region is set up by `vm_elf_load`
+    err = vm_elf_load(process->p_addrspace, process->p_pagetable->vroot.cap, elf_base);
     conditional_panic(err, "Failed to load elf image");
 
     // This pointer here is useless act as a placeholder
-    vaddr_t* stack_pointer;
-    as_define_stack(process->p_addrspace, stack_pointer);
+    vaddr_t stack_pointer;
+    as_define_stack(process->p_addrspace, &stack_pointer);
 
     as_define_heap(process->p_addrspace);
     as_define_ipc(process->p_addrspace);
@@ -112,7 +115,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     return process;
 }
 
-void proc_activate(struct * proc process)
+void proc_activate(struct proc * process)
 {
     seL4_UserContext context;
     memset(&context, 0, sizeof(context));
@@ -122,7 +125,7 @@ void proc_activate(struct * proc process)
 }
 
 // TODO free struct proc
-int proc_destroy(struct * proc process)
+int proc_destroy(struct proc * process)
 {
     if (process->p_name != NULL)
     {
@@ -160,4 +163,6 @@ int proc_destroy(struct * proc process)
     process->p_croot = NULL;
 
     free(process);
+
+    return 0;
 }
