@@ -36,7 +36,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
-    process->pid = 2;
+    process->p_pid = 2;
 
     /*
     *  pagetable will take care of the virtual address root
@@ -80,7 +80,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     process->p_tcb = tcb_obj;
 
     // configure TCB
-    err = seL4_TCB_Configure(process->p_tcb->cap, process->p_ep_cap, TTY_PRIORITY,
+    // hardcode priority as 0
+    err = seL4_TCB_Configure(process->p_tcb->cap, process->p_ep_cap, 0,
                               process->p_croot->root_cnode, seL4_NilData,
                               process->p_pagetable->vroot.cap, seL4_NilData, PROCESS_IPC_BUFFER,
                               get_IPCBufferCap_By_Addrspace(process->p_addrspace));

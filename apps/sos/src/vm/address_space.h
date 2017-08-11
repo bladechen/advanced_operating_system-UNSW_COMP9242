@@ -106,14 +106,17 @@ seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
  */
 
 
-// int elf_load(struct vnode *v, vaddr_t *entrypoint);
 // it is called in proc_create() to initialize the program
-int vm_elf_load(struct addrspace* as, seL4_ARM_PageDirectory dest_vspace, char* elf_base);
+int vm_elf_load(struct addrspace* as, seL4_ARM_PageDirectory dest_vspace, char* elf_file);
 
 // used in TCB configure
 seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as);
 
-// See the implementation, we can reuse build_pagetable_link function 
+/* 
+*   Functions used in VM_Fault execution in main.c, which load or create corresponding frame
+*   when VM_Fault is triggered
+*/
 int as_load_region_frame(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr);
+int as_stack_map_fault_addr(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr);
 
 #endif

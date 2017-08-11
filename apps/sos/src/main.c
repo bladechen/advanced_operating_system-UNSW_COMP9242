@@ -38,6 +38,8 @@
 #include "unittest/test.h"
 
 #include "vm/frametable.h"
+#include "vm/address_space.h"
+#include "proc/proc.h"
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -220,17 +222,21 @@ void syscall_loop(seL4_CPtr ep)
             *  resides in STACK address region, we try to deal with it by allocating
             *  a new frame for its usage.
             */
-            if (fault_addr >= APP_CODE_DATA_START && fault_addr <= APP_CODE_DATA_END) 
+            if ((fault_addr >= APP_CODE_DATA_START && fault_addr <= APP_CODE_DATA_END) || 
+                (fault_addr >= APP_PROCESS_HEAP_START_GUARD && fault_addr <= APP_PROCESS_HEAP_END_GUARD)) 
             {
-                // CODE region
-
-            } else if (fault_addr >= APP_PROCESS_HEAP_START_GUARD && fault_addr <= APP_PROCESS_HEAP_END_GUARD)
-            {
-                // DATA region
+                // CODE or DATA region
+                int ret = as_load_region_frame(test_process->p_pagetable, 
+                                                test_process->p_addrspace, 
+                                                fault_addr);
+                conditional_panic(ret != 0, "Failed to load elf content to frames\n" );
             } else if (fault_addr >= APP_PROCESS_STACK_BOTTON_GUARD && fault_addr <= APP_PROCESS_STACK_TOP_GUARD)
             {
                 // STACK region
-
+                int ret = as_stack_map_fault_addr(test_process->p_pagetable, 
+                                                    test_process->p_addrspace, 
+                                                    fault_addr);
+                conditional_panic(ret != 0, "Failed to load elf content to frames\n" );
             } else if (fault_addr >= APP_PROCESS_IPC_BUFFER && fault_addr <= APP_PROCESS_IPC_GUARD)
             {
                 assert("There shouldn't be any VM fault triggered when access IPC buffer address space range.\n");
@@ -309,7 +315,7 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"--------------------------------------------------------\n");
 }
 
-void start_first_process(char* app_name, seL4_CPtr fault_ep) {
+/*void start_first_process(char* app_name, seL4_CPtr fault_ep) {*/
 /*     int err; */
 /*  */
 /*     seL4_Word stack_addr; */
@@ -418,7 +424,7 @@ void start_first_process(char* app_name, seL4_CPtr fault_ep) {
 /*     context.pc = elf_getEntryPoint(elf_base); */
 /*     context.sp = PROCESS_STACK_TOP; */
 /*     seL4_TCB_WriteRegisters(tty_test_process.tcb_cap, 1, 0, 2, &context); */
-}
+/*}*/
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     seL4_Word ep_addr, aep_addr;
@@ -520,8 +526,8 @@ int main(void) {
     test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
     proc_activate(test_process);
 
-    m2_test();
-    dprintf(0, "finish m2_test\n");
+    // m2_test();
+    // dprintf(0, "finish m2_test\n");
 
 
     /* Wait on synchronous endpoint for IPC */

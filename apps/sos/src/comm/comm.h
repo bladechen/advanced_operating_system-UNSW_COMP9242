@@ -32,6 +32,7 @@
 #endif
 
 #define DIVROUND(a,b) (((a) + ((b) - 1)) / (b))
+#define seL4_PAGE_SIZE          (1 << seL4_PageBits)
 
 // mess sel4 cap+addr unit
 struct sos_object
