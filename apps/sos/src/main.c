@@ -60,7 +60,6 @@ extern char _cpio_archive[];
 
 const seL4_BootInfo* _boot_info;
 
-
 struct {
 
     seL4_Word tcb_addr;
@@ -95,6 +94,8 @@ static struct serial * serial_handler = NULL;
 #define SYSCALL_IPC_PRINT_COLSOLE 2
 
 
+// this represent the process start by ourself. 
+static struct proc * test_process;
 
 
 
@@ -120,7 +121,8 @@ static void handle_ipc_print_console(seL4_CPtr session)
     int ret = send2nc(serial_handler, msg, msg_len);
     total_sent += ret;
     total_sent_count ++;
-    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n", ret, total_sent, total_sent_count);
+    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n", 
+        ret, total_sent, total_sent_count);
 
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
     /* color_print(ANSI_COLOR_YELLOW, "[sos] sen"); */
@@ -141,29 +143,28 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
     /* Process system call */
     switch (syscall_number) {
-    case SOS_SYSCALL0:
-        dprintf(0, "syscall: thread made syscall 0!\n");
+        case SOS_SYSCALL0:
+            dprintf(0, "syscall: thread made syscall 0!\n");
 
-        seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-        seL4_SetMR(0, 0);
-        seL4_Send(reply_cap, reply);
+            seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+            seL4_SetMR(0, 0);
+            seL4_Send(reply_cap, reply);
 
-        break;
-
-
-    case SYSCALL_IPC_PRINT_COLSOLE:
-        color_print(ANSI_COLOR_YELLOW, "[sos] SYSCALL_IPC_PRINT_COLSOLE\n");
-
-        handle_ipc_print_console(reply_cap);
+            break;
 
 
-        break;
+        case SYSCALL_IPC_PRINT_COLSOLE:
+            color_print(ANSI_COLOR_YELLOW, "[sos] SYSCALL_IPC_PRINT_COLSOLE\n");
 
-    default:
-        printf("%s:%d (%s) Unknown syscall %d\n",
-                   __FILE__, __LINE__, __func__, syscall_number);
-        /* we don't want to reply to an unknown syscall */
+            handle_ipc_print_console(reply_cap);
 
+
+            break;
+
+        default:
+            printf("%s:%d (%s) Unknown syscall %d\n",
+                       __FILE__, __LINE__, __func__, syscall_number);
+            /* we don't want to reply to an unknown syscall */
     }
 
     /* Free the saved reply cap */
@@ -173,8 +174,9 @@ void handle_syscall(seL4_Word badge, int num_args) {
 void update_timestamp(void);
 void handle_epit1_irq(void);
 void handle_gpt_irq(void);
-void syscall_loop(seL4_CPtr ep) {
 
+void syscall_loop(seL4_CPtr ep) 
+{
     while (1) {
         seL4_Word badge;
         seL4_Word label;
@@ -206,11 +208,35 @@ void syscall_loop(seL4_CPtr ep) {
         else if(label == seL4_VMFault)
         {
             /* Page fault */
-            dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", seL4_GetMR(1),
+            dprintf(0, "vm fault at 0x%08x, pc = 0x%08x, %s\n", 
+                    seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
 
-            assert(!"Unable to handle vm faults");
+            seL4_Word fault_addr = seL4_GetMR(1);
+
+            /* For VM fault triggerd in CODE/DATA address space range, 
+            *  we try to solve it by loading contents from elf files. For fault address
+            *  resides in STACK address region, we try to deal with it by allocating
+            *  a new frame for its usage.
+            */
+            if (fault_addr >= APP_CODE_DATA_START && fault_addr <= APP_CODE_DATA_END) 
+            {
+                // CODE region
+
+            } else if (fault_addr >= APP_PROCESS_HEAP_START_GUARD && fault_addr <= APP_PROCESS_HEAP_END_GUARD)
+            {
+                // DATA region
+            } else if (fault_addr >= APP_PROCESS_STACK_BOTTON_GUARD && fault_addr <= APP_PROCESS_STACK_TOP_GUARD)
+            {
+                // STACK region
+
+            } else if (fault_addr >= APP_PROCESS_IPC_BUFFER && fault_addr <= APP_PROCESS_IPC_GUARD)
+            {
+                assert("There shouldn't be any VM fault triggered when access IPC buffer address space range.\n");
+            } else {
+                assert("The fault address does not belong to any valid address range\n");
+            }          
         }else if(label == seL4_NoFault) {
             /* System call */
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
@@ -489,14 +515,16 @@ int main(void) {
     dprintf(0, "initialise frametable...\n");
     frametable_init();
 
-    /* Start the user application */ // I think we may only need to comment this.
+    /* Start the user application */ 
     // start_first_process(TTY_NAME, _sos_ipc_ep_cap);
+    test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
+    proc_activate(test_process);
 
     m2_test();
     dprintf(0, "finish m2_test\n");
 
 
-        /* Wait on synchronous endpoint for IPC */
+    /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     syscall_loop(_sos_ipc_ep_cap);
 

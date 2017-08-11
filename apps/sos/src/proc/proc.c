@@ -88,13 +88,25 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     // parse the cpio image
     unsigned long elf_size;
-    // # `extern char _cpio_archive[];` have been defined in main.c
+    // ### According to `extern char _cpio_archive[];` in main.c
+    // It has been defined in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
-    // load the elf image
+
+    /*** load the elf image info, set up addrspace ***/
+    // DATA and CODE region is set up by elf_load
     err = elf_load(process->p_pagetable->vroot.cap, elf_base);
     conditional_panic(err, "Failed to load elf image");
+
+    // This pointer here is useless act as a placeholder
+    vaddr_t* stack_pointer;
+    as_define_stack(process->p_addrspace, stack_pointer);
+
+    as_define_heap(process->p_addrspace);
+    as_define_ipc(process->p_addrspace);
+
+    // TODO: as_define_mmap(process->p_addrspace);
 
     return process;
 }
@@ -135,13 +147,15 @@ int proc_destroy(struct * proc process)
         process->p_tcb = NULL;
     }
 
-    // revoke capability, didn't find cap remove function
+    // revoke & delete capability
     cspace_revoke_cap(process->p_croot, process->p_ep_cap);
+    assert(0 == cspace_delete_cap(process->p_croot, process->p_ep_cap));
 
     // mentioned in where it is defined, One could also rely on cspace_destroy() to free object,
     // if, and only if, there are no copies of caps to the object outside of the cspace being destroyed.
     // This should be a temporary solution
     cspace_destroy(process->p_croot);
+
     process->p_croot = NULL;
 
     free(process);

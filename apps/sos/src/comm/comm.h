@@ -47,7 +47,6 @@ static inline void clear_sos_object(struct sos_object* obj)
     obj->cap  =0;
 }
 
-// !!!! cur_cspace !!!
 static inline void free_sos_object(struct sos_object* obj, int size_bits, cspace_t * cspace)
 {
     assert(obj != NULL);

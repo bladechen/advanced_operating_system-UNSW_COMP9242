@@ -114,6 +114,6 @@ int vm_elf_load(struct addrspace* as, seL4_ARM_PageDirectory dest_vspace, char* 
 seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as);
 
 // See the implementation, we can reuse build_pagetable_link function 
-// int    as_load_region_frame(struct pagetable* pt, struct as_region_metadata* region, vaddr_t fault_addr);
+int as_load_region_frame(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr);
 
 #endif
