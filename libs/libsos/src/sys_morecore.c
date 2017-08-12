@@ -22,12 +22,16 @@
  * This is rather terrible, but is the simplest option without a
  * huge amount of infrastructure.
  */
-#define MORECORE_AREA_BYTE_SIZE 0x100000
-char morecore_area[MORECORE_AREA_BYTE_SIZE];
+/* #define MORECORE_AREA_BYTE_SIZE 0x100000 */
+/* char morecore_area[MORECORE_AREA_BYTE_SIZE]; */
+static const uint32_t morecore_area =  (0x20001000U);
+#define MORECORE_AREA_BYTE_SIZE (0x2FFFE000 - 0x20001000)
 
 /* Pointer to free space in the morecore area. */
-static uintptr_t morecore_base = (uintptr_t) &morecore_area;
-static uintptr_t morecore_top = (uintptr_t) &morecore_area[MORECORE_AREA_BYTE_SIZE];
+/* static uintptr_t morecore_base = (uintptr_t) &morecore_area; */
+/* static uintptr_t morecore_top = (uintptr_t) &morecore_area[MORECORE_AREA_BYTE_SIZE]; */
+static uintptr_t morecore_base = 0x20001000U;
+static uintptr_t morecore_top = (uintptr_t) (0x20001000U + MORECORE_AREA_BYTE_SIZE);
 
 /* Actual morecore implementation
    returns 0 if failure, returns newbrk if success.
@@ -43,7 +47,7 @@ sys_brk(va_list ap)
     /*if the newbrk is 0, return the bottom of the heap*/
     if (!newbrk) {
         ret = morecore_base;
-    } else if (newbrk < morecore_top && newbrk > (uintptr_t)&morecore_area[0]) {
+    } else if (newbrk < morecore_top && newbrk > (uintptr_t)morecore_area) {
         ret = morecore_base = newbrk;
     } else {
         ret = 0;

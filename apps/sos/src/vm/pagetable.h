@@ -47,4 +47,8 @@ int               alloc_page(struct pagetable* pt,
                              seL4_ARM_VMAttributes vm_attr,
                              seL4_CapRights cap_right);
 
+seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr);
+
+paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr);
+
 #endif

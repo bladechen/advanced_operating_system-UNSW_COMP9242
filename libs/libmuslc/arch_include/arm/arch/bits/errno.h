@@ -133,3 +133,4 @@
 #define EOWNERDEAD      130
 #define ENOTRECOVERABLE 131
 #define ERFKILL         132
+#define ESEL4API        133

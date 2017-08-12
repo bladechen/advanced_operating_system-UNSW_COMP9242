@@ -92,19 +92,19 @@ static inline bool _is_valid_paddr(sos_paddr_t vaddr)
 }
 // return corresponding physical address
 static sos_paddr_t frame_translate_vaddr_to_paddr(sos_vaddr_t vaddr) {
-    assert(!(vaddr & (seL4_PAGE_SIZE - 1)));
+    assert(!(vaddr & (~seL4_FRAME_MASK )));
     assert(_is_valid_vaddr(vaddr));
     return (vaddr - WINDOW_START + _ut_lo);
 }
 // return corresponding virtual address
 static sos_vaddr_t frame_translate_paddr_to_vaddr(sos_paddr_t paddr) {
-    assert(!(paddr & (seL4_PAGE_SIZE - 1)));
+    assert(!(paddr & (~seL4_FRAME_MASK )));
     assert(_is_valid_paddr(paddr));
     return (paddr - _ut_lo + WINDOW_START);
 }
 
 static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr) {
-    if (vaddr < WINDOW_START || vaddr >= (WINDOW_START + _managed_frame_num * seL4_PAGE_SIZE) )
+    if ((vaddr & (~seL4_FRAME_MASK ))  || vaddr < WINDOW_START || vaddr >= (WINDOW_START + _managed_frame_num * seL4_PAGE_SIZE) )
     {
         return -1;
     }
@@ -208,8 +208,9 @@ void frametable_init(void) {
 
     _free_frame_index = -1;
     _free_frame_count =  0;
-    dprintf(0, "After initialization: ut_lo:%x ut_high:%x\n", _ut_lo, _ut_hi);
-    dprintf(0, "virtual address of frame_table: %x\n", _frame_table);
+    color_print (ANSI_COLOR_GREEN, "Frame table init finish: ut_lo:0x%x ut_high:0x%x\n", _ut_lo, _ut_hi);
+    color_print (ANSI_COLOR_GREEN, "virtual address of frame_table: 0x%x\n", _frame_table);
+    color_print (ANSI_COLOR_GREEN, "Frame table manage vaddr from 0x%x to 0x%x\n", WINDOW_START, WINDOW_START + seL4_PAGE_SIZE * _managed_frame_num);
 }
 
 /* allocate frame_table */
@@ -341,6 +342,7 @@ void frame_free(sos_vaddr_t vaddr)
 }
 
 // the caller should firstly frame_alloc, then try to remap the frame to app cap
+// the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
     if (_is_valid_vaddr(vaddr) == false)
@@ -380,7 +382,7 @@ uint32_t get_frame_app_cap(sos_vaddr_t vaddr)
     }
 
     frame_table_entry* e = _get_ft_entry(vaddr);
-    _frame_entry_status(e); // just to verify status
+    assert(-1 != _frame_entry_status(e)); // just to verify status
     return e->app_cap;
 }
 
@@ -392,6 +394,6 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
     }
 
     frame_table_entry* e = _get_ft_entry(vaddr);
-    _frame_entry_status(e); // just to verify status
+    assert(-1 != _frame_entry_status(e)); // just to verify status
     return e->sos_cap;
 }

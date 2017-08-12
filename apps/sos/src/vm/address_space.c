@@ -128,7 +128,7 @@ static struct as_region_metadata* as_get_region_by_type(struct addrspace* as, in
 }
 int as_define_region(struct addrspace *as,
                      vaddr_t vaddr,
-                     char* elf_region_start,
+                     char* elf_base,
                      size_t elf_region_offset,
                      size_t memsz,
                      size_t filesz,
@@ -153,7 +153,7 @@ int as_define_region(struct addrspace *as,
     region->region_vaddr = vaddr;
     region->npages = convert_to_pages(memsz);
     region->rwxflag =  readable | writeable | executable;
-    region->p_elfbase = elf_region_start;
+    region->p_elfbase = elf_base;
     region->elf_offset = elf_region_offset;
     region->elf_size = filesz;
     region->type = type;
@@ -170,8 +170,8 @@ int as_define_stack(struct addrspace* as, vaddr_t* stack_pointer)
     return as_define_region(as,
                             APP_PROCESS_STACK_BOTTOM,
                             NULL, 0,
-                            APP_PROCESS_STACK_TOP - APP_PROCESS_STACK_BOTTOM,
-                            APP_PROCESS_STACK_TOP - APP_PROCESS_STACK_BOTTOM,
+                            APP_PROCESS_STACK_TOP - APP_PROCESS_STACK_BOTTOM, 0,
+                            /* APP_PROCESS_STACK_TOP - APP_PROCESS_STACK_BOTTOM, */
                             PF_R, PF_W, 0, STACK);
 
 }
@@ -180,8 +180,8 @@ int as_define_heap (struct addrspace* as)
     return as_define_region(as,
                             APP_PROCESS_HEAP_START,
                             NULL, 0,
-                            0, 0,
-                            /* APP_PROCESS_HEAP_END- APP_PROCESS_HEAP_START, */
+                            /* 0, 0, */
+                            APP_PROCESS_HEAP_END- APP_PROCESS_HEAP_START, 0,
                             /* APP_PROCESS_HEAP_END- APP_PROCESS_HEAP_START, */
                             PF_R, PF_W, 0, HEAP);
 
@@ -205,10 +205,10 @@ int as_define_ipc(struct addrspace* as)
 }
 
 
-static int build_pagetable_link(struct pagetable* pt,  
-                                vaddr_t vaddr, 
-                                int pages, 
-                                seL4_ARM_VMAttributes vm, 
+static int build_pagetable_link(struct pagetable* pt,
+                                vaddr_t vaddr,
+                                int pages,
+                                seL4_ARM_VMAttributes vm,
                                 seL4_CapRights right)
 {
 
@@ -298,31 +298,31 @@ seL4_CapRights as_region_caprights(struct as_region_metadata* region)
     return right;
 }
 
-/*  
+/*
 *   It's an auxilary function for load file contents into memory when calling `elf_load`
 *   It's not used now, we can keep it for future usage.
 */
-static int define_region_allocate_frame_and_page(unsigned long file_size, 
-    unsigned long segment_size, 
-    unsigned long vaddr, 
+static int define_region_allocate_frame_and_page(unsigned long file_size,
+    unsigned long segment_size,
+    unsigned long vaddr,
     unsigned long offset,
     struct addrspace * dest_as,
     char * source_addr,
-    enum region_type rt) 
+    enum region_type rt)
 {
     // color_print(ANSI_COLOR_GREEN, " Try to create and define CODE region\n");
     // create and define data region
-    int err = as_define_region(dest_as, 
-                    vaddr, 
-                    source_addr, 
-                    offset, 
-                    segment_size, 
-                    file_size, 
-                    1, 2, 4, 
+    int err = as_define_region(dest_as,
+                    vaddr,
+                    source_addr,
+                    offset,
+                    segment_size,
+                    file_size,
+                    1, 2, 4,
                     rt);
     conditional_panic(err != 0, "Fail to create and define Region\n");
 
-    if (rt == CODE) 
+    if (rt == CODE)
     {
         // should not exceed CODE segment vaddress range
         assert(vaddr + segment_size < APP_CODE_DATA_END);
@@ -330,27 +330,27 @@ static int define_region_allocate_frame_and_page(unsigned long file_size,
     {
         // should not exceed DATA segment vaddress range
         // or APP_PROCESS_HEAP_END? I take the larger for safe currently
-        assert(vaddr + segment_size < APP_PROCESS_MMAP_END); 
+        assert(vaddr + segment_size < APP_PROCESS_MMAP_END);
     }
 
     // align the page
     vaddr_t start_address = PAGE_ALIGN(vaddr);
     // make it page align and last page may not fully filled
-    int num_pages = DIVROUND(segment_size, seL4_PAGE_SIZE);  
+    int num_pages = DIVROUND(segment_size, seL4_PAGE_SIZE);
 
     struct as_region_metadata * r ;
-    if (rt == CODE) 
+    if (rt == CODE)
     {
         r = as_get_region_by_type(dest_as, CODE);
     } else if (rt == DATA) {
         r = as_get_region_by_type(dest_as, DATA);
     }
-    
+
     // allocate frame and create page table mapping
-    build_pagetable_link(as_get_page_table(dest_as), 
-                        start_address, 
-                        num_pages, 
-                        as_region_vmattrs(r), 
+    build_pagetable_link(as_get_page_table(dest_as),
+                        start_address,
+                        num_pages,
+                        as_region_vmattrs(r),
                         as_region_caprights(r));
 
     return 0;
@@ -361,20 +361,20 @@ static int define_region_allocate_frame_and_page(unsigned long file_size,
 */
 int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, char* elf_file)
 {
-    
+
 
     /* Ensure that the ELF file looks sane. */
     if (elf_checkFile(elf_file))
     {
-        return seL4_InvalidArgument;
+        return EINVAL;
     }
 
     int num_headers = elf_getNumProgramHeaders(elf_file);
     int i;
-    for (i = 0; i < num_headers; i++) 
+    for (i = 0; i < num_headers; i++)
     {
-        char *source_addr;
-        unsigned long flags, file_size, segment_size, vaddr, offset;
+        /* char *source_addr; */
+        uint32_t  flags, file_size, segment_size, vaddr, offset;
 
         /* Skip non-loadable segments (such as debugging data). */
         if (elf_getProgramHeaderType(elf_file, i) != PT_LOAD)
@@ -382,72 +382,123 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
 
         /* Fetch information about this segment. */
         offset = elf_getProgramHeaderOffset(elf_file, i);
-        source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i);
+        /* source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i); */
         file_size = elf_getProgramHeaderFileSize(elf_file, i);
         segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
         vaddr = elf_getProgramHeaderVaddr(elf_file, i);
         flags = elf_getProgramHeaderFlags(elf_file, i);
         char * name = elf_getSectionName(elf_file, i);
 
+
         // fill in corresponding region infos
-        if (strcmp(name, ".text") == 0) 
+        if (strcmp(name, ".text") == 0)
         {
             color_print(ANSI_COLOR_GREEN, " Try to create and define CODE region\n");
-            int err = as_define_region(dest_as, 
-                    vaddr, 
-                    source_addr, 
-                    offset, 
-                    segment_size, 
-                    file_size, 
-                    PF_R, PF_W, PF_X, 
+            int err = as_define_region(dest_as,
+                    vaddr,
+                    elf_file,
+                    offset,
+                    segment_size,
+                    file_size,
+                    flags & PF_R, flags & PF_W, flags &PF_X,
                     CODE);
             conditional_panic(err != 0, "Fail to create and define CODE Region\n");
-        } else if (strcmp(name, ".rodata") == 0) 
+        }
+        else if (strcmp(name, ".rodata") == 0)
         {
             color_print(ANSI_COLOR_GREEN, " Try to create and define DATA region\n");
-            int err = as_define_region(dest_as, 
-                    vaddr, 
-                    source_addr, 
-                    offset, 
-                    segment_size, 
-                    file_size, 
-                    PF_R, PF_W, PF_X,
+            int err = as_define_region(dest_as,
+                    vaddr,
+                    elf_file,
+                    offset,
+                    segment_size,
+                    file_size,
+                    flags & PF_R, flags & PF_W, flags & PF_X,
                     DATA);
             conditional_panic(err != 0, "Fail to create and define DATA Region\n");
+        }
+        else
+        {
+            color_print(ANSI_COLOR_RED, "the section %s need load, but not handled\n", name);
         }
 
         /* Copy it across into the vspace. */
         dprintf(0, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
 
+        // currently we do demand loading.
         // // TODO: load elf contents into memory, will write a similar function
         // err = load_segment_into_vspace(dest_vspace, source_addr, segment_size, file_size, vaddr,
         //                                get_sel4_rights_from_elf(flags) & seL4_AllRights);
         // conditional_panic(err != 0, "Elf loading failed!\n");
 
-        // // TODO: after load the loading the data we may need to set the CODE segment as readonly
-        // if (strcmp(name, ".text") == 0) 
-        // {
-
-        // }
     }
 
     return 0;
 }
 
-int as_load_region_frame(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr) 
+int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, vaddr_t fault_addr)
 {
-    enum region_type rt;
-    if (fault_addr >= APP_CODE_DATA_START && fault_addr <= APP_CODE_DATA_END)
+    assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
+    assert(fault_addr &(~seL4_PAGE_MASK));
+    assert(r->npages * seL4_PAGE_SIZE >= r->elf_size);
+    const struct as_region_metadata region =  *r;
+
+    uint32_t file_copy_addr = 0;
+    uint32_t file_copy_bytes = 0;
+    uint32_t vm_copied_addr_offset = 0;
+    uint32_t zero_gap = region.elf_vaddr - region.region_vaddr;
+
+    if (fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr)
     {
-        rt = CODE;
-    } else {
-        rt = DATA;
+        // nothing
+    }
+    else if (fault_addr >= region.elf_vaddr + region.elf_size)
+    {
+        // nothing
+    }
+    else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
+    {
+        file_copy_addr = region.elf_offset;
+        vm_copied_addr_offset =  region.elf_vaddr - fault_addr;
+        file_copy_bytes = seL4_PAGE_SIZE  - vm_copied_addr_offset;
+    }
+    else if (fault_addr >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
+    {
+        file_copy_bytes = seL4_PAGE_SIZE;
+        vm_copied_addr_offset = 0;
+        file_copy_addr = region.elf_offset + (fault_addr - region.region_vaddr -zero_gap);
+
+    }
+    else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size)
+    {
+        file_copy_bytes = region.elf_size;
+        file_copy_addr = region.elf_offset;
+        vm_copied_addr_offset = region.elf_vaddr - fault_addr;
+    }
+    else if (fault_addr >= region.elf_vaddr && fault_addr <= region.elf_vaddr + region.elf_size && fault_addr +seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size )
+    {
+        vm_copied_addr_offset = 0;
+        file_copy_bytes = (region.elf_vaddr + region.elf_size) - fault_addr;
+        file_copy_addr = region.elf_offset + (fault_addr - region.region_vaddr -zero_gap);
+    }
+    else
+    {
+        // something we forget to handle.
+        assert(0);
     }
 
-    struct as_region_metadata * region = as_get_region_by_type(as, rt);
+    int ret = as_handle_zerofilled_fault(pt, r, fault_addr);
+    if (ret != 0)
+    {
+        return ret;
+    }
+    paddr_t paddr = page_phys_addr(pt, fault_addr);
+    assert(paddr != 0);
+    // calculate the copy region
 
-    assert(fault_addr > region->elf_vaddr);
-
+    file_copy_addr += (uint32_t) r->p_elfbase;
+    if (file_copy_bytes) memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
+    return 0;
     /*
     *   Calculation explaination diagram:
 
@@ -456,89 +507,106 @@ int as_load_region_frame(struct pagetable* pt, struct addrspace* as, vaddr_t fau
         |-----------------------------------|
                 ^(elf_vaddr)   ^(fault_addr)
     */
-    if (fault_addr - region->elf_vaddr <= 
-        seL4_PAGE_SIZE - (region->elf_vaddr - PAGE_ALIGN(region->elf_vaddr))) 
+    /* if (fault_addr - region->elf_vaddr <= */
+    /*     seL4_PAGE_SIZE - (region->elf_vaddr - PAGE_ALIGN(region->elf_vaddr))) */
+    /* { */
+    /*     #<{(| */
+    /*     *   The very first frame of elf file, should be aware that the starting vaddr */
+    /*     *   may not be page aligned */
+    /*     |)}># */
+    /*  */
+    /*     // elf file starting vaddr */
+    /*     vaddr_t aligned_start_address = PAGE_ALIGN(region->elf_vaddr); */
+    /*  */
+    /*     if (aligned_start_address == region->elf_vaddr) */
+    /*     { */
+    /*         // We only need to load one frame */
+    /*  */
+    /*         // not sure the purpose of PROCESS_SCRATCH, trying to mimic original code */
+    /*         unsigned long kdst = aligned_start_address + APP_PROCESS_SCRATCH; */
+    /*  */
+    /*         // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table */
+    /*         int ret = alloc_page(pt, aligned_start_address, */
+    /*                                 as_region_vmattrs(region), as_region_caprights(region)); */
+    /*         conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n"); */
+    /*  */
+    /*         // load contents from elf file */
+    /*         memcpy((void*)kdst, (void*)region->p_elfbase, seL4_PAGE_SIZE); */
+    /*     } */
+    /*     else */
+    /*     { */
+    /*         // Need to zero out the start to actual start */
+    /*         // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table */
+    /*         int ret = alloc_page(pt, aligned_start_address, */
+    /*                                 as_region_vmattrs(region), as_region_caprights(region)); */
+    /*         conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n"); */
+    /*  */
+    /*         unsigned long kdst = region->elf_vaddr + APP_PROCESS_SCRATCH; */
+    /*  */
+    /*         memcpy((void*)kdst, (void*)region->p_elfbase, */
+    /*             seL4_PAGE_SIZE - (region->elf_vaddr - PAGE_ALIGN(region->elf_vaddr))); */
+    /*         // zero out not used part of frame */
+    /*         memset((void*)aligned_start_address, 0, region->elf_vaddr - PAGE_ALIGN(region->elf_vaddr)); */
+    /*     } */
+    /* } */
+    /* else */
+    /* { */
+    /*     vaddr_t aligned_start_address = PAGE_ALIGN(fault_addr); */
+    /*     // not sure the purpose of PROCESS_SCRATCH, trying to mimic original code */
+    /*     unsigned long kdst = aligned_start_address + APP_PROCESS_SCRATCH; */
+    /*  */
+    /*     // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table */
+    /*     int ret = alloc_page(pt, aligned_start_address, */
+    /*                             as_region_vmattrs(region), as_region_caprights(region)); */
+    /*     conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n"); */
+    /*  */
+    /*     // load contents from elf file */
+    /*     memcpy((void*)kdst, */
+    /*             (void*)(region->p_elfbase + (aligned_start_address - region->elf_vaddr)), // It's the offset to file */
+    /*             seL4_PAGE_SIZE); */
+    /* } */
+
+    return 0;
+}
+
+int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr)
+{
+
+    assert(pt != NULL && region != NULL);
+    assert(fault_addr &(~seL4_PAGE_MASK));
+    int ret = alloc_page(pt,
+                         fault_addr,
+                         as_region_vmattrs(region),
+                         as_region_caprights(region));
+    /* conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n"); */
+
+    return ret;
+}
+
+seL4_CPtr as_get_ipc_cap(struct addrspace * as)
+{
+    return fetch_page_cap(as->proc->p_pagetable, APP_PROCESS_IPC_BUFFER);
+    /* as-> */
+}
+
+
+
+struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr)
+{
+
+
+    assert (as != NULL);
+    assert (as->list != NULL);
+    assert ((vaddr & (~seL4_PAGE_MASK)));
+    struct as_region_metadata* cur = NULL;
+    struct list_head* head = &(as->list->head);
+    list_for_each_entry(cur, head, link)
     {
-        /* 
-        *   The very first frame of elf file, should be aware that the starting vaddr
-        *   may not be page aligned 
-        */
-
-        // elf file starting vaddr
-        vaddr_t aligned_start_address = PAGE_ALIGN(region->elf_vaddr);
-
-        if (aligned_start_address == region->elf_vaddr) 
+        if (cur->region_vaddr <=  vaddr && (cur->region_vaddr + seL4_PAGE_SIZE * cur->npages) > vaddr)
         {
-            // We only need to load one frame
-
-            // not sure the purpose of PROCESS_SCRATCH, trying to mimic original code
-            unsigned long kdst = aligned_start_address + APP_PROCESS_SCRATCH;
-
-            // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table
-            int ret = alloc_page(pt, aligned_start_address, 
-                                    as_region_vmattrs(region), as_region_caprights(region));
-            conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n");
-
-            // load contents from elf file
-            memcpy((void*)kdst, (void*)region->p_elfbase, seL4_PAGE_SIZE); 
-        } else 
-        {
-            // Need to zero out the start to actual start
-            // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table
-            int ret = alloc_page(pt, aligned_start_address, 
-                                    as_region_vmattrs(region), as_region_caprights(region));
-            conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n");
-
-            unsigned long kdst = region->elf_vaddr + APP_PROCESS_SCRATCH;
-
-            memcpy((void*)kdst, (void*)region->p_elfbase, 
-                seL4_PAGE_SIZE - (region->elf_vaddr - PAGE_ALIGN(region->elf_vaddr)));
-            // zero out not used part of frame
-            memset((void*)aligned_start_address, 0, region->elf_vaddr - PAGE_ALIGN(region->elf_vaddr));
+            return cur;
         }
-    } else 
-    {
-        vaddr_t aligned_start_address = PAGE_ALIGN(fault_addr);
-        // not sure the purpose of PROCESS_SCRATCH, trying to mimic original code
-        unsigned long kdst = aligned_start_address + APP_PROCESS_SCRATCH;
-
-        // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table
-        int ret = alloc_page(pt, aligned_start_address, 
-                                as_region_vmattrs(region), as_region_caprights(region));
-        conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n");
-
-        // load contents from elf file
-        memcpy((void*)kdst, 
-                (void*)(region->p_elfbase + (aligned_start_address - region->elf_vaddr)), // It's the offset to file 
-                seL4_PAGE_SIZE);
     }
-
-    return 0;
+    return NULL;
 }
 
-int as_stack_map_fault_addr(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr)
-{
-    assert(fault_addr >= APP_PROCESS_STACK_BOTTON_GUARD);
-    assert(fault_addr <= APP_PROCESS_STACK_TOP_GUARD);
-
-    struct as_region_metadata * region = as_get_region_by_type(as, STACK);
-
-    vaddr_t aligned_start_address = PAGE_ALIGN(fault_addr);
-
-    // allocate frame, fill in sos page table, also add mapping to seL4 kernel page table
-    int ret = alloc_page(pt, aligned_start_address, 
-                            as_region_vmattrs(region), as_region_caprights(region));
-    conditional_panic(ret != 0, "Failed to allocate page after the VM_Fault triggered\n");
-
-    memset((void*)aligned_start_address, 0, seL4_PAGE_SIZE);
-
-    return 0;
-}
-
-// TODO ??? how to get the corresponding capability
-seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as)
-{
-    // struct as_region_metadata * r = as_get_region_by_type(as, IPC);
-
-    return 0;
-}

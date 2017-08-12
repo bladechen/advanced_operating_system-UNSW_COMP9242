@@ -14,6 +14,7 @@
 #include <vm/vmem_layout.h>
 #include <elf/elf.h>
 #include <cpio/cpio.h>
+#include "comm/comm.h"
 
 #define verbose 5
 #include <sys/debug.h>
@@ -28,6 +29,29 @@
 
 extern char _cpio_archive[];
 
+static void clear_proc(struct proc* proc)
+{
+    proc->p_name = NULL;
+    proc->p_pid = 0;
+    proc->p_addrspace = NULL;
+    proc->p_pagetable = NULL;
+    proc->p_tcb = NULL;
+    proc->p_croot = NULL;
+    proc->p_ep_cap = 0;
+
+}
+
+static struct proc* _cur_proc = NULL;
+struct proc* get_current_app_proc()
+{
+    return _cur_proc;
+
+}
+void set_current_app_proc(struct proc* proc)
+{
+    _cur_proc = proc;
+}
+
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
     int err;
@@ -36,6 +60,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     {
         return NULL;
     }
+    clear_proc(process);
 
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
@@ -68,6 +93,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     process->p_croot = cspace_create(1);
     assert(process->p_croot != NULL);
 
+    // the order is first init ipc buffer, then setup fault ep?
+    as_define_ipc(process->p_addrspace);
     // Copy the fault endpoint to the user app to enable IPC
     process->p_ep_cap = cspace_mint_cap(process->p_croot,
                                         cur_cspace,
@@ -75,19 +102,26 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
                                         seL4_AllRights,
                                         seL4_CapData_Badge_new(TEMP_ONE_PROCESS_BADGE));
     assert(process->p_ep_cap != CSPACE_NULL);
+    assert(process->p_ep_cap == 1);// FIXME
 
     // Create a new TCB object
     struct sos_object * tcb_obj = (struct sos_object *)malloc(sizeof(struct sos_object));
+    clear_sos_object(tcb_obj);
     err = init_sos_object(tcb_obj, seL4_TCBObject, seL4_TCBBits);
     conditional_panic(err, "Failed to create TCB");
     process->p_tcb = tcb_obj;
 
     // configure TCB
     // hardcode priority as 0
-    err = seL4_TCB_Configure(process->p_tcb->cap, process->p_ep_cap, 0,
-                              process->p_croot->root_cnode, seL4_NilData,
-                              process->p_pagetable->vroot.cap, seL4_NilData, APP_PROCESS_IPC_BUFFER,
-                              get_IPCBufferCap_By_Addrspace(process->p_addrspace));
+    err = seL4_TCB_Configure(process->p_tcb->cap,
+                             process->p_ep_cap,
+                             0,
+                              process->p_croot->root_cnode,
+                              seL4_NilData,
+                              process->p_pagetable->vroot.cap,
+                              seL4_NilData,
+                              APP_PROCESS_IPC_BUFFER,
+                              as_get_ipc_cap(process->p_addrspace));
     conditional_panic(err, "Unable to configure new TCB");
 
     // parse the cpio image
@@ -108,7 +142,6 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     as_define_stack(process->p_addrspace, &stack_pointer);
 
     as_define_heap(process->p_addrspace);
-    as_define_ipc(process->p_addrspace);
 
     // TODO: as_define_mmap(process->p_addrspace);
 
@@ -124,13 +157,13 @@ void proc_activate(struct proc * process)
     seL4_TCB_WriteRegisters(process->p_tcb->cap, 1, 0, 2, &context);
 }
 
-// TODO free struct proc
+// TODO  need to check the correctness.
 int proc_destroy(struct proc * process)
 {
-    if (process->p_name != NULL)
-    {
-        free(process->p_name);
-    }
+    /* if (process->p_name != NULL) */
+    /* { */
+    /*     free(process->p_name); */
+    /* } */
 
     if (process->p_addrspace != NULL)
     {

@@ -10,7 +10,7 @@
 typedef uint32_t pid_t ;
 struct proc
 {
-    char*              p_name;
+    char*              p_name; // proc name, current need by cpio to load elf.
     uint32_t p_pid; // hard code make it to 2, TODO in M8 need manage pid
     // char*              p_elfbase; // for further fault handler load code/data section into page/frame table
     struct addrspace*  p_addrspace;
@@ -49,6 +49,9 @@ struct addrspace *proc_getas(void);
 
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
+
+struct proc* get_current_app_proc();
+void set_current_app_proc(struct proc* proc);
 
 #endif
 

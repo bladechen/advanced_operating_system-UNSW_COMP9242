@@ -76,7 +76,7 @@ void              as_destroy(struct addrspace *);
 
 int               as_define_region(struct addrspace *as,
                                    vaddr_t vaddr,
-                                   char* elf_region_start,
+                                   char* elf_base,
                                    size_t elf_region_offset,
                                    size_t memsz,
                                    size_t filesz,
@@ -89,6 +89,8 @@ int               as_define_stack(struct addrspace* as, vaddr_t* stack_pointer);
 int               as_define_heap (struct addrspace* as);
 int               as_define_ipc  (struct addrspace* as);
 int               as_define_mmap (struct addrspace* as); // TODO
+
+struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr);
 
 
 
@@ -110,13 +112,14 @@ seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
 int vm_elf_load(struct addrspace* as, seL4_ARM_PageDirectory dest_vspace, char* elf_file);
 
 // used in TCB configure
-seL4_CPtr get_IPCBufferCap_By_Addrspace(struct addrspace * as);
+seL4_CPtr as_get_ipc_cap(struct addrspace * as);
 
-/* 
+/*
 *   Functions used in VM_Fault execution in main.c, which load or create corresponding frame
 *   when VM_Fault is triggered
 */
-int as_load_region_frame(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr);
-int as_stack_map_fault_addr(struct pagetable* pt, struct addrspace* as, vaddr_t fault_addr);
+int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr);
+
+int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr);
 
 #endif

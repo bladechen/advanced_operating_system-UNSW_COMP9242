@@ -7,9 +7,13 @@
 #include <sys/debug.h>
 
 
+static paddr_t entity_paddr(uint32_t entity)
+{
+    return entity & seL4_PAGE_MASK;
+}
 static bool _valid_page_addr(uint32_t addr)
 {
-    return (addr & seL4_PAGE_MASK) != 0 ? true:false;
+    return (addr & seL4_PAGE_MASK) == 0 ? true:false;
 }
 struct pagetable* create_pagetable(void)
 {
@@ -88,7 +92,7 @@ void destroy_pagetable(struct pagetable* pt )
 static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
-    assert((vaddr & (~seL4_PAGE_MASK)) == 0);
+    assert(_valid_page_addr(vaddr) == 0);
     int l1_index = (vaddr & LEVEL1_PAGE_MASK) >> 22;
     int l2_index = (vaddr & LEVEL2_PAGE_MASK) >> 12;
     if (pt->page_dir == NULL)
@@ -106,6 +110,7 @@ static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
 static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t paddr)
 {
     assert(pt != NULL);
+    color_print(ANSI_COLOR_RED, "%x, %x %d, %d\n", vaddr, paddr, _valid_page_addr(vaddr),  _valid_page_addr(paddr));
     assert(_valid_page_addr(vaddr) && _valid_page_addr(paddr) );
     int l1_index = (vaddr & LEVEL1_PAGE_MASK) >> 22;
     int l2_index = (vaddr & LEVEL2_PAGE_MASK) >> 12;
@@ -148,6 +153,7 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     if (entity == 0)
     {
+        color_print(ANSI_COLOR_RED, "free_page vaddr 0x%x error\n", vaddr);
         return;
     }
     assert(entity != 0 && (seL4_PAGE_MASK & entity ) != 0);
@@ -172,12 +178,12 @@ int alloc_page(struct pagetable* pt,
 
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     assert(entity == 0);
- 
+
     paddr_t paddr = frame_alloc(NULL);
     if (paddr == 0)
     {
         color_print(ANSI_COLOR_RED, "frame_alloc return NULL\n");
-        return PAGETABLE_OOM;
+        return ENOMEM;
     }
     // FIXME maybe we need alloc page table first then frame.
     int ret = _insert_pagetable_entry(pt, vaddr, paddr);
@@ -185,7 +191,7 @@ int alloc_page(struct pagetable* pt,
     {
         frame_free(paddr);
         color_print(ANSI_COLOR_RED, "no enough mem for page table\n");
-        return PAGETABLE_OOM;
+        return ENOMEM;
     }
 
     seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
@@ -193,20 +199,20 @@ int alloc_page(struct pagetable* pt,
     {
         frame_free(paddr);
         color_print(ANSI_COLOR_RED, "invalid frame table status!!!!!\n");
-        return PAGETABLE_INVALID_STATUS;
+        return EINVAL;
     }
     seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
     if (app_cap == 0)
     {
         frame_free(paddr);
         color_print(ANSI_COLOR_RED, "cspace_copy_cap error\n");
-        return PAGETABEL_SEL4_ERROR;
+        return ESEL4API;
     }
 
     ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr);
     if(ret == seL4_FailedLookup)
     {
-        /* Assume the error was because we have no page table */
+        /* Assume the error was because we have no page table in sel4 kernel.*/
 
 
         struct sos_object sel4_pt;
@@ -224,4 +230,35 @@ int alloc_page(struct pagetable* pt,
     assert(ret == 0);
     assert(0 == set_frame_app_cap(paddr, app_cap));
     return 0;
+}
+
+seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr)
+{
+    assert(pt != NULL);
+    vaddr &= seL4_PAGE_MASK;
+
+    uint32_t entity = _get_pagetable_entry(pt, vaddr);
+    if (entity == 0)
+    {
+        return 0;
+    }
+
+    seL4_CPtr sos_cap = get_frame_sos_cap(entity_paddr(entity));
+    if (sos_cap == 0)
+    {
+        color_print(ANSI_COLOR_RED, "get vaddr 0x%x cap error\n", vaddr);
+        return 0;
+    }
+    return sos_cap;
+
+
+}
+
+paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr)
+{
+    assert(pt != NULL);
+    vaddr &= seL4_PAGE_MASK;
+    uint32_t entity = _get_pagetable_entry(pt, vaddr);
+    return (entity & seL4_PAGE_MASK);
+
 }

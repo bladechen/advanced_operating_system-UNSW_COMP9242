@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <sel4/types.h>
 #include <nfs/nfs.h>
+#include <errno.h>
 
 
 #include <cspace/cspace.h>
@@ -45,7 +46,7 @@ static inline void clear_sos_object(struct sos_object* obj)
 {
     assert(obj != NULL);
     obj->addr = 0;
-    obj->cap  =0;
+    obj->cap  = 0;
 }
 
 static inline void free_sos_object(struct sos_object* obj, int size_bits, cspace_t * cspace)
@@ -116,6 +117,15 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
     conditional_panic(!badged_cap, "Failed to allocate badged cap");
     return badged_cap;
 }
+
+// static inline seL4_CPtr badge_proc_ep(seL4_CPtr ep, seL4_Word badge)
+// {
+//     seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights, seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
+//     conditional_panic(!badged_cap, "Failed to allocate badged cap");
+//     return badged_cap;
+//
+//
+// }
 
 
 // static inline void
