@@ -94,7 +94,7 @@ static int convert_to_pages(size_t memsize)
 }
 
 
-static void loop_through_region(struct addrspace *as)
+void loop_through_region(struct addrspace *as)
 {
     struct list_head *current = NULL;
     struct list_head *tmp_head = NULL;
@@ -102,7 +102,7 @@ static void loop_through_region(struct addrspace *as)
     list_for_each_safe(current, tmp_head, &(as->list->head))
     {
         struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
-        color_print(ANSI_COLOR_GREEN, " region : 0x%x, page: %d\n", tmp->region_vaddr, tmp->npages);
+        color_print(ANSI_COLOR_GREEN, "type: %d, region : 0x%x, page: %d\n",tmp->type, tmp->region_vaddr, tmp->npages);
     }
 }
 
@@ -368,6 +368,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
     {
         return EINVAL;
     }
+    dest_as->elf_base = elf_file;
 
     int num_headers = elf_getNumProgramHeaders(elf_file);
     int i;
@@ -381,7 +382,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
             continue;
 
         /* Fetch information about this segment. */
-        offset = elf_getProgramHeaderOffset(elf_file, i);
+        uint64_t off = elf_getProgramHeaderOffset(elf_file, i);
         /* source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i); */
         file_size = elf_getProgramHeaderFileSize(elf_file, i);
         segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
@@ -394,6 +395,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
         if (strcmp(name, ".text") == 0)
         {
             color_print(ANSI_COLOR_GREEN, " Try to create and define CODE region\n");
+            color_print(ANSI_COLOR_GREEN, "offset: %llu\n", off);
             int err = as_define_region(dest_as,
                     vaddr,
                     elf_file,
@@ -436,24 +438,41 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
     return 0;
 }
 
+static void dump_region(struct as_region_metadata* region)
+{
+    color_print(ANSI_COLOR_GREEN, "region type: %d\n", (int)(region->type));
+    color_print(ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u, elf_base: 0x%x, filesz: %u, file_offset: %u, elf vaddr:0x%x\n",
+                region->region_vaddr,
+                region->npages,
+                region->p_elfbase,
+                region->elf_size,
+                region->elf_offset,
+                region->elf_vaddr);
+    return;
+}
+
 int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, vaddr_t fault_addr)
 {
     assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
-    assert(fault_addr &(~seL4_PAGE_MASK));
+    assert(!(fault_addr &(~seL4_PAGE_MASK)));
     assert(r->npages * seL4_PAGE_SIZE >= r->elf_size);
+    color_print(ANSI_COLOR_GREEN, "current process fault addr: 0x%x\n", fault_addr);
     const struct as_region_metadata region =  *r;
 
     uint32_t file_copy_addr = 0;
     uint32_t file_copy_bytes = 0;
     uint32_t vm_copied_addr_offset = 0;
     uint32_t zero_gap = region.elf_vaddr - region.region_vaddr;
+    dump_region(r);
 
     if (fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr)
     {
+        color_print(ANSI_COLOR_GREEN, "case 1\n");
         // nothing
     }
     else if (fault_addr >= region.elf_vaddr + region.elf_size)
     {
+        color_print(ANSI_COLOR_GREEN, "case 2\n");
         // nothing
     }
     else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
@@ -461,9 +480,11 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         file_copy_addr = region.elf_offset;
         vm_copied_addr_offset =  region.elf_vaddr - fault_addr;
         file_copy_bytes = seL4_PAGE_SIZE  - vm_copied_addr_offset;
+        color_print(ANSI_COLOR_GREEN, "case 3 %u\n", file_copy_bytes);
     }
     else if (fault_addr >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
+        color_print(ANSI_COLOR_GREEN, "case 4\n");
         file_copy_bytes = seL4_PAGE_SIZE;
         vm_copied_addr_offset = 0;
         file_copy_addr = region.elf_offset + (fault_addr - region.region_vaddr -zero_gap);
@@ -496,8 +517,28 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     assert(paddr != 0);
     // calculate the copy region
 
+    color_print(ANSI_COLOR_GREEN, "vm off: %u, file addr: %u, %d\n", vm_copied_addr_offset, file_copy_addr,file_copy_bytes );
+
     file_copy_addr += (uint32_t) r->p_elfbase;
-    if (file_copy_bytes) memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
+    color_print(ANSI_COLOR_GREEN, "alloc vaddr: 0x%x at paddr: 0x%x\n", fault_addr, paddr);
+    color_print(ANSI_COLOR_GREEN, "* copy file at 0x%x to physical mem 0x%x with %d bytes\n", file_copy_addr, paddr + vm_copied_addr_offset, file_copy_bytes);
+    if (file_copy_bytes)
+    {
+        for (int i = 0; i < 256;i ++)
+        {
+            color_print(ANSI_COLOR_GREEN, "%08x: ", i*16 );
+            for (int j = 0; j < 16; j ++)
+            {
+                char *p = (char*) file_copy_addr;
+                color_print(ANSI_COLOR_GREEN, "%02x ",  p[i * 16 + j]);
+
+            }
+            color_print(ANSI_COLOR_GREEN, "\n");
+
+        }
+        memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
+    }
+    frame_flush_icache(paddr);
     return 0;
     /*
     *   Calculation explaination diagram:
@@ -573,7 +614,7 @@ int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata *
 {
 
     assert(pt != NULL && region != NULL);
-    assert(fault_addr &(~seL4_PAGE_MASK));
+    assert((fault_addr &(~seL4_PAGE_MASK)) == 0);
     int ret = alloc_page(pt,
                          fault_addr,
                          as_region_vmattrs(region),
@@ -597,7 +638,7 @@ struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr)
 
     assert (as != NULL);
     assert (as->list != NULL);
-    assert ((vaddr & (~seL4_PAGE_MASK)));
+    assert (!(vaddr & (~seL4_PAGE_MASK)));
     struct as_region_metadata* cur = NULL;
     struct list_head* head = &(as->list->head);
     list_for_each_entry(cur, head, link)

@@ -262,6 +262,7 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr)
         vaddr = frame_translate_index_to_vaddr(index);
         if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
         _zero_frame(vaddr);
+		frame_flush_icache(vaddr);
         return vaddr;
     }
 
@@ -287,6 +288,7 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr)
 
         if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
         _zero_frame(vaddr);
+		frame_flush_icache(vaddr);
         return vaddr;
     }
 }
@@ -396,4 +398,17 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
     return e->sos_cap;
+}
+
+void frame_flush_icache(seL4_Word vaddr) {
+	if (_is_valid_vaddr(vaddr) == false)
+    {
+		return;
+    }
+
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    assert(-1 != _frame_entry_status(e)); // just to verify status
+
+	seL4_CPtr cap = e->sos_cap;
+	seL4_ARM_Page_Unify_Instruction(cap, 0, seL4_PAGE_SIZE);
 }

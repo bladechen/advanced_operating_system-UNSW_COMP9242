@@ -59,7 +59,7 @@ size_t sos_read(void *vData, size_t count) {
     return 0;
 }
 
-static int tty_debug_print(const char *fmt, ...)
+int tty_debug_print(const char *fmt, ...)
 {
     static char print_buf[4096];
 	int ret;

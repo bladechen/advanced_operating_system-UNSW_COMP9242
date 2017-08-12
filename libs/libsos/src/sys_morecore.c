@@ -23,15 +23,15 @@
  * huge amount of infrastructure.
  */
 /* #define MORECORE_AREA_BYTE_SIZE 0x100000 */
-/* char morecore_area[MORECORE_AREA_BYTE_SIZE]; */
-static const uint32_t morecore_area =  (0x20001000U);
-#define MORECORE_AREA_BYTE_SIZE (0x2FFFE000 - 0x20001000)
+/* char __morecore_area[MORECORE_AREA_BYTE_SIZE]; */
+static const uint32_t morecore_area = (0x20001000);
+#define MORECORE_AREA_BYTE_SIZE (0x21FFE000 - 0x20001000)
 
 /* Pointer to free space in the morecore area. */
 /* static uintptr_t morecore_base = (uintptr_t) &morecore_area; */
 /* static uintptr_t morecore_top = (uintptr_t) &morecore_area[MORECORE_AREA_BYTE_SIZE]; */
-static uintptr_t morecore_base = 0x20001000U;
-static uintptr_t morecore_top = (uintptr_t) (0x20001000U + MORECORE_AREA_BYTE_SIZE);
+static uintptr_t morecore_base = 0x20001000;
+static uintptr_t morecore_top = (uintptr_t) (0x21FFE000);
 
 /* Actual morecore implementation
    returns 0 if failure, returns newbrk if success.

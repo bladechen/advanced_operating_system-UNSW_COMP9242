@@ -233,6 +233,7 @@ void syscall_loop(seL4_CPtr ep)
             else
             {
                 color_print(ANSI_COLOR_RED, "segment fault!\n");
+                assert(0);
                 proc_destroy(get_current_app_proc());
             }
             cspace_free_slot(cur_cspace, reply_cap);
@@ -521,8 +522,11 @@ int main(void) {
 
     /* Start the user application */
     // start_first_process(TTY_NAME, _sos_ipc_ep_cap);
+    color_print(ANSI_COLOR_GREEN, "create tty process...\n");
     test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
+    color_print(ANSI_COLOR_GREEN, "finish creating tty...\n");
     proc_activate(test_process);
+    color_print(ANSI_COLOR_GREEN, "start tty success\n");
 
     // m2_test();
     // dprintf(0, "finish m2_test\n");

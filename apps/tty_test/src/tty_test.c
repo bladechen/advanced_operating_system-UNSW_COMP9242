@@ -45,6 +45,8 @@ thread_block(void){
 #define TEST_ADDRESS 0x20000000
 
 /* called from pt_test */
+
+int tty_debug_print(const char *fmt, ...);
 static char buff[27 * 4096 * 2];
 static void
 do_pt_test(char *buf)
@@ -73,26 +75,38 @@ pt_test( void )
 
     /* stack test */
     do_pt_test(buf1);
+    tty_debug_print("begion malloc\n");
 
     /* heap test */
     buf2 = malloc(NPAGES * PAGE_SIZE_4K);
-    assert(buf2);
+    /* tty_debug_print("malloc %x\n", buf2); */
+    /* assert(buf2); */
     do_pt_test(buf2);
     free(buf2);
 }
 int main(void){
     /* initialise communication */
     ttyout_init();
+    /* int * p = (int*)(0x20001000U); */
+    /* *p = 10000; */
 
+    char a[4];
+    char b[4];
+    memcpy(a, b, 4);
+    printf("task:\tHello world, I'm\ttty_test!\n");
     // 50000 maybe too large to udp lost packet
     /* for (int i = 0; i < 10000; i ++) */
     /* { */
     /*     printf ("helloworld"); */
     /* } */
+    tty_debug_print("do_pt_test ing\n");
     do_pt_test(buff);
+    tty_debug_print("finish do_pt_test\n");
+    tty_debug_print("pt_test\n");
     pt_test();
+    tty_debug_print("finish pt_test\n");
     do {
-        printf("task:\tHello world, I'm\ttty_test!\n");
+        /* printf("task:\tHello world, I'm\ttty_test!\n"); */
         /* p -= (4096 * (1<<6)); */
         /* printf("now read the stack addr %p, which should fault!!!\n", p); */
         /* printf("%d\n", *p); */

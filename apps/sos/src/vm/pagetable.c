@@ -13,7 +13,7 @@ static paddr_t entity_paddr(uint32_t entity)
 }
 static bool _valid_page_addr(uint32_t addr)
 {
-    return (addr & seL4_PAGE_MASK) == 0 ? true:false;
+    return (addr & (~seL4_PAGE_MASK)) == 0 ? true:false;
 }
 struct pagetable* create_pagetable(void)
 {
@@ -92,7 +92,7 @@ void destroy_pagetable(struct pagetable* pt )
 static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
-    assert(_valid_page_addr(vaddr) == 0);
+    assert(_valid_page_addr(vaddr) );
     int l1_index = (vaddr & LEVEL1_PAGE_MASK) >> 22;
     int l2_index = (vaddr & LEVEL2_PAGE_MASK) >> 12;
     if (pt->page_dir == NULL)
@@ -110,7 +110,6 @@ static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
 static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t paddr)
 {
     assert(pt != NULL);
-    color_print(ANSI_COLOR_RED, "%x, %x %d, %d\n", vaddr, paddr, _valid_page_addr(vaddr),  _valid_page_addr(paddr));
     assert(_valid_page_addr(vaddr) && _valid_page_addr(paddr) );
     int l1_index = (vaddr & LEVEL1_PAGE_MASK) >> 22;
     int l2_index = (vaddr & LEVEL2_PAGE_MASK) >> 12;

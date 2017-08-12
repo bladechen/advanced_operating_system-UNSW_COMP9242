@@ -57,5 +57,6 @@ uint32_t get_frame_app_cap(sos_vaddr_t vaddr);
 uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
 
 
+void frame_flush_icache(seL4_Word vaddr) ;
 
 #endif /* _MAPPING_H_ */

@@ -52,6 +52,9 @@ void set_current_app_proc(struct proc* proc)
     _cur_proc = proc;
 }
 
+
+/* void loop_through_region(struct addrspace *as); */
+
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
     int err;
@@ -129,6 +132,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // ### According to `extern char _cpio_archive[];` in main.c
     // It has been defined in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
+    color_print(ANSI_COLOR_GREEN, "elf_base: %x\n", elf_base);
+    color_print(ANSI_COLOR_GREEN, "elf_base: %x, entry point:%x\n", elf_base, elf_getEntryPoint(elf_base));
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
 
@@ -145,6 +150,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     // TODO: as_define_mmap(process->p_addrspace);
 
+    loop_through_region(process->p_addrspace);
     return process;
 }
 
@@ -154,6 +160,7 @@ void proc_activate(struct proc * process)
     memset(&context, 0, sizeof(context));
     context.pc = elf_getEntryPoint(process->p_addrspace->elf_base);
     context.sp = APP_PROCESS_STACK_TOP;
+    color_print(ANSI_COLOR_GREEN, "0x%x,proc activate, pc: 0x%x, sp: 0x%x\n", process->p_addrspace->elf_base, context.pc, context.sp);
     seL4_TCB_WriteRegisters(process->p_tcb->cap, 1, 0, 2, &context);
 }
 
