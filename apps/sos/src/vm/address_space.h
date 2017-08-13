@@ -22,19 +22,8 @@ enum region_type
     OTHER,
 };
 
-// already defined in elf.h
-// enum region_permission
-// {
-//     PF_X,
-//     PF_W,
-//     PF_R,
-// };
-
-
-
 struct as_region_metadata
 {
-    // TODO add a cap field
 
     vaddr_t region_vaddr;
     size_t  npages; //maximum region support pages, 4K

@@ -79,14 +79,14 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     process->p_addrspace = as_create();
     if (process->p_addrspace == NULL)
     {
-        color_print(ANSI_COLOR_RED, "proc_create: get a null p_addrspace\n");
+        ERROR_DEBUG("proc_create: get a null p_addrspace\n");
         proc_destroy(process);
         return NULL;
     }
     process->p_pagetable = create_pagetable();
     if (process->p_addrspace == NULL)
     {
-        color_print(ANSI_COLOR_RED, "proc_create: get a null p_pagetable\n");
+        ERROR_DEBUG( "proc_create: get a null p_pagetable\n");
         proc_destroy(process);
         return NULL;
     }
@@ -129,11 +129,10 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     // parse the cpio image
     unsigned long elf_size;
-    // ### According to `extern char _cpio_archive[];` in main.c
-    // It has been defined in main.c
+    // According to `extern char _cpio_archive[];` in main.c
+    // It has been declared in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
-    color_print(ANSI_COLOR_GREEN, "elf_base: %x\n", elf_base);
-    color_print(ANSI_COLOR_GREEN, "elf_base: %x, entry point:%x\n", elf_base, elf_getEntryPoint(elf_base));
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "loading %s elf_base: %x, entry point:%x\n", name, elf_base, elf_getEntryPoint(elf_base));
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
 
@@ -160,7 +159,6 @@ void proc_activate(struct proc * process)
     memset(&context, 0, sizeof(context));
     context.pc = elf_getEntryPoint(process->p_addrspace->elf_base);
     context.sp = APP_PROCESS_STACK_TOP;
-    color_print(ANSI_COLOR_GREEN, "0x%x,proc activate, pc: 0x%x, sp: 0x%x\n", process->p_addrspace->elf_base, context.pc, context.sp);
     seL4_TCB_WriteRegisters(process->p_tcb->cap, 1, 0, 2, &context);
 }
 
@@ -187,11 +185,11 @@ int proc_destroy(struct proc * process)
     if (process->p_tcb != NULL)
     {
         seL4_TCB_Suspend(process->p_tcb->cap);
-        free_sos_object(process->p_tcb, seL4_TCBBits, process->p_croot);
+        free_sos_object(process->p_tcb, seL4_TCBBits);
         process->p_tcb = NULL;
     }
 
-    // revoke & delete capability
+    /* // revoke & delete capability */
     cspace_revoke_cap(process->p_croot, process->p_ep_cap);
     assert(0 == cspace_delete_cap(process->p_croot, process->p_ep_cap));
 
@@ -203,6 +201,8 @@ int proc_destroy(struct proc * process)
     process->p_croot = NULL;
 
     free(process);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
+
 
     return 0;
 }

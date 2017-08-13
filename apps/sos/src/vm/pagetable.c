@@ -3,7 +3,6 @@
 #include "mapping.h"
 
 
-#define verbose 5
 #include <sys/debug.h>
 
 
@@ -13,14 +12,14 @@ static paddr_t entity_paddr(uint32_t entity)
 }
 static bool _valid_page_addr(uint32_t addr)
 {
-    return (addr & (~seL4_PAGE_MASK)) == 0 ? true:false;
+    return IS_PAGE_ALIGNED(addr);
 }
 struct pagetable* create_pagetable(void)
 {
     struct pagetable* pt = malloc(sizeof (struct pagetable));
     if (pt == NULL)
     {
-        color_print(ANSI_COLOR_RED, "malloc pagetable return NULL\n");
+        ERROR_DEBUG("malloc pagetable return NULL\n");
         return NULL;
     }
 
@@ -31,7 +30,7 @@ struct pagetable* create_pagetable(void)
     pt->page_dir = (void*)frame_alloc(NULL);
     if (pt->page_dir == NULL)
     {
-        color_print(ANSI_COLOR_RED, "frame_alloc page_dir return NULL\n");
+        ERROR_DEBUG( "frame_alloc page_dir return NULL\n");
         destroy_pagetable(pt);
         return NULL;
     }
@@ -78,14 +77,18 @@ void destroy_pagetable(struct pagetable* pt )
     {
         for (struct sel4_pagetable* it = pt->pt_list;
              it != NULL;
-             it = it->next)
+             )
         {
             my_unmap_page_table(&(it->sel4_pt));
+            struct sel4_pagetable* tmp = it;
+            it = it->next;
+            free(tmp);
+            // TODO fixme
         }
 
     }
-    free_sos_object(&(pt->vroot), seL4_PageDirBits, NULL);
-    frame_free((sos_vaddr_t)pt);
+    free_sos_object(&(pt->vroot), seL4_PageDirBits);
+    free(pt);
     return;
 }
 
@@ -132,8 +135,6 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t 
 
 static void _insert_sel4_pt(struct pagetable* pt, struct sos_object* obj)
 {
-    //FIXME?
-
     assert(pt != NULL && obj->addr !=0 && obj->cap !=0);
     struct sel4_pagetable * p = malloc(sizeof (struct sel4_pagetable));
     assert(p != NULL);
@@ -142,7 +143,6 @@ static void _insert_sel4_pt(struct pagetable* pt, struct sos_object* obj)
     p->sel4_pt.addr = obj->addr;
     p->sel4_pt.cap = obj->cap;
     return;
-
 }
 
 void free_page(struct pagetable* pt, vaddr_t vaddr)
@@ -152,7 +152,7 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     if (entity == 0)
     {
-        color_print(ANSI_COLOR_RED, "free_page vaddr 0x%x error\n", vaddr);
+        /* ERROR_DEBUG( "free_page vaddr 0x%x error\n", vaddr); */
         return;
     }
     assert(entity != 0 && (seL4_PAGE_MASK & entity ) != 0);
@@ -181,15 +181,14 @@ int alloc_page(struct pagetable* pt,
     paddr_t paddr = frame_alloc(NULL);
     if (paddr == 0)
     {
-        color_print(ANSI_COLOR_RED, "frame_alloc return NULL\n");
+        ERROR_DEBUG( "frame_alloc return NULL\n");
         return ENOMEM;
     }
-    // FIXME maybe we need alloc page table first then frame.
     int ret = _insert_pagetable_entry(pt, vaddr, paddr);
     if (ret != 0)
     {
         frame_free(paddr);
-        color_print(ANSI_COLOR_RED, "no enough mem for page table\n");
+        ERROR_DEBUG( "no enough mem for page table\n");
         return ENOMEM;
     }
 
@@ -197,14 +196,14 @@ int alloc_page(struct pagetable* pt,
     if (sos_cap == 0)
     {
         frame_free(paddr);
-        color_print(ANSI_COLOR_RED, "invalid frame table status!!!!!\n");
+        ERROR_DEBUG( "invalid frame table status!!!!!\n");
         return EINVAL;
     }
     seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
     if (app_cap == 0)
     {
         frame_free(paddr);
-        color_print(ANSI_COLOR_RED, "cspace_copy_cap error\n");
+        ERROR_DEBUG( "cspace_copy_cap error\n");
         return ESEL4API;
     }
 
@@ -212,8 +211,6 @@ int alloc_page(struct pagetable* pt,
     if(ret == seL4_FailedLookup)
     {
         /* Assume the error was because we have no page table in sel4 kernel.*/
-
-
         struct sos_object sel4_pt;
         clear_sos_object(&sel4_pt);
         ret = map_page_table(pt->vroot.cap, vaddr, &sel4_pt);
@@ -231,7 +228,7 @@ int alloc_page(struct pagetable* pt,
     return 0;
 }
 
-seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr)
+seL4_CPtr fetch_page_cap(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
     vaddr &= seL4_PAGE_MASK;
@@ -245,19 +242,16 @@ seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr)
     seL4_CPtr sos_cap = get_frame_sos_cap(entity_paddr(entity));
     if (sos_cap == 0)
     {
-        color_print(ANSI_COLOR_RED, "get vaddr 0x%x cap error\n", vaddr);
+        ERROR_DEBUG( "get vaddr 0x%x cap error\n", vaddr);
         return 0;
     }
     return sos_cap;
-
-
 }
 
-paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr)
+paddr_t page_phys_addr(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
     vaddr &= seL4_PAGE_MASK;
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
-    return (entity & seL4_PAGE_MASK);
-
+    return entity_paddr(entity);
 }

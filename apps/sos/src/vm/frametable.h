@@ -2,42 +2,27 @@
 #define _FRAMETABLE_H_
 
 #include <sel4/sel4.h>
+#include "vm.h"
 
 // TODO we may reserve some critical frame for sos use only.
 /* Integer division, rounded up (rather than truncating) */
-#define DIVROUND(a,b) (((a) + ((b) - 1)) / (b))
-// derive seL4 page size from seL4_PageBits
-#define seL4_PAGE_SIZE          (1 << seL4_PageBits)
-
-#define seL4_FRAME_MASK  (0xFFFFF000U)
-
-#define seL4_MAX_FREE_FRAME_POOL (4000) // 4000 * 4k = 16M
-
 
 // for sos memory only, not for application memory
+// paddr for the untyped memory address
+// vaddr for the sos mapped virtual address
 typedef seL4_Word sos_paddr_t;
 typedef seL4_Word sos_vaddr_t;
 
 
-enum frame_table_error
-{
-    FRAME_TABLE_SUCCESS = 0,
-    FRAME_TABLE_PARA_ERROR = -1,
-    FRAME_TABLE_INVALID_STATUS = -2,
-    FRAME_TABLE_SEL4_ERROR = -3,
-
-};
-
 enum frame_entry_status
 {
-
     FRAME_FREE = 0,
     FRAME_SOS  = 1,
     FRAME_APP  = 2,
-
 };
-typedef struct frame_table_entry {
-    // SmallPageObject cap mapping frame into SOS window
+
+typedef struct frame_table_entry
+{
     seL4_CPtr   sos_cap;
     seL4_CPtr   app_cap;
     // index for the free frame.
@@ -57,6 +42,6 @@ uint32_t get_frame_app_cap(sos_vaddr_t vaddr);
 uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
 
 
-void frame_flush_icache(seL4_Word vaddr) ;
+void flush_sos_frame(sos_vaddr_t vaddr);// TODO why?
 
-#endif /* _MAPPING_H_ */
+#endif

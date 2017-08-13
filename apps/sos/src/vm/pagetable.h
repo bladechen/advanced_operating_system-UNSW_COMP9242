@@ -4,22 +4,6 @@
 #include "vmem_layout.h"
 #include "comm/comm.h"
 
-#define LEVEL1_PAGE_ENTRY_COUNT (1024)
-#define LEVEL1_PAGE_MASK        (0xFFC00000)
-#define LEVEL2_PAGE_ENTRY_COUNT (1024)
-#define LEVEL2_PAGE_MASK        (0x003FF000)
-
-#define seL4_PAGE_MASK  (0xFFFFF000U)
-
-
-enum PAGETABLE_ERR
-{
-    PAGETABLE_SUCCESS = 0,
-    PAGETABLE_OOM     = -1,
-    PAGETABLE_INVALID_STATUS     = -2,
-    PAGETABEL_SEL4_ERROR = -3,
-
-};
 struct pagetable_entry
 {
     uint32_t entity; // [12,31] is for frame_number, other bits reserved for further Milestones.
@@ -42,13 +26,16 @@ struct pagetable
 struct pagetable* create_pagetable(void);
 void              destroy_pagetable(struct pagetable* pt );
 void              free_page(struct pagetable* pt, vaddr_t vaddr);
+
 int               alloc_page(struct pagetable* pt,
                              vaddr_t vaddr,
                              seL4_ARM_VMAttributes vm_attr,
                              seL4_CapRights cap_right);
 
+// app_cap stored in frametable.
 seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr);
 
+// physical addr refer to sos vaddr, not ut addr
 paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr);
 
 #endif

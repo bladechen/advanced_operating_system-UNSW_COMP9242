@@ -24,12 +24,12 @@ extern const seL4_BootInfo* _boot_info;
 void my_unmap_page_table(struct sos_object* obj)
 {
     assert (0 == seL4_ARM_PageTable_Unmap(obj->cap));
-    free_sos_object(obj, seL4_PageTableBits, NULL);
+    free_sos_object(obj, seL4_PageTableBits);
 }
 
 int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr,struct sos_object* obj)
 {
-    free_sos_object(obj, seL4_PageTableBits, NULL);
+    free_sos_object(obj, seL4_PageTableBits);
     int err;
     err = init_sos_object(obj, seL4_ARM_PageTableObject, seL4_PageTableBits);
     if (err != 0)
@@ -43,7 +43,7 @@ int my_map_page_table(seL4_ARM_PageDirectory pd, seL4_Word vaddr,struct sos_obje
                                  seL4_ARM_Default_VMAttributes);
     if (err != 0)
     {
-        color_print(ANSI_COLOR_RED, "seL4_ARM_PageTable_Map return: %d\n", err);
+        ERROR_DEBUG("seL4_ARM_PageTable_Map return: %d\n", err);
     }
     return err;
 

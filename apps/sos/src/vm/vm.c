@@ -13,13 +13,12 @@ void vm_bootstrap(void)
 void vm_shutdown(void)
 {
 
-
 }
 int vm_fault(vaddr_t vaddr)
 {
-    /* For VM fault triggerd in CODE/DATA address space range,
-     *  we try to solve it by loading contents from elf files. For fault address
-     *  resides in STACK address region, we try to deal with it by allocating
+    /*  For VM fault triggerd in CODE/DATA address space range,
+     *  we try to solve it by allocate new frame, then loading contents from elf files.
+     *  For fault address resides in STACK/HEAP address region, only allocate
      *  a new frame for its usage.
      */
 
@@ -27,19 +26,19 @@ int vm_fault(vaddr_t vaddr)
     assert (cur_proc != NULL);
     if (vaddr == 0) // dereference NULL pointer
     {
-        color_print(ANSI_COLOR_RED, "dereference NULL\n");
+        ERROR_DEBUG( "dereference NULL\n");
         return EFAULT;
     }
     vaddr &= seL4_PAGE_MASK;
     struct  as_region_metadata *region = as_get_region(cur_proc->p_addrspace, vaddr);
     if (region == NULL)
     {
-        color_print(ANSI_COLOR_RED, "can not find region via vaddr 0x%x\n", vaddr);
+        ERROR_DEBUG( "can not find region via vaddr 0x%x\n", vaddr);
         return EFAULT;
     }
     if (region->type == IPC)
     {
-        color_print(ANSI_COLOR_RED, "ipc region should be mapped 0x%x\n", vaddr);
+        ERROR_DEBUG( "ipc region should be mapped 0x%x\n", vaddr);
         assert(0); // should not happend, because we map while start proc.
         return EFAULT;
     }
@@ -61,8 +60,6 @@ int vm_fault(vaddr_t vaddr)
         {
             return ret;
         }
-
     }
-
     return 0;
 }

@@ -4,24 +4,18 @@
 #include "comm/comm.h"
 #include "vm/pagetable.h"
 #include "vm/address_space.h"
-// struct addrspace;
-// struct page
 
-typedef uint32_t pid_t ;
 struct proc
 {
     char*              p_name; // proc name, current need by cpio to load elf.
     uint32_t p_pid; // hard code make it to 2, TODO in M8 need manage pid
-    // char*              p_elfbase; // for further fault handler load code/data section into page/frame table
     struct addrspace*  p_addrspace;
     struct pagetable*  p_pagetable;
 
+    // sel4 kernel pagetable moved to p_pagetable
+    // ipc cap moved into p_addrspace
 
     struct sos_object*  p_tcb;
-    // struct sos_object  p_vroot; // moved to pagetable
-
-    // seL4_Word ipc_buffer_addr; moved into p_addrspace
-    // seL4_CPtr ipc_buffer_cap;
 
     cspace_t*           p_croot;
 

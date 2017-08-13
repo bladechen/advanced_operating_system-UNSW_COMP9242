@@ -41,6 +41,9 @@
 #include "vm/address_space.h"
 #include "proc/proc.h"
 
+uint32_t dbflags = 0xFFFFFFFF;
+
+
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
 #define USER_EP_CAP          (1)
@@ -61,21 +64,6 @@
 extern char _cpio_archive[];
 
 const seL4_BootInfo* _boot_info;
-
-struct {
-
-    seL4_Word tcb_addr;
-    seL4_TCB tcb_cap;
-
-    seL4_Word vroot_addr;
-    seL4_ARM_PageDirectory vroot;
-
-    seL4_Word ipc_buffer_addr;
-    seL4_CPtr ipc_buffer_cap;
-
-    cspace_t *croot;
-
-} tty_test_process;
 
 
 /*
@@ -99,8 +87,6 @@ static struct serial * serial_handler = NULL;
 // this represent the process start by ourself.
 static struct proc * test_process;
 
-
-
 static int send2nc(struct serial* serial, char* data, int len)
 {
     return serial_send(serial, (data), (len));
@@ -112,7 +98,7 @@ static void handle_ipc_print_console(seL4_CPtr session)
     static int total_sent = 0;
     static int total_sent_count = 0;
     int msg_len = seL4_GetMR(1);
-    color_print(ANSI_COLOR_YELLOW, "[sos] recieved from tty, len: %d\n", msg_len);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, "[sos] recieved from tty, len: %d\n", msg_len);
     seL4_IPCBuffer* ipc_buffer = seL4_GetIPCBuffer();
     char* msg = (char*)(ipc_buffer->msg + 2);
     // truncate the message if the length is larger than the ipc buffer
@@ -123,11 +109,10 @@ static void handle_ipc_print_console(seL4_CPtr session)
     int ret = send2nc(serial_handler, msg, msg_len);
     total_sent += ret;
     total_sent_count ++;
-    color_print(ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n",
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n",
         ret, total_sent, total_sent_count);
 
     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    /* color_print(ANSI_COLOR_YELLOW, "[sos] sen"); */
     seL4_SetMR(0, ret); // actually sent length
     seL4_Send(session, reply);
     return;
@@ -156,7 +141,6 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
 
         case SYSCALL_IPC_PRINT_COLSOLE:
-            color_print(ANSI_COLOR_YELLOW, "[sos] SYSCALL_IPC_PRINT_COLSOLE\n");
 
             handle_ipc_print_console(reply_cap);
 
@@ -166,6 +150,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
         default:
             printf("%s:%d (%s) Unknown syscall %d\n",
                        __FILE__, __LINE__, __func__, syscall_number);
+            proc_destroy(test_process);
             /* we don't want to reply to an unknown syscall */
     }
 
@@ -189,7 +174,6 @@ void syscall_loop(seL4_CPtr ep)
         if(badge & IRQ_EP_BADGE)
         {
             /* Interrupt */
-            /* color_print(ANSI_COLOR_GREEN, "int: %x\n", badge); */
             if (badge & IRQ_BADGE_NETWORK)
             {
                 network_irq();
@@ -232,9 +216,8 @@ void syscall_loop(seL4_CPtr ep)
             }
             else
             {
-                color_print(ANSI_COLOR_RED, "segment fault!\n");
-                assert(0);
-                proc_destroy(get_current_app_proc());
+                ERROR_DEBUG("segment fault!\n");
+                proc_destroy(get_current_app_proc()); // TODO need check this function.!
             }
             cspace_free_slot(cur_cspace, reply_cap);
 
@@ -246,7 +229,7 @@ void syscall_loop(seL4_CPtr ep)
         }
         else
         {
-            printf("Rootserver got an unknown message\n");
+            ERROR_DEBUG("Rootserver got an unknown message\n");
         }
     }
 }
@@ -313,117 +296,6 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     }
     dprintf(1,"--------------------------------------------------------\n");
 }
-
-/*void start_first_process(char* app_name, seL4_CPtr fault_ep) {*/
-/*     int err; */
-/*  */
-/*     seL4_Word stack_addr; */
-/*     seL4_CPtr stack_cap; */
-/*     seL4_CPtr user_ep_cap; */
-/*  */
-/*     #<{(| These required for setting up the TCB |)}># */
-/*     seL4_UserContext context; */
-/*  */
-/*     #<{(| These required for loading program sections |)}># */
-/*     char* elf_base; */
-/*     unsigned long elf_size; */
-/*  */
-/*     #<{(| Create a VSpace |)}># */
-/*     tty_test_process.vroot_addr = ut_alloc(seL4_PageDirBits); */
-/*  */
-/*     conditional_panic(!tty_test_process.vroot_addr, */
-/*                       "No memory for new Page Directory"); */
-/*     err = cspace_ut_retype_addr(tty_test_process.vroot_addr, */
-/*                                 seL4_ARM_PageDirectoryObject, */
-/*                                 seL4_PageDirBits, */
-/*                                 cur_cspace, */
-/*                                 &tty_test_process.vroot); */
-/*     conditional_panic(err, "Failed to allocate page directory cap for client"); */
-/*  */
-/*     #<{(| Create a simple 1 level CSpace |)}># */
-/*     tty_test_process.croot = cspace_create(1); */
-/*     assert(tty_test_process.croot != NULL); */
-/*  */
-/*     #<{(| Create an IPC buffer |)}># */
-/*     tty_test_process.ipc_buffer_addr = ut_alloc(seL4_PageBits); */
-/*     conditional_panic(!tty_test_process.ipc_buffer_addr, "No memory for ipc buffer"); */
-/*     err =  cspace_ut_retype_addr(tty_test_process.ipc_buffer_addr, */
-/*                                  seL4_ARM_SmallPageObject, */
-/*                                  seL4_PageBits, */
-/*                                  cur_cspace, */
-/*                                  &tty_test_process.ipc_buffer_cap); */
-/*     conditional_panic(err, "Unable to allocate page for IPC buffer"); */
-/*  */
-/*     #<{(| Copy the fault endpoint to the user app to enable IPC |)}># */
-/*     user_ep_cap = cspace_mint_cap(tty_test_process.croot, */
-/*                                   cur_cspace, */
-/*                                   fault_ep, */
-/*                                   seL4_AllRights, */
-/*                                   seL4_CapData_Badge_new(TTY_EP_BADGE)); */
-/*     #<{(| should be the first slot in the space, hack I know |)}># */
-/*     assert(user_ep_cap == 1); */
-/*     assert(user_ep_cap == USER_EP_CAP); */
-/*  */
-/*     #<{(| Create a new TCB object |)}># */
-/*     tty_test_process.tcb_addr = ut_alloc(seL4_TCBBits); */
-/*     conditional_panic(!tty_test_process.tcb_addr, "No memory for new TCB"); */
-/*     err =  cspace_ut_retype_addr(tty_test_process.tcb_addr, */
-/*                                  seL4_TCBObject, */
-/*                                  seL4_TCBBits, */
-/*                                  cur_cspace, */
-/*                                  &tty_test_process.tcb_cap); */
-/*     conditional_panic(err, "Failed to create TCB"); */
-/*  */
-/*     #<{(| Configure the TCB |)}># */
-/*     err = seL4_TCB_Configure(tty_test_process.tcb_cap, user_ep_cap, TTY_PRIORITY, */
-/*                              tty_test_process.croot->root_cnode, seL4_NilData, */
-/*                              tty_test_process.vroot, seL4_NilData, PROCESS_IPC_BUFFER, */
-/*                              tty_test_process.ipc_buffer_cap); */
-/*     conditional_panic(err, "Unable to configure new TCB"); */
-/*  */
-/*     #<{(| Provide a logical name for the thread -- Helpful for debugging |)}># */
-/* #ifdef SEL4_DEBUG_KERNEL */
-/*     seL4_DebugNameThread(tty_test_process.tcb_cap, app_name); */
-/* #endif */
-/*  */
-/*     #<{(| parse the cpio image |)}># */
-/*     dprintf(1, "\nStarting \"%s\"...\n", app_name); */
-/*     elf_base = cpio_get_file(_cpio_archive, app_name, &elf_size); */
-/*     conditional_panic(!elf_base, "Unable to locate cpio header"); */
-/*  */
-/*     #<{(| load the elf image |)}># */
-/*     err = elf_load(tty_test_process.vroot, elf_base); */
-/*     conditional_panic(err, "Failed to load elf image"); */
-/*  */
-/*  */
-/*     #<{(| Create a stack frame |)}># */
-/*     stack_addr = ut_alloc(seL4_PageBits); */
-/*     conditional_panic(!stack_addr, "No memory for stack"); */
-/*     err =  cspace_ut_retype_addr(stack_addr, */
-/*                                  seL4_ARM_SmallPageObject, */
-/*                                  seL4_PageBits, */
-/*                                  cur_cspace, */
-/*                                  &stack_cap); */
-/*     conditional_panic(err, "Unable to allocate page for stack"); */
-/*  */
-/*     #<{(| Map in the stack frame for the user app |)}># */
-/*     err = map_page(stack_cap, tty_test_process.vroot, */
-/*                    PROCESS_STACK_TOP - (1 << seL4_PageBits), */
-/*                    seL4_AllRights, seL4_ARM_Default_VMAttributes); */
-/*     conditional_panic(err, "Unable to map stack IPC buffer for user app"); */
-/*  */
-/*     #<{(| Map in the IPC buffer for the thread |)}># */
-/*     err = map_page(tty_test_process.ipc_buffer_cap, tty_test_process.vroot, */
-/*                    PROCESS_IPC_BUFFER, */
-/*                    seL4_AllRights, seL4_ARM_Default_VMAttributes); */
-/*     conditional_panic(err, "Unable to map IPC buffer for user app"); */
-/*  */
-/*     #<{(| Start the new process |)}># */
-/*     memset(&context, 0, sizeof(context)); */
-/*     context.pc = elf_getEntryPoint(elf_base); */
-/*     context.sp = PROCESS_STACK_TOP; */
-/*     seL4_TCB_WriteRegisters(tty_test_process.tcb_cap, 1, 0, 2, &context); */
-/*}*/
 
 static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     seL4_Word ep_addr, aep_addr;
@@ -521,15 +393,13 @@ int main(void) {
     frametable_init();
 
     /* Start the user application */
-    // start_first_process(TTY_NAME, _sos_ipc_ep_cap);
-    color_print(ANSI_COLOR_GREEN, "create tty process...\n");
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create tty process...\n");
     test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
-    color_print(ANSI_COLOR_GREEN, "finish creating tty...\n");
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating tty...\n");
     proc_activate(test_process);
-    color_print(ANSI_COLOR_GREEN, "start tty success\n");
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start tty success\n");
 
     // m2_test();
-    // dprintf(0, "finish m2_test\n");
 
 
     /* Wait on synchronous endpoint for IPC */

@@ -49,17 +49,10 @@ static inline void clear_sos_object(struct sos_object* obj)
     obj->cap  = 0;
 }
 
-static inline void free_sos_object(struct sos_object* obj, int size_bits, cspace_t * cspace)
+static inline void free_sos_object(struct sos_object* obj, int size_bits)
 {
     assert(obj != NULL);
-    cspace_t * target_cspace;
-
-    if (cspace == NULL)
-    {
-        target_cspace = cur_cspace;
-    } else {
-        target_cspace = cspace;
-    }
+    cspace_t * target_cspace = cur_cspace;
 
     if (obj->cap != 0)
     {
@@ -75,14 +68,14 @@ static inline void free_sos_object(struct sos_object* obj, int size_bits, cspace
 
 static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType type, int size_bits)
 {
-    free_sos_object(obj, size_bits, NULL);
+    free_sos_object(obj, size_bits);
 
     // previously is seL4_PageDirBits, but shouldn't it be size_bits?
     obj->addr = ut_alloc(size_bits);
     if (obj->addr == 0)
     {
-        color_print(ANSI_COLOR_RED, "ut_alloc return 0\n");
-        free_sos_object(obj, size_bits, NULL);
+        ERROR_DEBUG("ut_alloc return 0\n");
+        free_sos_object(obj, size_bits);
         return -1;
     }
     int ret = cspace_ut_retype_addr(obj->addr,
@@ -92,8 +85,8 @@ static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType ty
                                     &(obj->cap));
     if (ret != 0)
     {
-        color_print(ANSI_COLOR_RED, "cspace_ut_retype_addr ret: %d\n", ret);
-        free_sos_object(obj, size_bits, NULL);
+        ERROR_DEBUG( "cspace_ut_retype_addr ret: %d\n", ret);
+        free_sos_object(obj, size_bits);
         return -2;
     }
 
@@ -111,28 +104,18 @@ static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType ty
 
 
 
-static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
+static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge)
+{
 
     seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights, seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
     conditional_panic(!badged_cap, "Failed to allocate badged cap");
     return badged_cap;
 }
 
-// static inline seL4_CPtr badge_proc_ep(seL4_CPtr ep, seL4_Word badge)
-// {
-//     seL4_CPtr badged_cap = cspace_mint_cap(cur_cspace, cur_cspace, ep, seL4_AllRights, seL4_CapData_Badge_new(badge | IRQ_EP_BADGE));
-//     conditional_panic(!badged_cap, "Failed to allocate badged cap");
-//     return badged_cap;
-//
-//
-// }
 
 
-// static inline void
-
-
-static inline seL4_CPtr
-enable_irq(int irq, seL4_CPtr aep) {
+static inline seL4_CPtr enable_irq(int irq, seL4_CPtr aep)
+{
     seL4_CPtr cap;
     int err;
     /* Create an IRQ handler */

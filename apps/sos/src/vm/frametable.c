@@ -17,13 +17,15 @@
 #include "vm.h"
 
 static frame_table _frame_table = NULL;
-static seL4_Word   _managed_frame_num = 0; // so the total managed_frame memory is _managed_frame_num * PAGE_SIZE
+// total managed_frame memory is _managed_frame_num * PAGE_SIZE
+static seL4_Word   _managed_frame_num = 0;
 static seL4_Word   _ut_hi = 0;
 static seL4_Word   _ut_lo = 0;
 
 // point to the frame which is free-ed, but not deleted and unmaped
 static int _free_frame_index = -1;
 
+// used for the pool limitation
 static int _free_frame_count = 0;
 
 static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size);
@@ -42,8 +44,8 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
                                 cap);
     if (ret != 0)
     {
-        color_print(ANSI_COLOR_RED, "_build_paddr_to_vaddr_frame:cspace_ut_retype_addr ret: %d\n", ret);
-        return ret;
+        ERROR_DEBUG("_build_paddr_to_vaddr_frame:cspace_ut_retype_addr ret: %d\n", ret);
+        return ESEL4API;
     }
 
     ret = map_page(*cap,
@@ -53,21 +55,22 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
                    seL4_ARM_Default_VMAttributes);
     if (ret != 0)
     {
-        color_print(ANSI_COLOR_RED, "_build_paddr_to_vaddr_frame:map_page  paddr: %p, vaddr: %p map_page ret: %d\n", paddr, vaddr, ret);
-        return ret;
+        ERROR_DEBUG("_build_paddr_to_vaddr_frame:map_page  paddr: %p, vaddr: %p map_page ret: %d\n", paddr, vaddr, ret);
+        return ESEL4API;
     }
     return 0;
 
 }
 
-/* function definitions */
 
-/* 1-to-1 mapping for physical address to virtual address
- * virtual address to frame_table array index is also 1-to-1 mapping*/
+/*
+ * 1-to-1 mapping for physical address to virtual address
+ * virtual address to frame_table array index is also 1-to-1 mapping
+ * */
 
 static inline bool _is_valid_vaddr(sos_vaddr_t vaddr)
 {
-    if (vaddr & (~seL4_FRAME_MASK))
+    if (IS_PAGE_ALIGNED(vaddr) == false)
     {
         return false;
     }
@@ -78,36 +81,34 @@ static inline bool _is_valid_vaddr(sos_vaddr_t vaddr)
     return true;
 }
 
-static inline bool _is_valid_paddr(sos_paddr_t vaddr)
+static inline bool _is_valid_paddr(sos_paddr_t paddr)
 {
-    if (vaddr & (~seL4_FRAME_MASK))
+    if (IS_PAGE_ALIGNED(paddr) == false)
     {
         return false;
     }
-    if (vaddr <  _ut_lo || vaddr >= _ut_hi )
+    if (paddr <  _ut_lo || paddr >= _ut_hi )
     {
         return false;
     }
     return true;
 }
-// return corresponding physical address
-static sos_paddr_t frame_translate_vaddr_to_paddr(sos_vaddr_t vaddr) {
-    assert(!(vaddr & (~seL4_FRAME_MASK )));
+// return untyped address
+static sos_paddr_t frame_translate_vaddr_to_paddr(sos_vaddr_t vaddr)
+{
     assert(_is_valid_vaddr(vaddr));
     return (vaddr - WINDOW_START + _ut_lo);
 }
-// return corresponding virtual address
-static sos_vaddr_t frame_translate_paddr_to_vaddr(sos_paddr_t paddr) {
-    assert(!(paddr & (~seL4_FRAME_MASK )));
+// return sos mapped virtual address
+static sos_vaddr_t frame_translate_paddr_to_vaddr(sos_paddr_t paddr)
+{
     assert(_is_valid_paddr(paddr));
     return (paddr - _ut_lo + WINDOW_START);
 }
 
-static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr) {
-    if ((vaddr & (~seL4_FRAME_MASK ))  || vaddr < WINDOW_START || vaddr >= (WINDOW_START + _managed_frame_num * seL4_PAGE_SIZE) )
-    {
-        return -1;
-    }
+static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr)
+{
+    assert(_is_valid_vaddr(vaddr));
     return (PAGE_SHIFT(vaddr - WINDOW_START));
 
 }
@@ -128,7 +129,6 @@ static void _zero_frame(sos_vaddr_t vaddr)
 
 static frame_table_entry* _get_ft_entry(sos_vaddr_t vaddr)
 {
-    assert((vaddr & (~seL4_FRAME_MASK)) == 0);
     assert(_is_valid_vaddr(vaddr));
     int index = frame_translate_vaddr_to_index(vaddr);
     assert (index >= 0);
@@ -160,13 +160,14 @@ static int _frame_entry_status(frame_table_entry* e)
         return FRAME_APP;
     }
     // invalid status
-    color_print(ANSI_COLOR_RED, "invalid frame status, %u, %u, %d\n", e->sos_cap, e->app_cap, e->next_free);
+    ERROR_DEBUG("invalid frame status, %u, %u, %d\n", e->sos_cap, e->app_cap, e->next_free);
     assert(0);
     return -1;
 }
 
 
-void frametable_init(void) {
+void frametable_init(void)
+{
     int err;
     uint32_t frame_table_size;
     uint32_t frames_to_be_managed;
@@ -208,9 +209,9 @@ void frametable_init(void) {
 
     _free_frame_index = -1;
     _free_frame_count =  0;
-    color_print (ANSI_COLOR_GREEN, "Frame table init finish: ut_lo:0x%x ut_high:0x%x\n", _ut_lo, _ut_hi);
-    color_print (ANSI_COLOR_GREEN, "virtual address of frame_table: 0x%x\n", _frame_table);
-    color_print (ANSI_COLOR_GREEN, "Frame table manage vaddr from 0x%x to 0x%x\n", WINDOW_START, WINDOW_START + seL4_PAGE_SIZE * _managed_frame_num);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "Frame table init finish: ut_lo:0x%x ut_high:0x%x\n", _ut_lo, _ut_hi);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* start vaddr of frame_table: 0x%x\n", _frame_table);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* manage vaddr from 0x%x to 0x%x\n", WINDOW_START, WINDOW_START + seL4_PAGE_SIZE * _managed_frame_num);
 }
 
 /* allocate frame_table */
@@ -231,17 +232,17 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
             int ret = _build_paddr_to_vaddr_frame(paddr, cur_vaddr, &temp_cap);
             if (ret != 0)
             {
-                return -1;
+                return ESEL4API;
             }
             cur_vaddr += seL4_PAGE_SIZE;
         }
         else
         {
-            return -2;
+            return ESEL4API;
         }
     }
 
-    dprintf(0, "allocated %d pages in range\n", i);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame table occupied for %d pages\n", i);
     return 0;
 }
 
@@ -262,7 +263,7 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr)
         vaddr = frame_translate_index_to_vaddr(index);
         if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
         _zero_frame(vaddr);
-		frame_flush_icache(vaddr);
+		/* frame_flush_icache(vaddr); */
         return vaddr;
     }
 
@@ -288,7 +289,7 @@ sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr)
 
         if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
         _zero_frame(vaddr);
-		frame_flush_icache(vaddr);
+		/* frame_flush_icache(vaddr); */
         return vaddr;
     }
 }
@@ -299,7 +300,7 @@ void frame_free(sos_vaddr_t vaddr)
 
     if (vaddr == (sos_vaddr_t)NULL || _is_valid_vaddr(vaddr) == 0)
     {
-        color_print(ANSI_COLOR_RED, "invalid vaddr to free: 0x%x\n", vaddr);
+        ERROR_DEBUG("invalid vaddr to free: 0x%x\n", vaddr);
         return;
     }
 
@@ -308,7 +309,7 @@ void frame_free(sos_vaddr_t vaddr)
     // the upper level pagetable should firstly free app_cap then try to free this frame
     if (index < 0 || _frame_entry_status(_frame_table + index) != FRAME_SOS)
     {
-        color_print(ANSI_COLOR_RED, "try free vaddr: 0x%x error\n", vaddr);
+        ERROR_DEBUG("invalid frame status 0x%x\n", vaddr);
         return;
     }
 
@@ -326,16 +327,15 @@ void frame_free(sos_vaddr_t vaddr)
         err = cspace_delete_cap(cur_cspace, fte->sos_cap);
         conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n");
 
-        // return the frame to ut
+        // return ut mem
         ut_free(paddr, seL4_PageBits);
 
-        // clear the table entry
         fte->sos_cap = 0;
+        // page table is responsible for free app_cap, then set it to 0
         assert(fte->app_cap == 0 && fte->next_free == -1);
     }
     else
     {
-        /* color_print(ANSI_COLOR_GREEN, "fake free\n"); */
         assert(fte->next_free == -1 && fte->app_cap == 0);
         fte->next_free = _free_frame_index;
         _free_frame_index = index;
@@ -349,7 +349,7 @@ int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
     if (_is_valid_vaddr(vaddr) == false)
     {
-        return FRAME_TABLE_PARA_ERROR;
+        return EINVAL;
     }
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);
@@ -400,7 +400,8 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
     return e->sos_cap;
 }
 
-void frame_flush_icache(seL4_Word vaddr) {
+void flush_sos_frame(seL4_Word vaddr)
+{
 	if (_is_valid_vaddr(vaddr) == false)
     {
 		return;
@@ -408,7 +409,6 @@ void frame_flush_icache(seL4_Word vaddr) {
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
-
 	seL4_CPtr cap = e->sos_cap;
 	seL4_ARM_Page_Unify_Instruction(cap, 0, seL4_PAGE_SIZE);
 }

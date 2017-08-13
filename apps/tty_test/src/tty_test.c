@@ -51,7 +51,6 @@ static char buff[27 * 4096 * 2];
 static void
 do_pt_test(char *buf)
 {
-    int i;
 
     /* set */
     for (int i = 0; i < NPAGES; i++) {
@@ -79,7 +78,7 @@ pt_test( void )
 
     /* heap test */
     buf2 = malloc(NPAGES * PAGE_SIZE_4K);
-    tty_debug_print("malloc %x\n", buf2);
+    tty_debug_print("malloc 0x%x\n", buf2);
     assert(buf2);
     do_pt_test(buf2);
     free(buf2);
