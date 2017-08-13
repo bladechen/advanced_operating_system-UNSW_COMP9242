@@ -12,7 +12,7 @@
 #include <elf/elf.h>
 #include <comm/list.h>
 
-#define verbose 5
+#define verbose -100
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -399,7 +399,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
             int err = as_define_region(dest_as,
                     vaddr,
                     elf_file,
-                    offset,
+                    off,
                     segment_size,
                     file_size,
                     flags & PF_R, flags & PF_W, flags &PF_X,
@@ -412,7 +412,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
             int err = as_define_region(dest_as,
                     vaddr,
                     elf_file,
-                    offset,
+                    off,
                     segment_size,
                     file_size,
                     flags & PF_R, flags & PF_W, flags & PF_X,
@@ -524,18 +524,18 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     color_print(ANSI_COLOR_GREEN, "* copy file at 0x%x to physical mem 0x%x with %d bytes\n", file_copy_addr, paddr + vm_copied_addr_offset, file_copy_bytes);
     if (file_copy_bytes)
     {
-        for (int i = 0; i < 256;i ++)
-        {
-            color_print(ANSI_COLOR_GREEN, "%08x: ", i*16 );
-            for (int j = 0; j < 16; j ++)
-            {
-                char *p = (char*) file_copy_addr;
-                color_print(ANSI_COLOR_GREEN, "%02x ",  p[i * 16 + j]);
-
-            }
-            color_print(ANSI_COLOR_GREEN, "\n");
-
-        }
+        /* for (int i = 0; i < 256;i ++) */
+        /* { */
+        /*     color_print(ANSI_COLOR_GREEN, "%08x: ", i*16 ); */
+        /*     for (int j = 0; j < 16; j ++) */
+        /*     { */
+        /*         char *p = (char*) file_copy_addr; */
+        /*         color_print(ANSI_COLOR_GREEN, "%02x ",  p[i * 16 + j]); */
+        /*  */
+        /*     } */
+        /*     color_print(ANSI_COLOR_GREEN, "\n"); */
+        /*  */
+        /* } */
         memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
     }
     frame_flush_icache(paddr);

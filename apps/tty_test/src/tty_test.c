@@ -79,8 +79,8 @@ pt_test( void )
 
     /* heap test */
     buf2 = malloc(NPAGES * PAGE_SIZE_4K);
-    /* tty_debug_print("malloc %x\n", buf2); */
-    /* assert(buf2); */
+    tty_debug_print("malloc %x\n", buf2);
+    assert(buf2);
     do_pt_test(buf2);
     free(buf2);
 }
@@ -106,7 +106,7 @@ int main(void){
     pt_test();
     tty_debug_print("finish pt_test\n");
     do {
-        /* printf("task:\tHello world, I'm\ttty_test!\n"); */
+        printf("task:\tHello world, I'm\ttty_test!\n");
         /* p -= (4096 * (1<<6)); */
         /* printf("now read the stack addr %p, which should fault!!!\n", p); */
         /* printf("%d\n", *p); */
