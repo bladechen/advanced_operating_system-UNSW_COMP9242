@@ -46,8 +46,6 @@ the link head of the list
 */
 struct list {
     struct list_head head;
-    int offset; /* used to locate the list_head in linked struct, should be init before calling any other functions */
-
 };
 
 
@@ -278,22 +276,6 @@ static inline void list_splice_init(struct list_head *list,
          __builtin_prefetch(pos->member.next,0,1))
 
 
-// more stupid way than entry->member.
-// static inline struct list_head* list_get_link_from_entry(struct list *l, void *entry)
-// {
-//       return (struct list_head*) ((size_t) entry + l->offset);
-// }
-//
-// // same as list_entry
-// static inline void* list_get_entry_from_link(struct list_head* link)
-// {
-//     if (link == NULL)
-//     {
-//         return NULL;
-//     }
-//
-//     return (void*) ((size_t) link - link->owner->offset);
-// }
 
 
 
@@ -331,8 +313,6 @@ void destroy_list(struct list* );
 bool is_list_empty(const struct list* );
 void make_list_empty(struct list *); /*  the caller should destroy all the linked entry, this function is simply detach all the entrys*/
 
-// void list_insert_head(struct list *l, void* entry);
-// void list_insert_tail(struct list *l, void* entry);
 
 void* list_head(struct list* l);
 // void* list_tail(struct list* l);
@@ -345,13 +325,6 @@ void* list_head(struct list* l);
 void link_init(struct list_head* );
 struct list_head* link_next(struct list_head*);
 bool is_linked(struct list_head* );
-
-
-
-// void link_detach1(void* entry, struct list* l); //  list * l is only for get the struct list* in void* entry
-// void link_detach2(void* entry, int offset); //  lis
-
-
 
 
 

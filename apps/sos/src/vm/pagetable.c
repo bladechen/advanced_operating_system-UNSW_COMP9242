@@ -83,7 +83,6 @@ void destroy_pagetable(struct pagetable* pt )
             struct sel4_pagetable* tmp = it;
             it = it->next;
             free(tmp);
-            // TODO fixme
         }
 
     }

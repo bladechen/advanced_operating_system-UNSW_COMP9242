@@ -7,7 +7,6 @@ struct list* create_list()
     {
         return NULL;
     }
-    /* l->offset = offset; */
     link_init(&(l->head));
     return l;
 }
@@ -44,28 +43,6 @@ void make_list_empty(struct list * l)
     }
     return;
 }
-/*  void list_insert_head(struct list* l, void* entry) */
-/*  { */
-/*      struct     list_head* tmp = list_get_link_from_entry(l, entry); */
-/*      list_add(tmp, &(l->head)); */
-/*      tmp->owner = l; */
-/*      return; */
-/*  } */
-/* void list_insert_tail(struct list *l, void* entry) */
-/* { */
-/*     struct list_head* tmp = list_get_link_from_entry(l, entry); */
-/*     list_add_tail(tmp,  &(l->head)); */
-/*     tmp->owner = l; */
-/*     return; */
-/*  */
-/*  */
-/* } */
-/* void* list_head(struct list* l) */
-/* { */
-/*     struct list_head * tmp = link_next(&l->head); */
-/*     return (void * )((size_t)tmp - l->offset); */
-/*  */
-/* } */
 struct list_head* link_next(struct list_head* link)
 {
     assert(link != NULL);
@@ -75,7 +52,6 @@ struct list_head* link_next(struct list_head* link)
 
 void link_init(struct list_head* link)
 {
-    /* link->owner = NULL ; */
     INIT_LIST_HEAD(link);
     return;
 }

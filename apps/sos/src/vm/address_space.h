@@ -60,7 +60,7 @@ struct addrspace
 
 
 struct addrspace *as_create(void);
-// int               as_copy(struct addrspace *src, struct addrspace **ret);
+// int               as_copy(struct addrspace *src, struct addrspace **ret);// XXX need in fork
 void              as_destroy(struct addrspace *);
 
 int               as_define_region(struct addrspace *as,
@@ -83,11 +83,7 @@ struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr);
 
 
 
-// Additions
-void              as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del);
-
-seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region);
-seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
+void as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del);
 
 /*
  * Functions in loadelf.c
@@ -100,16 +96,16 @@ seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
 // it is called in proc_create() to initialize the program
 int vm_elf_load(struct addrspace* as, seL4_ARM_PageDirectory dest_vspace, char* elf_file);
 
-// used in TCB configure
+// used in TCB configure proc.c
 seL4_CPtr as_get_ipc_cap(struct addrspace * as);
 
 /*
-*   Functions used in VM_Fault execution in main.c, which load or create corresponding frame
-*   when VM_Fault is triggered
-*/
-int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr);
-
+ *   Functions used in VM_Fault execution in main.c, which load or create corresponding frame
+ *   when VM_Fault is triggered
+ */
 int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr);
+
+int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr);
 
 void loop_through_region(struct addrspace *as);
 #endif

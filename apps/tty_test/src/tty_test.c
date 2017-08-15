@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <sel4/sel4.h>
 
@@ -121,6 +122,7 @@ int main(void){
         /* printf("success!!\n", p); */
 
 
+        *(int*)(0xD0000000) = 100;
         fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall

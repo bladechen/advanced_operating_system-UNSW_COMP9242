@@ -20,7 +20,14 @@
 #include "comm/comm.h"
 #include "frametable.h"
 
+const char REGION_NAME[10][10] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "OTHER"};
+static void dump_region(struct as_region_metadata* region);
 static int build_pagetable_link(struct pagetable* pt,  vaddr_t vaddr, int pages, seL4_ARM_VMAttributes vm, seL4_CapRights right );
+
+static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region);
+static seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
+
+
 
 struct addrspace *as_create(void)
 {
@@ -101,7 +108,7 @@ void loop_through_region(struct addrspace *as)
     list_for_each_safe(current, tmp_head, &(as->list->head))
     {
         struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
-        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "region type: %d, region vaddr: 0x%x, page: %d, filesz: %u, fileoff: %u\n",tmp->type, tmp->region_vaddr, tmp->npages, tmp->elf_size, tmp->elf_offset);
+        dump_region(tmp);
     }
 }
 
@@ -232,13 +239,17 @@ static void as_destroy_region_pages(struct pagetable* pt,
 
     assert(pt != NULL &&  region != NULL);
     vaddr_t start = region->region_vaddr;
-    vaddr_t end = region->region_vaddr  + ((((int)region->npages > npages)?(int)region->npages:npages) << 12);
+    vaddr_t end = region->region_vaddr  + ((region->npages) << 12);
     for (int i=0; i < npages; i++)
     {
-        vaddr_t vaddr_del = begin_addr + i* (1 << seL4_PageBits);
+        vaddr_t vaddr_del = begin_addr + i * (1 << seL4_PageBits);
         if (vaddr_del >= start && vaddr_del < end)
         {
             free_page(pt, vaddr_del);
+        }
+        else
+        {
+            ERROR_DEBUG("invalid as_destroy_region_pages\n");
         }
     }
     return;
@@ -251,7 +262,7 @@ void  as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
     as_destroy_region_pages(as_get_page_table(as), to_del, to_del->region_vaddr, to_del->npages);
 
 }
-seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region)
+static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region)
 {
     if (region->rwxflag & PF_X)
     {
@@ -263,7 +274,7 @@ seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region)
     }
 }
 
-seL4_CapRights as_region_caprights(struct as_region_metadata* region)
+static seL4_CapRights as_region_caprights(struct as_region_metadata* region)
 {
     seL4_CapRights right = 0;
     if (region->type == IPC)
@@ -356,8 +367,6 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
     int i;
     for (i = 0; i < num_headers; i++)
     {
-        /* char *source_addr; */
-        uint32_t  flags, file_size, segment_size, vaddr;
 
         /* Skip non-loadable segments (such as debugging data). */
         if (elf_getProgramHeaderType(elf_file, i) != PT_LOAD)
@@ -366,17 +375,17 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
         /* Fetch information about this segment. */
         uint32_t off = elf_getProgramHeaderOffset(elf_file, i);
         /* source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i); */
-        file_size = elf_getProgramHeaderFileSize(elf_file, i);
-        segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
-        vaddr = elf_getProgramHeaderVaddr(elf_file, i);
-        flags = elf_getProgramHeaderFlags(elf_file, i);
+        uint32_t file_size = elf_getProgramHeaderFileSize(elf_file, i);
+        uint32_t segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
+        uint32_t vaddr = elf_getProgramHeaderVaddr(elf_file, i);
+        uint32_t flags = elf_getProgramHeaderFlags(elf_file, i);
         char * name = elf_getSectionName(elf_file, i);
 
 
         // fill in corresponding region infos
         if (strcmp(name, ".text") == 0)
         {
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define CODE region at %u\n", off);
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define CODE region offset from elf at %u\n", off);
             int err = as_define_region(dest_as,
                     vaddr,
                     elf_file,
@@ -390,7 +399,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
         else if (strcmp(name, ".rodata") == 0)
         {
 
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define DATA region at %u\n", off);
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define DATA region offset from elf at %u\n", off);
             int err = as_define_region(dest_as,
                     vaddr,
                     elf_file,
@@ -414,14 +423,15 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
 
 static void dump_region(struct as_region_metadata* region)
 {
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "region type: %d\n", (int)(region->type));
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u, elf_base: 0x%x, filesz: %u, file_offset: %u, elf vaddr:0x%x\n",
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "region type: %s\n", REGION_NAME[(region->type)]);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u, elf_base: 0x%x, filesz: %u, file_offset: %u, elf vaddr:0x%x, permission: %x\n",
                 region->region_vaddr,
                 region->npages,
                 region->p_elfbase,
                 region->elf_size,
                 region->elf_offset,
-                region->elf_vaddr);
+                region->elf_vaddr,
+                (int)(region->rwxflag));
     return;
 }
 
@@ -430,8 +440,8 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
     assert(!(fault_addr &(~seL4_PAGE_MASK)));
     assert(r->npages * seL4_PAGE_SIZE >= r->elf_size);
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "current process fault addr: 0x%x\n", fault_addr);
-    const struct as_region_metadata region =  *r;
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "current process 0x%x fault addr: 0x%x\n", get_current_app_proc(), fault_addr);
+    const struct as_region_metadata region = *r;
 
     uint32_t file_copy_addr = 0;
     uint32_t file_copy_bytes = 0;

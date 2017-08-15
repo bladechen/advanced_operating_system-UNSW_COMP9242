@@ -4,7 +4,6 @@
 #include "vmem_layout.h"
 #include "pagetable.h"
 
-#define verbose 5
 #include "sys/debug.h"
 void vm_bootstrap(void)
 {

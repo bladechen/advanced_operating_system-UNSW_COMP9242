@@ -150,7 +150,7 @@ void handle_syscall(seL4_Word badge, int num_args) {
         default:
             printf("%s:%d (%s) Unknown syscall %d\n",
                        __FILE__, __LINE__, __func__, syscall_number);
-            proc_destroy(test_process);
+            /* proc_destroy(test_process); */
             /* we don't want to reply to an unknown syscall */
     }
 
@@ -216,8 +216,9 @@ void syscall_loop(seL4_CPtr ep)
             }
             else
             {
-                ERROR_DEBUG("segment fault!\n");
-                proc_destroy(get_current_app_proc()); // TODO need check this function.!
+                ERROR_DEBUG("segment fault at 0x%x!\n", fault_addr);
+                // kill the mem violate process
+                proc_destroy(get_current_app_proc());
             }
             cspace_free_slot(cur_cspace, reply_cap);
 
@@ -400,7 +401,6 @@ int main(void) {
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start tty success\n");
 
     // m2_test();
-
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");

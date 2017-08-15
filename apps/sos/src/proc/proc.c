@@ -162,13 +162,8 @@ void proc_activate(struct proc * process)
     seL4_TCB_WriteRegisters(process->p_tcb->cap, 1, 0, 2, &context);
 }
 
-// TODO  need to check the correctness.
 int proc_destroy(struct proc * process)
 {
-    /* if (process->p_name != NULL) */
-    /* { */
-    /*     free(process->p_name); */
-    /* } */
 
     if (process->p_addrspace != NULL)
     {
@@ -190,7 +185,7 @@ int proc_destroy(struct proc * process)
     }
 
     /* // revoke & delete capability */
-    cspace_revoke_cap(process->p_croot, process->p_ep_cap);
+    assert(0 == cspace_revoke_cap(process->p_croot, process->p_ep_cap));
     assert(0 == cspace_delete_cap(process->p_croot, process->p_ep_cap));
 
     // mentioned in where it is defined, One could also rely on cspace_destroy() to free object,

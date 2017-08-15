@@ -24,7 +24,6 @@
 #include <sel4/sel4.h>
 
 #include <ut_manager/ut.h>
-// #include "ut/ut.h"
 
 #ifndef verbose
     #define verbose 5
@@ -49,6 +48,7 @@ static inline void clear_sos_object(struct sos_object* obj)
     obj->cap  = 0;
 }
 
+// only responsible for free sos object , not app object.
 static inline void free_sos_object(struct sos_object* obj, int size_bits)
 {
     assert(obj != NULL);
@@ -70,7 +70,6 @@ static inline int init_sos_object(struct sos_object* obj, seL4_ArchObjectType ty
 {
     free_sos_object(obj, size_bits);
 
-    // previously is seL4_PageDirBits, but shouldn't it be size_bits?
     obj->addr = ut_alloc(size_bits);
     if (obj->addr == 0)
     {
