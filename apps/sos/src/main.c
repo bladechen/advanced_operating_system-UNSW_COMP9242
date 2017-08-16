@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include "setjmp.h"
 
 #include <cspace/cspace.h>
 
@@ -43,6 +44,7 @@
 
 uint32_t dbflags = 0xFFFFFFFF;
 
+extern int test_coro();
 
 /* This is the index where a clients syscall enpoint will
  * be stored in the clients cspace. */
@@ -198,8 +200,18 @@ void syscall_loop(seL4_CPtr ep)
                     seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+            if (seL4_GetMR(3) == 2063)
+            {
+                // write to readonly page, simply kill the proc
+                ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1));
+                // kill the mem violate process
+                proc_destroy(get_current_app_proc());
+                /* ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1)); */
+                continue;
+            }
             seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
             assert(reply_cap != CSPACE_NULL);
+
 
             seL4_Word fault_addr = seL4_GetMR(1);
             // FIXME if doing multi proc.
@@ -232,6 +244,7 @@ void syscall_loop(seL4_CPtr ep)
         {
             ERROR_DEBUG("Rootserver got an unknown message\n");
         }
+        coro_test_run();
     }
 }
 
@@ -388,22 +401,26 @@ int main(void) {
     assert(0 == start_timer(_sos_interrupt_ep_cap));
     serial_handler = serial_init();
 
-    // m1_test();
+    m1_test();
     //
     dprintf(0, "initialise frametable...\n");
     frametable_init();
 
     /* Start the user application */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create tty process...\n");
-    test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
+    /* test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap); */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating tty...\n");
-    proc_activate(test_process);
+    /* proc_activate(test_process); */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start tty success\n");
 
     // m2_test();
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
+    dprintf(0, "\nsizeof void* %d\n", sizeof(void*));
+    /* jmp_buf h; */
+    /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
+    init_test_coro();
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */
