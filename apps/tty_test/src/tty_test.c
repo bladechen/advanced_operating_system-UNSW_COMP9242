@@ -105,8 +105,10 @@ int main(void){
     tty_debug_print("pt_test\n");
     pt_test();
     tty_debug_print("finish pt_test\n");
+
+    int i = 0;
     do {
-        printf("task:\tHello world, I'm\ttty_test!\n");
+        printf("task:\tHello world, I'm\ttty_test! number: %d\n", i);
         /* p -= (4096 * (1<<6)); */
         /* printf("now read the stack addr %p, which should fault!!!\n", p); */
         /* printf("%d\n", *p); */
@@ -122,8 +124,8 @@ int main(void){
         /* printf("success!!\n", p); */
 
 
-        *(int*)(0xD0000000) = 100;
-        fflush(NULL);
+        // *(int*)(0xD0000000) = 100;
+        // fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall
     } while(1);

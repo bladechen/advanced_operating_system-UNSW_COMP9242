@@ -26,6 +26,9 @@
 // TODO, now we assume there is only one process, and the badge
 // is hard coded, may try create badge dynamically
 #define TEMP_ONE_PROCESS_BADGE (1<<3)
+#define TEMP_TWO_PROCESS_BADGE (1<<4)
+
+static bool two_process = false;
 
 extern char _cpio_archive[];
 
@@ -67,7 +70,12 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
-    process->p_pid = 2;
+    if (two_process == false) {
+        process->p_pid = 2;
+    } else {
+        process->p_pid = 3;
+    }
+    
 
     /*
     *  pagetable will take care of the virtual address root
@@ -99,11 +107,21 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // the order is first init ipc buffer, then setup fault ep?
     as_define_ipc(process->p_addrspace);
     // Copy the fault endpoint to the user app to enable IPC
-    process->p_ep_cap = cspace_mint_cap(process->p_croot,
+    if (two_process == false) {
+        process->p_ep_cap = cspace_mint_cap(process->p_croot,
                                         cur_cspace,
                                         fault_ep_cap,
                                         seL4_AllRights,
                                         seL4_CapData_Badge_new(TEMP_ONE_PROCESS_BADGE));
+        two_process = true;
+    } else {
+        process->p_ep_cap = cspace_mint_cap(process->p_croot,
+                                        cur_cspace,
+                                        fault_ep_cap,
+                                        seL4_AllRights,
+                                        seL4_CapData_Badge_new(TEMP_TWO_PROCESS_BADGE));
+    }
+    
     assert(process->p_ep_cap != CSPACE_NULL);
     assert(process->p_ep_cap == 1);// FIXME
 
