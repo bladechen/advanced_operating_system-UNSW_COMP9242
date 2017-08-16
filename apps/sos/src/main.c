@@ -369,6 +369,10 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     _sos_ipc_init(ipc_ep, async_ep);
 }
 
+static void _serial_read_handler(struct serial *serial, char c){
+    dprintf(0, "receive data from netcat, char: %c\n", c);
+}
+
 /*
  * Main entry point - called by crt.
  */
@@ -404,6 +408,11 @@ int main(void) {
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
+
+    struct serial * serial = serial_init();
+    int err = serial_register_handler(serial, &_serial_read_handler);
+
+
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */
