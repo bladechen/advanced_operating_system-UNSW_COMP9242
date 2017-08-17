@@ -20,7 +20,7 @@
 #include "comm/comm.h"
 #include "frametable.h"
 
-const char REGION_NAME[10][10] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "OTHER"};
+const char REGION_NAME[10][20] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "OTHER"};
 static void dump_region(struct as_region_metadata* region);
 static int build_pagetable_link(struct pagetable* pt,  vaddr_t vaddr, int pages, seL4_ARM_VMAttributes vm, seL4_CapRights right );
 
@@ -221,7 +221,7 @@ int as_define_ipc_shared_buffer(struct addrspace * as)
     struct as_region_metadata* r = as_get_region_by_type(as, IPC_SHARED_BUFFER);
     assert(r != NULL);
     return build_pagetable_link(as_get_page_table(as), 
-        APP_PROCESS_IPC_SHARED_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
+        APP_PROCESS_IPC_SHARED_BUFFER, 4, as_region_vmattrs(r), as_region_caprights(r));
 }
 
 static int build_pagetable_link(struct pagetable* pt,
