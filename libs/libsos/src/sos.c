@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sos.h>
+#include "sys.h"
 
 #include <sel4/sel4.h>
 
@@ -40,3 +41,21 @@ int64_t sos_sys_time_stamp(void) {
     return -1;
 }
 
+int sos_sys_close(int file)
+{
+    assert(!"You need to implement this");
+    return 0;
+}
+
+int sos_stat(const char *path, sos_stat_t *buf)
+{
+    handle_no_implemented_syscall();
+    return 0;
+}
+
+
+int sos_getdirent(int pos, char *name, size_t nbyte)
+{
+    handle_no_implemented_syscall();
+    return 0;
+}

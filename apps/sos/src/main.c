@@ -244,6 +244,8 @@ void syscall_loop(seL4_CPtr ep)
             ERROR_DEBUG("Rootserver got an unknown message\n");
         }
         coro_test_run();
+        /* printf("main loop\n"); */
+
     }
 }
 

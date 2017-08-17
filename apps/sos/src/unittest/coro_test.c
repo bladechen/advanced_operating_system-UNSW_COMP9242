@@ -93,6 +93,7 @@ int init_test_coro()
 
 void coro_test_run()
 {
+    /* printf ("coro_test_run\n"); */
     for (int i = 0; i < timer_count; i ++)
     {
         /* printf("[%d] exe_time: %llu, cur time: %llu\n",i,(unsigned long long)timer_list[i].exe_time ,(unsigned long long)time_stamp); */
@@ -101,8 +102,10 @@ void coro_test_run()
             timer_list[i].cb(timer_list[i].argv);
         }
     }
+    /* printf ("co1 status: %d\n", co1->_status); */
     if (co1->_status == COROUTINE_INIT)
     {
+        printf ("co1 registered again\n");
         /* restart_coro(co1, func1, NULL); */
         restart_coro(co1, func1, co1);
     }

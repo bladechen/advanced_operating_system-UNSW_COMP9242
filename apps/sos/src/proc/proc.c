@@ -74,6 +74,7 @@ void proc_bootstrap()
     static char* kname = "sos_kernel";
     bootstrap_coro_env();
     init_kproc(kname);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "kernel proc at: %p, coroutine at: %p\n", &kproc, kproc.p_coro)
 }
 
 /* void loop_through_region(struct addrspace *as); */

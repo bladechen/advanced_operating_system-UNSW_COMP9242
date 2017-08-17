@@ -280,6 +280,9 @@ int main(void) {
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
     char *bp, *p;
+    printf("\n[sosh hello]\n");
+    while (1){}
+    /* assert(0); */
 
     in = open("console", O_RDONLY);
     assert(in >= 0);
