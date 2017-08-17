@@ -22,6 +22,10 @@
 #define WINDOW_START 0x20000000
 #define WINDOW_END   0x60000000
 
+
+#define COROUTINE_STACK_START 0x60000000
+#define COROUTINE_STACK_END   0x70000000
+
 /* Operations to get/recover the frame number*/
 #define PAGE_SHIFT(X)      ((X) >> seL4_PageBits)
 #define PAGE_UNSHIFT(X)    ((X) << seL4_PageBits)

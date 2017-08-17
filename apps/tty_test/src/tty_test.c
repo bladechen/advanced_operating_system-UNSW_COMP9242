@@ -122,7 +122,7 @@ int main(void){
         /* printf("success!!\n", p); */
 
 
-        *(int*)(0xD0000000) = 100;
+        /* *(int*)(0xD0000000) = 100; */
         fflush(NULL);
         thread_block();
         // sleep(1);	// Implement this as a syscall

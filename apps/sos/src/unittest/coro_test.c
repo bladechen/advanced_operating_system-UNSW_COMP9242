@@ -1,4 +1,4 @@
-#include "coro.h"
+#include "coroutine/coro.h"
 #include "clock/clock.h"
 #include "comm/comm.h"
 #include "time.h"
@@ -53,6 +53,8 @@ void func1(void* argv)
     {
         COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"%p, func1 [%d]: %llu\n",&i, i, (long long unsigned int)(time_stamp() / 1000));
         coro_sleep(argv, 2);
+        /* size_t p = (size_t)(&i); */
+        /* *(int*)(p + 5000) = 1000; */
     }
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"end func1\n");
 }
@@ -74,7 +76,7 @@ struct coroutine* co1;
 struct coroutine* co2;
 int init_test_coro()
 {
-    bootstrap_coro_env();
+    /* bootstrap_coro_env(); */
 
     co1 = create_coro(func1, NULL);
     co1->_argv = co1;

@@ -22,6 +22,9 @@
 
 #include "proc.h"
 #include "vm/address_space.h"
+#include "vm/pagetable.h"
+
+struct proc kproc;
 
 // TODO, now we assume there is only one process, and the badge
 // is hard coded, may try create badge dynamically
@@ -38,20 +41,40 @@ static void clear_proc(struct proc* proc)
     proc->p_tcb = NULL;
     proc->p_croot = NULL;
     proc->p_ep_cap = 0;
+    proc->p_coro = NULL;
 
 }
 
-static struct proc* _cur_proc = NULL;
-struct proc* get_current_app_proc()
+/* static struct proc* _cur_proc = NULL; */
+/* struct proc* get_current_app_proc() */
+/* { */
+/*     return _cur_proc; */
+/*  */
+/* } */
+/* void set_current_app_proc(struct proc* proc) */
+/* { */
+/*     _cur_proc = proc; */
+/* } */
+
+static void init_kproc(char* kname)
 {
-    return _cur_proc;
-
+    clear_proc(&kproc);
+    kproc.p_name = kname;
+    kproc.p_pid = 0;
+    kproc.p_pagetable = (struct pagetable*)(kcreate_pagetable());
+    kproc.p_addrspace = NULL; // i don't need the restriction.
+    kproc.p_tcb = NULL;
+    kproc.p_croot = NULL;
+    kproc.p_ep_cap = 0;
+    set_kproc_coro(&kproc);
 }
-void set_current_app_proc(struct proc* proc)
+
+void proc_bootstrap()
 {
-    _cur_proc = proc;
+    static char* kname = "sos_kernel";
+    bootstrap_coro_env();
+    init_kproc(kname);
 }
-
 
 /* void loop_through_region(struct addrspace *as); */
 
@@ -150,6 +173,11 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // TODO: as_define_mmap(process->p_addrspace);
 
     loop_through_region(process->p_addrspace);
+
+    // each user level process has one coroutine at sos side
+    process->p_coro = create_coro(NULL, NULL);
+    assert(process->p_coro != NULL);
+    process->p_coro->_proc = process;
     return process;
 }
 
@@ -197,7 +225,7 @@ int proc_destroy(struct proc * process)
 
     free(process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
-
-
     return 0;
 }
+
+

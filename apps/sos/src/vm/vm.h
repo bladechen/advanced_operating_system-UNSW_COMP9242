@@ -26,8 +26,9 @@
 typedef uint32_t vaddr_t;
 typedef uint32_t paddr_t;
 
+struct proc;
 void vm_bootstrap(void);
 void vm_shutdown(void);
-int vm_fault(vaddr_t vaddr);
+int vm_fault(struct proc* cur_proc, vaddr_t vaddr);
 
 #endif

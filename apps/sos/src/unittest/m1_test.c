@@ -145,16 +145,16 @@ void test_move(void)
 }
 void m1_test(void)
 {
-    int count= 100;
-    while (count --)
+    /* int count= 100; */
+    /* while (count --) */
     {
-        test_start_stop_timer();
-        test_add_remove();
-        /* test_one_register(); // 100ms */
-        test_remove_later();
-        test_move();
+        /* test_start_stop_timer(); */
+        /* test_add_remove(); */
+        /* #<{(| test_one_register(); // 100ms |)}># */
+        /* test_remove_later(); */
+        /* test_move(); */
         test_accuracy();
-        test_multi_timer();
+        /* test_multi_timer(); */
     }
 
     return;

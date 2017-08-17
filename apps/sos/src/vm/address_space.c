@@ -22,10 +22,14 @@
 
 const char REGION_NAME[10][10] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "OTHER"};
 static void dump_region(struct as_region_metadata* region);
-static int build_pagetable_link(struct pagetable* pt,  vaddr_t vaddr, int pages, seL4_ARM_VMAttributes vm, seL4_CapRights right );
 
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region);
 static seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
+static int build_pagetable_link(struct pagetable* pt,
+                                vaddr_t vaddr,
+                                int pages,
+                                seL4_ARM_VMAttributes vm,
+                                seL4_CapRights right);
 
 
 
@@ -208,7 +212,7 @@ int as_define_ipc(struct addrspace* as)
 }
 
 
-static int build_pagetable_link(struct pagetable* pt,
+int build_pagetable_link(struct pagetable* pt,
                                 vaddr_t vaddr,
                                 int pages,
                                 seL4_ARM_VMAttributes vm,
@@ -440,7 +444,6 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
     assert(!(fault_addr &(~seL4_PAGE_MASK)));
     assert(r->npages * seL4_PAGE_SIZE >= r->elf_size);
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "current process 0x%x fault addr: 0x%x\n", get_current_app_proc(), fault_addr);
     const struct as_region_metadata region = *r;
 
     uint32_t file_copy_addr = 0;

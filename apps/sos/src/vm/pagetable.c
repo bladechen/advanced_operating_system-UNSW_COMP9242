@@ -14,6 +14,33 @@ static bool _valid_page_addr(uint32_t addr)
 {
     return IS_PAGE_ALIGNED(addr);
 }
+
+struct pagetable* kcreate_pagetable(void)
+{
+
+    struct pagetable* pt = malloc(sizeof (struct pagetable));
+    if (pt == NULL)
+    {
+        ERROR_DEBUG("malloc pagetable return NULL\n");
+        return NULL;
+    }
+
+    pt->pt_list = NULL;
+    pt->page_dir = NULL;
+    clear_sos_object(&pt->vroot);
+
+    pt->page_dir = (void*)frame_alloc(NULL);
+    if (pt->page_dir == NULL)
+    {
+        ERROR_DEBUG( "frame_alloc page_dir return NULL\n");
+        destroy_pagetable(pt);
+        return NULL;
+    }
+    // i don't know the address. it doesn't matter.
+    pt->vroot.cap = seL4_CapInitThreadPD;
+    return pt;
+}
+
 struct pagetable* create_pagetable(void)
 {
     struct pagetable* pt = malloc(sizeof (struct pagetable));
@@ -41,9 +68,7 @@ struct pagetable* create_pagetable(void)
         destroy_pagetable(pt);
         return NULL;
     }
-
     return pt;
-
 }
 
 void destroy_pagetable(struct pagetable* pt )
@@ -206,6 +231,9 @@ int alloc_page(struct pagetable* pt,
         return ESEL4API;
     }
 
+    /* ret = map_page(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr); */
+
+    // map_page will leak sel4 pd
     ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr);
     if(ret == seL4_FailedLookup)
     {

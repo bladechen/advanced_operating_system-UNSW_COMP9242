@@ -1,4 +1,7 @@
 #include "coro.h"
+#include "vm/frametable.h"
+#include "vm/vm.h"
+#include "vm/vmem_layout.h"
 #include "sys/debug.h"
 
 /* #define DEBUG_CORO 1 */
@@ -9,14 +12,21 @@ static void replace_esp(struct context* jbf, void* esp)
     size_t tmp = (size_t)(jbf->_jmp);
     tmp += 32;
     *(uint32_t*)(tmp) = (uint32_t)(esp);
-    /* void* tmp = (void*)jbf; */
-    /* memcpy(tmp + 8, esp, 4); */
 }
+
 
 static void make_coro_runnable(struct coroutine* coro);
 static struct coroutine* new_coro();
 static void set_running_coro(struct coroutine* co);
 static void init_context(struct coroutine* coro);
+static void schedule_coro();
+
+
+void set_kproc_coro(struct proc* proc)
+{
+    schedule_obj._daemon->_proc = proc;
+    proc->p_coro = schedule_obj._daemon;
+}
 
 void bootstrap_coro_env()
 {
@@ -29,6 +39,7 @@ void bootstrap_coro_env()
     struct coroutine* co = new_coro();
     assert(co != NULL);
     schedule_obj._daemon = co;
+    schedule_obj._stack_base = COROUTINE_STACK_START;
     co->_status = COROUTINE_RUNNING;
     set_running_coro(co);
 #ifdef DEBUG_CORO
@@ -36,7 +47,7 @@ void bootstrap_coro_env()
 #endif
 }
 
-static struct coroutine* current_running_coro()
+struct coroutine* current_running_coro()
 {
     return schedule_obj._running;
 }
@@ -67,6 +78,29 @@ static struct coroutine* new_coro()
     return co;
 }
 
+
+// alloc 2 guard + 1 stack , total 16K
+// FIXME remove assert 0
+static vaddr_t alloc_stack_mem()
+{
+    struct pagetable* pt = schedule_obj._daemon->_proc->p_pagetable;
+    int ret = alloc_page(pt, schedule_obj._stack_base, seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead );
+
+    assert( 0 == ret);
+    ret = alloc_page(pt, schedule_obj._stack_base + STACK_GUARD_SIZE,  seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead | seL4_CanWrite);
+    vaddr_t stack_base = schedule_obj._stack_base + STACK_GUARD_SIZE;
+    assert (0 == ret);
+
+    ret = alloc_page(pt, schedule_obj._stack_base + STACK_GUARD_SIZE + STACK_GUARD_SIZE,  seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead | seL4_CanWrite);
+    assert (0 == ret);
+
+    ret = alloc_page(pt, schedule_obj._stack_base +  STACK_SIZE + STACK_GUARD_SIZE , seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead );
+    assert (0 == ret);
+    schedule_obj._stack_base += 2 * STACK_GUARD_SIZE + STACK_SIZE;
+
+    return stack_base;
+}
+
 static bool init_stack(struct coroutine* coro)
 {
     assert(coro != NULL);
@@ -75,13 +109,29 @@ static bool init_stack(struct coroutine* coro)
         return true;
     }
     assert(coro->_stack_top == NULL);
-    coro->_stack_addr = malloc(STACK_SIZE);
-    if (coro->_stack_addr == NULL)
+    coro->_stack_sz = STACK_SIZE;
+
+    /* sos_vaddr_t vaddr = frame_alloc(NULL); */
+    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base, seL4_CanRead)); */
+    /*  */
+    /* vaddr = frame_alloc(NULL); */
+    /*  */
+    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base + STACK_GUARD_SIZE , seL4_CanRead | seL4_CanWrite)); */
+    /* vaddr = frame_alloc(NULL); */
+    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base + STACK_GUARD_SIZE * 2, seL4_CanRead | seL4_CanWrite)); */
+    /*  */
+    /* vaddr = frame_alloc(NULL); */
+    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base + STACK_GUARD_SIZE + STACK_SIZE, seL4_CanRead)); */
+    /*  */
+    /* sos_paddr_t paddr = frame_phys_addr(frame_alloc(NULL)); */
+    /* uint32_t cap = 0; */
+    /* assert(0 == _build_paddr_to_vaddr_frame(paddr,schedule_obj._stack_base, &cap)); */
+    coro->_stack_addr = (void*)(alloc_stack_mem());
+    if (coro->_stack_addr == 0)
     {
         return false;
     }
-    coro->_stack_sz = STACK_SIZE;
-    coro->_stack_top = (void*)((size_t)(coro->_stack_addr)  + coro->_stack_sz);
+    coro->_stack_top = (void*)((size_t)(coro->_stack_addr)  +  coro->_stack_sz);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "coro: %p, has stack top at: %p\n", coro, coro->_stack_top );
     return true;
 }
@@ -237,7 +287,7 @@ void schedule_loop()
     return;
 }
 
-void schedule_coro()
+static void schedule_coro()
 {
     struct coroutine* coro = NULL;
     if (is_list_empty(schedule_obj._pending_list ))
@@ -298,15 +348,13 @@ void shutdown_coro_env(void)
         list_del(&(tmp->_link));
         destroy_coro(tmp);
     }
+    /* for (vaddr_t i = COROUTINE_STACK_START; i < _stack_base; i += (4096)) */
+    /* { */
+    /*  */
+    /*  */
+    /* } */
+    /*  */
     destroy_coro(schedule_obj._daemon);
 }
 
-/* static void coro_run(struct coroutine* coro) */
-/* { */
-/*     assert(coro->_status == COROUTINE_READY); */
-/*     if (coro->_entry != NULL) */
-/*     { */
-/*         coro */
-/*     } */
-/* } */
 

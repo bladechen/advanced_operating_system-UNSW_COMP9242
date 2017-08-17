@@ -13,7 +13,7 @@ void vm_shutdown(void)
 {
 
 }
-int vm_fault(vaddr_t vaddr)
+int vm_fault(struct proc* cur_proc, vaddr_t vaddr)
 {
     /*  For VM fault triggerd in CODE/DATA address space range,
      *  we try to solve it by allocate new frame, then loading contents from elf files.
@@ -21,7 +21,6 @@ int vm_fault(vaddr_t vaddr)
      *  a new frame for its usage.
      */
 
-    struct proc* cur_proc = get_current_app_proc();
     assert (cur_proc != NULL);
     if (vaddr == 0) // dereference NULL pointer
     {

@@ -1,7 +1,10 @@
+#ifndef _CORO_H_
+#define _CORO_H_
 #include <stdint.h>
 #include "comm/list.h"
 #include "comm/comm.h"
 #include "setjmp.h"
+#include "proc/proc.h"
 
 enum COROUTINE_STATUS
 {
@@ -26,7 +29,10 @@ struct context
     // register_t _r15;
     // register_t _rip;
 };
-#define STACK_SIZE (4 * 4096) // 16K
+
+// therefore the total stack size is 16K including the surrounded guards
+#define STACK_SIZE (4096 * 2) // 16K
+#define STACK_GUARD_SIZE (4096)
 #define MAX_COROUTINE_NUM (10)
 typedef void (*coroutine_func)(void * argv);
 struct coroutine
@@ -39,7 +45,10 @@ struct coroutine
     void*          _argv;
     int            _status;
     struct list_head _link;
+
+    struct proc*   _proc;
 };
+
 
 struct schedule
 {
@@ -49,12 +58,15 @@ struct schedule
     struct coroutine* _running;
 
     struct coroutine* _daemon;
+
+    uint32_t _stack_base;
 };
 
 
 void bootstrap_coro_env();
+void set_kproc_coro(struct proc* proc);
 void shutdown_coro_env();
-void schedule_coro();
+// void schedule_coro();
 void schedule_loop();
 
 struct coroutine* create_coro(coroutine_func func, void* argv);
@@ -64,3 +76,7 @@ void yield_coro(void);
 void resume_coro(struct coroutine* coro);
 
 void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv);
+
+
+struct coroutine* current_running_coro();
+#endif

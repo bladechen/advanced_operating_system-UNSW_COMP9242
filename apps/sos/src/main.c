@@ -205,7 +205,7 @@ void syscall_loop(seL4_CPtr ep)
                 // write to readonly page, simply kill the proc
                 ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1));
                 // kill the mem violate process
-                proc_destroy(get_current_app_proc());
+                proc_destroy(test_process);
                 /* ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1)); */
                 continue;
             }
@@ -215,9 +215,8 @@ void syscall_loop(seL4_CPtr ep)
 
             seL4_Word fault_addr = seL4_GetMR(1);
             // FIXME if doing multi proc.
-            set_current_app_proc(test_process);
 
-            int ret = vm_fault(fault_addr);
+            int ret = vm_fault( test_process, fault_addr);
 
             if (ret == 0)
             {
@@ -230,7 +229,7 @@ void syscall_loop(seL4_CPtr ep)
             {
                 ERROR_DEBUG("segment fault at 0x%x!\n", fault_addr);
                 // kill the mem violate process
-                proc_destroy(get_current_app_proc());
+                proc_destroy(test_process);
             }
             cspace_free_slot(cur_cspace, reply_cap);
 
@@ -405,12 +404,13 @@ int main(void) {
     //
     dprintf(0, "initialise frametable...\n");
     frametable_init();
+    proc_bootstrap();
 
     /* Start the user application */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create tty process...\n");
-    /* test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap); */
+    test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating tty...\n");
-    /* proc_activate(test_process); */
+    proc_activate(test_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start tty success\n");
 
     // m2_test();

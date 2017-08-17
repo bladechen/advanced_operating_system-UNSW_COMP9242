@@ -4,6 +4,7 @@
 #include "comm/comm.h"
 #include "vm/pagetable.h"
 #include "vm/address_space.h"
+#include "coroutine/coro.h"
 
 struct proc
 {
@@ -21,8 +22,12 @@ struct proc
 
     seL4_CPtr           p_ep_cap;
 
+    struct coroutine*   p_coro;
+
 };
 
+
+void proc_bootstrap();
 /* create all the resource of proc, then activate it. i.e make it running */
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap);
 
@@ -44,8 +49,9 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
-struct proc* get_current_app_proc();
-void set_current_app_proc(struct proc* proc);
+// struct proc* get_current_app_proc();
+// void set_current_app_proc(struct proc* proc);
+
 
 #endif
 
