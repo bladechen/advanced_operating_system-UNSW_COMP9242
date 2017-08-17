@@ -414,8 +414,8 @@ int main(void) {
 	test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
 	test_process2 = proc_create(TTY_NAME, _sos_ipc_ep_cap);
 	COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating tty...\n");
-	proc_activate(test_process);
 	proc_activate(test_process2);
+	proc_activate(test_process);
 	COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start tty success\n");
 
 
