@@ -157,7 +157,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // According to `extern char _cpio_archive[];` in main.c
     // It has been declared in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "elf_base: %x, entry point:%x\n", elf_base, elf_getEntryPoint(elf_base));
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), name);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "name: %s\n", name);
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
 
@@ -189,7 +190,6 @@ void proc_activate(struct proc * process)
     memset(&context, 0, sizeof(context));
     context.pc = elf_getEntryPoint(process->p_addrspace->elf_base);
     context.sp = APP_PROCESS_STACK_TOP;
-    printf (" %x %x\n",process->p_addrspace->elf_base,  context.pc);
     seL4_TCB_WriteRegisters(process->p_tcb->cap, 1, 0, 2, &context);
 }
 
