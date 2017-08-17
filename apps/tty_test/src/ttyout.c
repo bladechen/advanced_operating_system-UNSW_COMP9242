@@ -29,6 +29,8 @@
 
 #include <sel4/sel4.h>
 
+#include <sos.h>
+
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_YELLOW  "\x1b[33m"
@@ -107,6 +109,7 @@ int req_ipc_print_console(char* buf, size_t buflen)
 }
 
 static int total_send_len = 0;
+// set it to false, it would behave like it used to be
 static bool large_buffer_transfer = true;
 
 size_t sos_write(void *vData, size_t count)
@@ -135,45 +138,47 @@ size_t sos_write(void *vData, size_t count)
 
     } else 
     {
-        seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 10);
-        seL4_SetTag(tag);
-        seL4_SetMR(0, SYSCALL_IPC_PRINT_COLSOLE);
-        seL4_SetMR(1, 0);
-        seL4_SetMR(2, large_Buffer_Transfer_Message);
+        tty_debug_print("[tty] send large buffer, in new syscall work flow, do sending...\n");
+        // move it to syscall work flow to see if it works well
+        return sos_sys_print_to_console(buf, count);
+        // seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 10);
+        // seL4_SetTag(tag);
+        // seL4_SetMR(0, SYSCALL_IPC_PRINT_COLSOLE);
+        // seL4_SetMR(1, 0);
+        // seL4_SetMR(2, large_Buffer_Transfer_Message);
 
-        char * shared_buffer = (char *)(0xA0002000);
+        // char * shared_buffer = (char *)(0xA0002000);
 
-        memset((void*)(0xA0002000), 0, (0xA0006000 - 0xA0002000));
+        // memset((void*)(0xA0002000), 0, (0xA0006000 - 0xA0002000));
 
-        size_t buflen = count;
-        size_t sent = 0;
-        while (buflen > 0) 
-        {
-            if (buflen > (0xA0006000 - 0xA0002000))
-            {
-                seL4_SetMR(3, 0xA0002000);
-                seL4_SetMR(4, 0xA0006000);
-                memcpy(shared_buffer, buf + sent, (0xA0006000 - 0xA0002000));
-                sent += (0xA0006000 - 0xA0002000);
-                buflen -= (0xA0006000 - 0xA0002000);
-                tty_debug_print("[tty] sned large buffer, do sending buflen, if block...\n");
-                seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-                assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
-            } else
-            {
-                seL4_SetMR(3, 0xA0002000);
-                seL4_SetMR(4, 0xA0002000 + buflen);
-                seL4_SetMR(5, 1111);
-                memcpy(shared_buffer, buf + sent, buflen);
-                sent = buflen;
-                buflen = 0;
-                tty_debug_print("[tty] sned large buffer, do sending buflen, else block...\n");
-                seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-                tty_debug_print("[tty] send large buffer, do sending buflen...\n");
-                assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
-            }
-        }    
-        return sent;    
+        // size_t buflen = count;
+        // size_t sent = 0;
+        // while (buflen > 0) 
+        // {
+        //     if (buflen > (0xA0006000 - 0xA0002000))
+        //     {
+        //         seL4_SetMR(3, 0xA0002000);
+        //         seL4_SetMR(4, 0xA0006000);
+        //         memcpy(shared_buffer, buf + sent, (0xA0006000 - 0xA0002000));
+        //         sent += (0xA0006000 - 0xA0002000);
+        //         buflen -= (0xA0006000 - 0xA0002000);
+        //         tty_debug_print("[tty] sned large buffer, do sending buflen, if block...\n");
+        //         seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+        //         assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
+        //     } else
+        //     {
+        //         seL4_SetMR(3, 0xA0002000);
+        //         seL4_SetMR(4, 0xA0002000 + buflen);
+        //         memcpy(shared_buffer, buf + sent, buflen);
+        //         sent = buflen;
+        //         buflen = 0;
+        //         tty_debug_print("[tty] sned large buffer, do sending buflen, else block...\n");
+        //         seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+        //         tty_debug_print("[tty] send large buffer, do sending buflen...\n");
+        //         assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
+        //     }
+        // }    
+        // return sent;    
     }
 }
 
