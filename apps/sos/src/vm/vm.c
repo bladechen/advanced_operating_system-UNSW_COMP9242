@@ -34,7 +34,7 @@ int vm_fault(struct proc* cur_proc, vaddr_t vaddr)
         ERROR_DEBUG( "can not find region via vaddr 0x%x\n", vaddr);
         return EFAULT;
     }
-    if (region->type == IPC)
+    if (region->type == IPC || region->type == IPC_SHARED_BUFFER)
     {
         ERROR_DEBUG( "ipc region should be mapped 0x%x\n", vaddr);
         assert(0); // should not happend, because we map while start proc.

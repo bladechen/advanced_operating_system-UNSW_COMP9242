@@ -39,6 +39,14 @@ typedef int fmode_t;
 #define ST_SPECIAL 2    /* special (console) file */
 typedef int st_type_t;
 
+// This struct is for transfering control message over IPC
+// the actual data is put in app-sos shared buffer
+typedef struct ipc_buffer_ctrl_msg {
+    seL4_Word   start_app_buffer_addr;
+    int         offset;
+    int         file_id;
+} ipc_buffer_ctrl_msg;
+
 
 typedef struct {
   st_type_t st_type;    /* file type */

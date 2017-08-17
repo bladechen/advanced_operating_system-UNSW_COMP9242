@@ -120,11 +120,43 @@ static void handle_ipc_print_console(seL4_CPtr session)
     return;
 }
 
+static void handle_large_buffer_ipc_print_console(seL4_CPtr reply_cap) 
+{
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, "[sos] large buffer msg recieved from tty..\n");
+    // seL4_IPCBuffer* ipc_buffer = seL4_GetIPCBuffer();
+    // char* msg = (char*)(ipc_buffer->msg + 2);
+    // // truncate the message if the length is larger than the ipc buffer
+    // if (msg_len > (seL4_MsgMaxLength - 2 ) * 4)
+    // {
+    //     msg_len = (seL4_MsgMaxLength - 2 ) * 4;
+    // }
+    seL4_Word start_app_addr = seL4_GetMR(3);
+    seL4_Word end_app_addr = seL4_GetMR(4);
+
+    seL4_Word start_sos_addr = page_phys_addr(test_process->p_pagetable, start_app_addr);
+    int length = end_app_addr - start_app_addr;
+
+    int ret = send2nc(serial_handler, (char *)start_sos_addr, length);
+
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, 
+        "[sos] large buffer ipc msg serial_send finish, len: %d \n",ret);
+
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_SetMR(0, ret); // actually sent length
+    seL4_Send(reply_cap, reply);
+    return;
+}
+
 void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
 
+    int protocol_num = seL4_GetMR(2);
+
     syscall_number = seL4_GetMR(0);
+
+    dprintf(0,"syscall_number:%d , GET_MR1: %d, seL4_GetMR2: %d, GET_MR3: 0x%x, GET_MR4: 0x%x\n", 
+        syscall_number, seL4_GetMR(1), seL4_GetMR(2), seL4_GetMR(3), seL4_GetMR(4));
 
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
@@ -144,10 +176,23 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
         case SYSCALL_IPC_PRINT_COLSOLE:
 
-            handle_ipc_print_console(reply_cap);
-
+            if (protocol_num == 1) 
+            {
+                handle_ipc_print_console(reply_cap);
+            } else if (protocol_num == 2) 
+            {
+                handle_large_buffer_ipc_print_console(reply_cap);
+            } else 
+            {
+                dprintf(0, "Unknown protocol_num: %d\n", protocol_num);
+                conditional_panic(1, "In syscall loop with unknown protocol_num\n");
+            }
 
             break;
+
+        case SYSCALL_SOS_WRITE:
+
+        case SYSCALL_SOS_READ:
 
         default:
             printf("%s:%d (%s) Unknown syscall %d\n",
@@ -237,6 +282,7 @@ void syscall_loop(seL4_CPtr ep)
         else if(label == seL4_NoFault)
         {
             /* System call */
+            dprintf(0, "badge : %x\n", badge);
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
         }
         else

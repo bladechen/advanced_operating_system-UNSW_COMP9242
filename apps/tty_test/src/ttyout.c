@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "ttyout.h"
 
@@ -80,17 +81,21 @@ int tty_debug_print(const char *fmt, ...)
 /// @param:  buflen
 ///
 /// @return: actually ipc sent msg in bytes if success, otherwise negative number return
+
 int req_ipc_print_console(char* buf, size_t buflen)
 {
     // seL4_Word msg[seL4_MsgMaxLength]; therefore should multiply by 4 , transfer int to char
+
     int max_char = seL4_MsgMaxLength * 4 - 8; // maximum bytes sent supported by ipc
     int can_send_buflen = max_char > buflen ? buflen : max_char;
 
-    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 2 + (can_send_buflen) / 4 + (can_send_buflen % 4 == 0 ? 0 : 1));
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 3 + (can_send_buflen) / 4 + (can_send_buflen % 4 == 0 ? 0 : 1));
     seL4_SetTag(tag);
     seL4_SetMR(0, SYSCALL_IPC_PRINT_COLSOLE);
     seL4_SetMR(1, can_send_buflen);
-    char* msg_buf  = (char*)(seL4_GetIPCBuffer()->msg + 2);
+    seL4_SetMR(2, seL4_IPC_Message);
+
+    char* msg_buf  = (char*)(seL4_GetIPCBuffer()->msg + 3);
 
     memcpy(msg_buf, buf, can_send_buflen);
 
@@ -98,29 +103,77 @@ int req_ipc_print_console(char* buf, size_t buflen)
     tty_debug_print("[tty] do sending buflen: %d\n", can_send_buflen);
     assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
     return seL4_GetMR(0);
-
+    
 }
 
 static int total_send_len = 0;
+static bool large_buffer_transfer = true;
+
 size_t sos_write(void *vData, size_t count)
 {
     size_t sent_len = 0;
     char *buf = (char * ) vData;
     tty_debug_print("[tty] begin sos_write len: %d\n", count);
-    while (sent_len != count)
-    {
-        int ret =  req_ipc_print_console(buf + sent_len, count - sent_len);
-        if (ret < 0 || ret >= 10000000)
-        {
-            tty_debug_print("[tty] some error happen, give up retry. ret: %d, total sendlen: %d, total count: %d\n", ret, sent_len, count);
-            break;
 
+    if (large_buffer_transfer == false) 
+    {
+        while (sent_len != count)
+        {
+            int ret =  req_ipc_print_console(buf + sent_len, count - sent_len);
+            if (ret < 0 || ret >= 10000000)
+            {
+                tty_debug_print("[tty] some error happen, give up retry. ret: %d, total sendlen: %d, total count: %d\n", ret, sent_len, count);
+                break;
+
+            }
+            sent_len += ret;
+            tty_debug_print("[tty] already send %d\n", sent_len);
         }
-        sent_len += ret;
-        tty_debug_print("[tty] already send %d\n", sent_len);
+        total_send_len += sent_len;
+        tty_debug_print("[tty] sos_write finish, tty totally sent till now: %d\n", total_send_len);
+        return sent_len;
+
+    } else 
+    {
+        seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 10);
+        seL4_SetTag(tag);
+        seL4_SetMR(0, SYSCALL_IPC_PRINT_COLSOLE);
+        seL4_SetMR(1, 0);
+        seL4_SetMR(2, large_Buffer_Transfer_Message);
+
+        char * shared_buffer = (char *)(0xA0002000);
+
+        memset((void*)(0xA0002000), 0, (0xA0006000 - 0xA0002000));
+
+        size_t buflen = count;
+        size_t sent = 0;
+        while (buflen > 0) 
+        {
+            if (buflen > (0xA0006000 - 0xA0002000))
+            {
+                seL4_SetMR(3, 0xA0002000);
+                seL4_SetMR(4, 0xA0006000);
+                memcpy(shared_buffer, buf + sent, (0xA0006000 - 0xA0002000));
+                sent += (0xA0006000 - 0xA0002000);
+                buflen -= (0xA0006000 - 0xA0002000);
+                tty_debug_print("[tty] sned large buffer, do sending buflen, if block...\n");
+                seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+                assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
+            } else
+            {
+                seL4_SetMR(3, 0xA0002000);
+                seL4_SetMR(4, 0xA0002000 + buflen);
+                seL4_SetMR(5, 1111);
+                memcpy(shared_buffer, buf + sent, buflen);
+                sent = buflen;
+                buflen = 0;
+                tty_debug_print("[tty] sned large buffer, do sending buflen, else block...\n");
+                seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+                tty_debug_print("[tty] send large buffer, do sending buflen...\n");
+                assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
+            }
+        }    
+        return sent;    
     }
-    total_send_len += sent_len;
-    tty_debug_print("[tty] sos_write finish, tty totally sent till now: %d\n", total_send_len);
-    return sent_len;
 }
 
