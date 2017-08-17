@@ -188,6 +188,10 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
             break;
 
+        case SYSCALL_SOS_WRITE:
+
+        case SYSCALL_SOS_READ:
+
         default:
             printf("%s:%d (%s) Unknown syscall %d\n",
                        __FILE__, __LINE__, __func__, syscall_number);
