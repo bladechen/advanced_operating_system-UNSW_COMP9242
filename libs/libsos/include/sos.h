@@ -17,7 +17,20 @@
 #include <stdint.h>
 #include <sel4/sel4.h>
 
-/* System calls for SOS */
+
+/* The shared buffer address */
+#define APP_PROCESS_IPC_SHARED_BUFFER   (0xA0002000)
+#define APP_PROCESS_IPC_SHARED_BUFFER_GUARD (0xA0006000)
+#define APP_PROCESS_IPC_SHARED_BUFFER_SIZE  (0x00004000)
+
+/* The position of corresponding ep in SOS*/
+#define SYSCALL_ENDPOINT_SLOT  (1)
+
+/* System calls number for SOS */
+#define SOS_SYSCALL_IPC_PRINT_COLSOLE (2)
+#define SOS_SYSCALL_READ          (3)
+#define SOS_SYSCALL_WRITE         (4)
+
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)
@@ -39,6 +52,14 @@ typedef int fmode_t;
 #define ST_SPECIAL 2    /* special (console) file */
 typedef int st_type_t;
 
+// This struct is for transfering control message over IPC
+// the actual data is put in app-sos shared buffer
+typedef struct ipc_buffer_ctrl_msg {
+    seL4_Word   start_app_buffer_addr;
+    int         offset;
+    int         file_id;
+} ipc_buffer_ctrl_msg;
+
 
 typedef struct {
   st_type_t st_type;    /* file type */
@@ -56,6 +77,10 @@ typedef struct {
   unsigned  stime;           /* start time in msec since booting */
   char      command[N_NAME]; /* Name of exectuable */
 } sos_process_t;
+
+// move the m0 print to console system call, transform
+// and apply to current work flow, to see if it works.
+int sos_sys_print_to_console(char * vData, size_t nbyte);
 
 /* I/O system calls */
 

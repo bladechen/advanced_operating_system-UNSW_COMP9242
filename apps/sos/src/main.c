@@ -42,6 +42,9 @@
 #include "vm/address_space.h"
 #include "proc/proc.h"
 
+#include "syscall.h"
+#include <sos.h>
+
 uint32_t dbflags = 0xFFFFFFFF;
 
 extern int test_coro();
@@ -81,50 +84,22 @@ seL4_CPtr _sos_interrupt_ep_cap;
  */
 extern fhandle_t mnt_point;
 
-static struct serial * serial_handler = NULL;
-
-#define SYSCALL_IPC_PRINT_COLSOLE 2
+// static struct serial * serial_handler = NULL;
 
 
 // this represent the process start by ourself.
 static struct proc * test_process;
 
-static int send2nc(struct serial* serial, char* data, int len)
-{
-    return serial_send(serial, (data), (len));
-}
-
-// try best to send buf to serial, no retry at server side, let client do retry.
-static void handle_ipc_print_console(seL4_CPtr session)
-{
-    static int total_sent = 0;
-    static int total_sent_count = 0;
-    int msg_len = seL4_GetMR(1);
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, "[sos] recieved from tty, len: %d\n", msg_len);
-    seL4_IPCBuffer* ipc_buffer = seL4_GetIPCBuffer();
-    char* msg = (char*)(ipc_buffer->msg + 2);
-    // truncate the message if the length is larger than the ipc buffer
-    if (msg_len > (seL4_MsgMaxLength - 2 ) * 4)
-    {
-        msg_len = (seL4_MsgMaxLength - 2 ) * 4;
-    }
-    int ret = send2nc(serial_handler, msg, msg_len);
-    total_sent += ret;
-    total_sent_count ++;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, "[sos] serial_send finish, len: %d total: %d, %d\n",
-        ret, total_sent, total_sent_count);
-
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetMR(0, ret); // actually sent length
-    seL4_Send(session, reply);
-    return;
-}
-
 void handle_syscall(seL4_Word badge, int num_args) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
 
+    // int protocol_num = seL4_GetMR(2);
+
     syscall_number = seL4_GetMR(0);
+
+    dprintf(0,"syscall_number:%d , GET_MR1: %d, seL4_GetMR2: %d, GET_MR3: 0x%x, GET_MR4: 0x%x\n",
+        syscall_number, seL4_GetMR(1), seL4_GetMR(2), seL4_GetMR(3), seL4_GetMR(4));
 
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
@@ -141,14 +116,16 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
             break;
 
-
-        case SYSCALL_IPC_PRINT_COLSOLE:
-
-            handle_ipc_print_console(reply_cap);
-
+        case SOS_SYSCALL_IPC_PRINT_COLSOLE:
+            // process the syscall
+            sos_syscall_print_to_console(test_process, reply_cap);
 
             break;
 
+        case SOS_SYSCALL_WRITE:
+            break;
+        case SOS_SYSCALL_READ:
+            break;
         default:
             printf("%s:%d (%s) Unknown syscall %d\n",
                        __FILE__, __LINE__, __func__, syscall_number);
@@ -237,6 +214,7 @@ void syscall_loop(seL4_CPtr ep)
         else if(label == seL4_NoFault)
         {
             /* System call */
+            dprintf(0, "badge : %x\n", badge);
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
         }
         else
@@ -244,8 +222,6 @@ void syscall_loop(seL4_CPtr ep)
             ERROR_DEBUG("Rootserver got an unknown message\n");
         }
         coro_test_run();
-        /* printf("main loop\n"); */
-
     }
 }
 
@@ -400,13 +376,14 @@ int main(void) {
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
     assert(0 == start_timer(_sos_interrupt_ep_cap));
-    serial_handler = serial_init();
+    // serial_handler = serial_init();
 
     m1_test();
     //
     dprintf(0, "initialise frametable...\n");
     frametable_init();
     proc_bootstrap();
+    init_test_coro();
 
     /* Start the user application */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create tty process...\n");
@@ -422,7 +399,7 @@ int main(void) {
     dprintf(0, "\nsizeof void* %d\n", sizeof(void*));
     /* jmp_buf h; */
     /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
-    init_test_coro();
+    // init_test_coro();
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

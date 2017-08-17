@@ -20,7 +20,7 @@
 #include "comm/comm.h"
 #include "frametable.h"
 
-const char REGION_NAME[10][10] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "OTHER"};
+const char REGION_NAME[10][20] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "OTHER"};
 static void dump_region(struct as_region_metadata* region);
 
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region);
@@ -112,7 +112,7 @@ void loop_through_region(struct addrspace *as)
     list_for_each_safe(current, tmp_head, &(as->list->head))
     {
         struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
-        dump_region(tmp);
+        // dump_region(tmp);
     }
 }
 
@@ -211,6 +211,22 @@ int as_define_ipc(struct addrspace* as)
     return build_pagetable_link(as_get_page_table(as), APP_PROCESS_IPC_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
 }
 
+int as_define_ipc_shared_buffer(struct addrspace * as)
+{
+    int ret = as_define_region(as,
+                                APP_PROCESS_IPC_SHARED_BUFFER,
+                                NULL, 0,
+                                4 << seL4_PageBits, 0,
+                                PF_R, PF_W, 0, IPC_SHARED_BUFFER);
+    if (ret != 0)
+    {
+        return ret;
+    }
+    struct as_region_metadata* r = as_get_region_by_type(as, IPC_SHARED_BUFFER);
+    assert(r != NULL);
+    return build_pagetable_link(as_get_page_table(as), 
+        APP_PROCESS_IPC_SHARED_BUFFER, 4, as_region_vmattrs(r), as_region_caprights(r));
+}
 
 int build_pagetable_link(struct pagetable* pt,
                                 vaddr_t vaddr,
@@ -266,6 +282,7 @@ void  as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
     as_destroy_region_pages(as_get_page_table(as), to_del, to_del->region_vaddr, to_del->npages);
 
 }
+
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region)
 {
     if (region->rwxflag & PF_X)
@@ -425,19 +442,19 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
     return 0;
 }
 
-static void dump_region(struct as_region_metadata* region)
-{
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "region type: %s\n", REGION_NAME[(region->type)]);
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u, elf_base: 0x%x, filesz: %u, file_offset: %u, elf vaddr:0x%x, permission: %x\n",
-                region->region_vaddr,
-                region->npages,
-                region->p_elfbase,
-                region->elf_size,
-                region->elf_offset,
-                region->elf_vaddr,
-                (int)(region->rwxflag));
-    return;
-}
+// static void dump_region(struct as_region_metadata* region)
+// {
+//     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "region type: %s\n", REGION_NAME[(region->type)]);
+//     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u, elf_base: 0x%x, filesz: %u, file_offset: %u, elf vaddr:0x%x, permission: %x\n",
+//                 region->region_vaddr,
+//                 region->npages,
+//                 region->p_elfbase,
+//                 region->elf_size,
+//                 region->elf_offset,
+//                 region->elf_vaddr,
+//                 (int)(region->rwxflag));
+//     return;
+// }
 
 int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, vaddr_t fault_addr)
 {
@@ -462,14 +479,17 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 2\n"); */
         // nothing
     }
-    else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
+    else if (fault_addr <= region.elf_vaddr &&
+        fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr && 
+        fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
         file_copy_addr = region.elf_offset;
         vm_copied_addr_offset =  region.elf_vaddr - fault_addr;
         file_copy_bytes = seL4_PAGE_SIZE  - vm_copied_addr_offset;
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 3 %u\n", file_copy_bytes); */
     }
-    else if (fault_addr >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
+    else if (fault_addr >= region.elf_vaddr && 
+        fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 4\n"); */
         file_copy_bytes = seL4_PAGE_SIZE;
@@ -477,13 +497,16 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         file_copy_addr = region.elf_offset + (fault_addr - region.region_vaddr -zero_gap);
 
     }
-    else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size)
+    else if (fault_addr <= region.elf_vaddr && 
+        fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size)
     {
         file_copy_bytes = region.elf_size;
         file_copy_addr = region.elf_offset;
         vm_copied_addr_offset = region.elf_vaddr - fault_addr;
     }
-    else if (fault_addr >= region.elf_vaddr && fault_addr <= region.elf_vaddr + region.elf_size && fault_addr +seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size )
+    else if (fault_addr >= region.elf_vaddr && 
+        fault_addr <= region.elf_vaddr + region.elf_size && 
+        fault_addr +seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size )
     {
         vm_copied_addr_offset = 0;
         file_copy_bytes = (region.elf_vaddr + region.elf_size) - fault_addr;
