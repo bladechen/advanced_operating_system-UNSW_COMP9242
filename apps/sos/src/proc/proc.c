@@ -98,6 +98,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     // the order is first init ipc buffer, then setup fault ep?
     as_define_ipc(process->p_addrspace);
+    as_define_ipc_shared_buffer(process->p_addrspace);
     // Copy the fault endpoint to the user app to enable IPC
     process->p_ep_cap = cspace_mint_cap(process->p_croot,
                                         cur_cspace,

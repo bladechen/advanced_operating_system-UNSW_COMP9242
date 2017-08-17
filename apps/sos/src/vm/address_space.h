@@ -19,6 +19,7 @@ enum region_type
     STACK,
     HEAP,
     IPC,
+    IPC_SHARED_BUFFER
     OTHER,
 };
 
