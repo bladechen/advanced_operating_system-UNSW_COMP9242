@@ -175,7 +175,6 @@ void handle_syscall(seL4_Word badge, int num_args) {
             break;
 
         case SOS_SYSCALL_IPC_PRINT_COLSOLE:
-
             // if (protocol_num == 1) 
             // {
             //     handle_ipc_print_console(reply_cap);
