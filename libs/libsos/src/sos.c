@@ -110,9 +110,34 @@ int sos_sys_write(int file, const char *buf, size_t nbyte)
 
 void sos_sys_usleep(int msec) {
 
+    printf("soshhhh, In sos_sys_usleep function\n");
 
+    if (msec <= 0) return -1;
 
-    assert(!"You need to implement this");
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
+    seL4_SetTag(tag);
+
+    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
+
+    ctrl_msg->syscall_number = SOS_SYSCALL_USLEEP;
+    ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+
+    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+
+    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+        0,
+        APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
+    *(int *)APP_PROCESS_IPC_SHARED_BUFFER = msec;
+
+    ctrl_msg->offset = sizeof(int);
+
+    ctrl_msg->file_id = -1;
+
+    memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
+
+    seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+    assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
 }
 
 int64_t sos_sys_time_stamp(void) {
@@ -142,6 +167,7 @@ int sos_getdirent(int pos, char *name, size_t nbyte)
 /* 
 *   This function will be called in sys_stdio.c, when `printf` try to
 *   print to STDOUT/STDERR.
+*   This function is different from `sos_sys_write()`
 *   It will write to console through serial. This also fulfill
 *   purpose of `sos_sys_print_to_console` for m0. And in SOS syscall.c
 *   the corresponding function is still named `sos_sys_print_to_console`.

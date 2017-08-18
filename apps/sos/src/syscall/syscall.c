@@ -40,10 +40,26 @@ int sos_syscall_open(struct proc * proc)
 {
     return 0;
 }
+
 int sos_syscall_usleep(struct proc * proc)
 {
+    seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
+
+    seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
+
+    int offset = proc->p_ipc_ctrl.offset;
+
+    int msec = 0;
+
+    memcpy(&msec, (int *)start_sos_addr, offset);
+
+    dprintf(0, "in SOS `sos_syscall_usleep`, time: %d \n", msec);
+
+    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+    seL4_Send(proc->p_reply_cap, reply);
     return 0;
 }
+
 int sos_syscall_time_stamp(struct proc * proc)
 {
     return 0;
