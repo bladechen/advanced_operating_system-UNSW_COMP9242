@@ -15,6 +15,11 @@ static void replace_esp(struct context* jbf, void* esp)
 }
 
 
+static inline void zero_context(struct context* jbf)
+{
+    memset(jbf->_jmp, 0, sizeof (jbf->_jmp));
+}
+
 static void make_coro_runnable(struct coroutine* coro);
 static struct coroutine* new_coro();
 static void set_running_coro(struct coroutine* co);
@@ -180,8 +185,10 @@ static void init_context(struct coroutine* coro)
 #endif
     if (setjmp(coro->_ctx._jmp) != 0)
     {
+        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "starting %p\n", current_running_coro());
 
-        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"starting %p\n", current_running_coro());
+        zero_context(&(current_running_coro()->_ctx));
+        /* COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"starting %p, %p\n", current_running_coro(), coro); */
         /* assert(current_running_coro() == coro); */
         schedule_start_coro(current_running_coro());
     }
@@ -278,6 +285,8 @@ void resume_coro(struct coroutine* coro)
         coro->_status = COROUTINE_RUNNING;
         _restore_ctx(coro);
     }
+    /* printf ("%p %p\n",current_running_coro(),  coro); */
+    zero_context(&(current_running_coro()->_ctx));
     assert(current_running_coro()->_status == COROUTINE_RUNNING);
     /* current_running_coro()->_status = COROUTINE_READY; */
     /* assert(current_running_coro() != coro); */
@@ -298,6 +307,10 @@ void schedule_loop()
     schedule_obj._daemon->_status = COROUTINE_READY;
     if (setjmp(schedule_obj._daemon->_ctx._jmp) == 0)
         schedule_coro();
+
+
+    assert(current_running_coro()== schedule_obj._daemon);
+    zero_context(&(schedule_obj._daemon->_ctx));
     return;
 }
 
@@ -333,6 +346,8 @@ void yield_coro(void)
         _current->_status = COROUTINE_SUSPEND;
         schedule_coro();
     }
+
+    zero_context(&(_current->_ctx));
     // continue running in _current;
     assert(current_running_coro() == _current);
     assert(current_running_coro()->_status == COROUTINE_RUNNING );
