@@ -25,8 +25,8 @@
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_print_to_console, .will_block=false},
     {.syscall=&sos_syscall_open, .will_block=false},
-    {.syscall=&sos_syscall_read, .will_block=true},
     {.syscall=&sos_syscall_write, .will_block=false},
+    {.syscall=&sos_syscall_read, .will_block=true},    
     {.syscall=&sos_syscall_usleep, .will_block=true},
     {.syscall=&sos_syscall_time_stamp, .will_block=false}};
 
@@ -114,7 +114,9 @@ int sos_syscall_write(struct proc * proc)
     // seL4_Word start_app_addr = seL4_GetMR(1);
     seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
 
-    dprintf(0, "start_app_addr: 0x%x\n", start_app_addr);
+    seL4_Word file_id = proc->p_ipc_ctrl.file_id;
+
+    dprintf(0, "start_app_addr: 0x%x, file_id: %d\n", start_app_addr, file_id);
 
     seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
 

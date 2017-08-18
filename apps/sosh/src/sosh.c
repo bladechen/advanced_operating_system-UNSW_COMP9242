@@ -293,6 +293,9 @@ int main(void) {
 
     printf("after test\n");
 
+    char * test = "sos_sys_write\n";
+    sos_sys_write(1, test, 14);
+
     while(1) {}
 
     // sleep(1000);
