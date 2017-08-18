@@ -5,6 +5,7 @@
 #include "vm/pagetable.h"
 #include "vm/address_space.h"
 #include "coroutine/coro.h"
+#include <sos.h>
 
 struct proc
 {
@@ -27,7 +28,6 @@ struct proc
     seL4_CPtr           p_reply_cap;
 
     ipc_buffer_ctrl_msg p_ipc_ctrl;
-
 };
 
 

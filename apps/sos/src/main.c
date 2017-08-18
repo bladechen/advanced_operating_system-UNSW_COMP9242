@@ -90,58 +90,6 @@ extern fhandle_t mnt_point;
 // this represent the process start by ourself.
 static struct proc * test_process;
 
-void handle_syscall(seL4_Word badge, int num_args) {
-    seL4_Word syscall_number;
-    seL4_CPtr reply_cap;
-
-    // int protocol_num = seL4_GetMR(2);
-
-    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
-
-    memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
-
-    // syscall_number = seL4_GetMR(0);
-    syscall_number = ctrl_msg->syscall_number;
-    dprintf(0, "syscall_number: %d, offset: %d, start_addr: 0x%x\n", syscall_number, ctrl_msg->offset, ctrl_msg->start_app_buffer_addr);
-
-    // dprintf(0,"syscall_number:%d , GET_MR1: %d, seL4_GetMR2: %d, GET_MR3: 0x%x, GET_MR4: 0x%x\n",
-    //     syscall_number, seL4_GetMR(1), seL4_GetMR(2), seL4_GetMR(3), seL4_GetMR(4));
-
-    /* Save the caller */
-    reply_cap = cspace_save_reply_cap(cur_cspace);
-    assert(reply_cap != CSPACE_NULL);
-
-    /* Process system call */
-    switch (syscall_number) {
-        // case SOS_SYSCALL0:
-        //     dprintf(0, "syscall: thread made syscall 0!\n");
-
-        //     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-        //     seL4_SetMR(0, 0);
-        //     seL4_Send(reply_cap, reply);
-
-        //     break;
-
-        case SOS_SYSCALL_IPC_PRINT_COLSOLE:
-            // process the syscall
-            sos_syscall_print_to_console(test_process, reply_cap);
-
-            break;
-
-        case SOS_SYSCALL_WRITE:
-            break;
-        case SOS_SYSCALL_READ:
-            break;
-        default:
-            printf("%s:%d (%s) Unknown syscall %d\n",
-                       __FILE__, __LINE__, __func__, syscall_number);
-            /* proc_destroy(test_process); */
-            /* we don't want to reply to an unknown syscall */
-    }
-
-    /* Free the saved reply cap */
-    cspace_free_slot(cur_cspace, reply_cap);
-}
 
 void update_timestamp(void);
 void handle_epit1_irq(void);
@@ -221,7 +169,7 @@ void syscall_loop(seL4_CPtr ep)
         {
             /* System call */
             dprintf(0, "badge : 0x%x\n", badge);
-            handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
+            handle_syscall(badge, test_process);
         }
         else
         {
