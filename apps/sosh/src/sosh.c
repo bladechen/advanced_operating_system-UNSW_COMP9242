@@ -281,14 +281,16 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
     printf("[sosh hello]\n");
-    while (1){}
     /* assert(0); */
 
     printf("long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test \n");
 
-    sleep(1000);
-
-    printf("After sleep...\n");
+    while (1)
+    {
+        sleep(4);
+        tty_debug_print("i come back\n");
+        printf("After sleep...\n");
+    }
 
     // in = open("console", O_RDONLY);
     // assert(in >= 0);
@@ -410,4 +412,5 @@ int main(void) {
     //     }
     // }
     // printf("[SOS Exiting]\n");
+    while(1){}
 }

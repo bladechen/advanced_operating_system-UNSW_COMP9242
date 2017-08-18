@@ -42,27 +42,30 @@ int sos_syscall_open(struct proc * proc)
     return 0;
 }
 
-int sos_syscall_usleep(struct proc * proc)
-{
-    seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
-
-    seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
-
-    int offset = proc->p_ipc_ctrl.offset;
-
-    int msec = 0;
-
-    memcpy(&msec, (int *)start_sos_addr, offset);
-
-    dprintf(0, "in SOS `sos_syscall_usleep`, time: %d \n", msec);
-
-    seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_Send(proc->p_reply_cap, reply);
-    return 0;
-}
+/* int sos_syscall_usleep(struct proc * proc) */
+/* { */
+/*     seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr; */
+/*  */
+/*     seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr); */
+/*  */
+/*     int offset = proc->p_ipc_ctrl.offset; */
+/*  */
+/*     int msec = 0; */
+/*  */
+/*     memcpy(&msec, (int *)start_sos_addr, offset); */
+/*  */
+/*     dprintf(0, "in SOS `sos_syscall_usleep`, time: %d \n", msec); */
+/*  */
+/*     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); */
+/*     seL4_Send(proc->p_reply_cap, reply); */
+/*     return 0; */
+/* } */
 
 int sos_syscall_time_stamp(struct proc * proc)
 {
+    timestamp_t now = time_stamp();
+    reply_success(proc->p_reply_cap);
+
     return 0;
 }
 
@@ -107,19 +110,12 @@ int sos_syscall_write(struct proc * proc)
 }
 
 
-int sos_syscall_timestamp(struct proc* proc)
-{
-    timestamp_t now = time_stamp();
-    reply_success(proc->p_reply_cap);
-    // TODO destroy
-    return 0;
-}
 
-int sos_syscall_sleep(struct proc* proc)
-{
-    int msecond = *((int*)(get_ipc_buffer(proc))); // TODO
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", msecond);
 
+int sos_syscall_usleep(struct proc* proc)
+{
+    int msecond = *((int*)(get_ipc_buffer(proc)));
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", proc->p_pid, msecond);
     restart_coro(proc->p_coro, handle_block_sleep, (void*)(msecond));
     return 0;
 }
@@ -128,7 +124,7 @@ void handle_syscall(seL4_Word badge, struct proc * app_process) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
 
-    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
+    ipc_buffer_ctrl_msg * ctrl_msg = &(app_process->p_ipc_ctrl);//(ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
     memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
 
     syscall_number = ctrl_msg->syscall_number;
@@ -142,9 +138,6 @@ void handle_syscall(seL4_Word badge, struct proc * app_process) {
     // in case the app process block, the reply_cap and message get flushed
     // we put these into `proc struct`
     app_process->p_reply_cap = reply_cap;
-    memset(&(app_process->p_ipc_ctrl), 0, sizeof(ipc_buffer_ctrl_msg));
-    memcpy(&(app_process->p_ipc_ctrl), ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
-
 
     if (syscall_number < 0 || syscall_number > NUMBER_OF_SYSCALL) {
         printf("%s:%d (%s) Unknown syscall %d\n",
