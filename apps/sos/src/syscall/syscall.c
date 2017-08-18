@@ -75,6 +75,14 @@ int sos_syscall_write(struct proc * proc)
 }
 
 
+int sos_syscall_timestamp(struct proc* proc)
+{
+    timestamp_t now = time_stamp();
+    reply_success(proc->p_reply_cap);
+    // TODO destroy
+    return 0;
+}
+
 int sos_syscall_sleep(struct proc* proc)
 {
     int second = *((int*)(get_ipc_buffer(proc))); // TODO
