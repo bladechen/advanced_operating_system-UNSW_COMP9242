@@ -281,7 +281,7 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
     printf("[sosh hello]\n");
-    // while (1){}
+    while (1){}
     /* assert(0); */
 
     printf("long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test \n");

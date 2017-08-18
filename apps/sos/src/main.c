@@ -175,7 +175,7 @@ void syscall_loop(seL4_CPtr ep)
         {
             ERROR_DEBUG("Rootserver got an unknown message\n");
         }
-        coro_test_run();
+        schedule_loop();
     }
 }
 
@@ -337,7 +337,7 @@ int main(void) {
     dprintf(0, "initialise frametable...\n");
     frametable_init();
     proc_bootstrap();
-    init_test_coro();
+    /* init_test_coro(); */
 
     /* Start the user application */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
@@ -351,9 +351,12 @@ int main(void) {
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
     dprintf(0, "\nsizeof void* %d\n", sizeof(void*));
+    dprintf(0, "coro proc: %p\n", test_process->p_coro);
     /* jmp_buf h; */
     /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
     // init_test_coro();
+    /* test_process->p_reply_cap = 0; */
+    /* sos_syscall_sleep(test_process); */
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

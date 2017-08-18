@@ -85,9 +85,10 @@ int sos_syscall_timestamp(struct proc* proc)
 
 int sos_syscall_sleep(struct proc* proc)
 {
-    int second = *((int*)(get_ipc_buffer(proc))); // TODO
+    int msecond = *((int*)(get_ipc_buffer(proc))); // TODO
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", msecond);
 
-    restart_coro(proc->p_coro, handle_block_sleep, (void*)(second));
+    restart_coro(proc->p_coro, handle_block_sleep, (void*)(msecond));
     return 0;
 }
 

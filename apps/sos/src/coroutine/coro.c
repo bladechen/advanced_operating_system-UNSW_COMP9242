@@ -304,6 +304,10 @@ void resume_coro(struct coroutine* coro)
 void schedule_loop()
 {
 
+    if (is_list_empty(schedule_obj._pending_list))
+    {
+        return;
+    }
 #ifdef DEBUG_CORO
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"in schedule_loop %p\n", current_running_coro());
 #endif
