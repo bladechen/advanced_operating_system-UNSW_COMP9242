@@ -42,7 +42,7 @@ static void clear_proc(struct proc* proc)
     proc->p_croot = NULL;
     proc->p_ep_cap = 0;
     proc->p_coro = NULL;
-
+    proc->p_reply_cap = 0;
 }
 
 /* static struct proc* _cur_proc = NULL; */
@@ -181,6 +181,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     process->p_coro = create_coro(NULL, NULL);
     assert(process->p_coro != NULL);
     process->p_coro->_proc = process;
+
+    process->p_reply_cap = 0;
     return process;
 }
 
