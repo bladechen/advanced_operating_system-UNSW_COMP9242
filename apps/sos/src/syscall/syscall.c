@@ -20,6 +20,7 @@
 #include "vm/address_space.h"
 #include "proc/proc.h"
 #include "syscall.h"
+#include "vm/pagetable.h"
 #include <sos.h>
 
 static struct serial * serial_handler = NULL;
@@ -34,9 +35,16 @@ int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap)
 
 	seL4_Word start_app_addr = seL4_GetMR(1);
 
+    dprintf(0, "start_app_addr: 0x%x\n", start_app_addr);
+
     seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
 
+    dprintf(0, "here1111111111111111\n");
+
     int offset = seL4_GetMR(2);
+
+    dprintf(0, "offset %d, reply_cap: %d, start_sos_addr: 0x%x, serial_handler: 0x%x\n", 
+        offset, reply_cap, start_sos_addr, serial_handler);
 
     int ret = serial_send(serial_handler, (char *)start_sos_addr, offset);
 
