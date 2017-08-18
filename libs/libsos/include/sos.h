@@ -55,6 +55,7 @@ typedef int st_type_t;
 // This struct is for transfering control message over IPC
 // the actual data is put in app-sos shared buffer
 typedef struct ipc_buffer_ctrl_msg {
+    int         syscall_number;
     seL4_Word   start_app_buffer_addr;
     int         offset;
     int         file_id;

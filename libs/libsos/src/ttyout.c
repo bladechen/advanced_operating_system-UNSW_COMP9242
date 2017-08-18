@@ -103,8 +103,8 @@ int tty_debug_print(const char *fmt, ...)
 /* } */
 /*  */
 /* static int total_send_len = 0; */
-size_t sos_write(void *vData, size_t count)
-{ return 0;}
+// size_t sos_write(void *vData, size_t count)
+// { return 0;}
 /* { */
 /*     size_t sent_len = 0; */
 /*     char *buf = (char * ) vData; */

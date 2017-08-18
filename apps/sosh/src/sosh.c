@@ -280,126 +280,131 @@ int main(void) {
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
     char *bp, *p;
-    printf("\n[sosh hello]\n");
-    while (1){}
+    printf("[sosh hello]\n");
+    // while (1){}
     /* assert(0); */
 
-    in = open("console", O_RDONLY);
-    assert(in >= 0);
+    printf("long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test \n");
 
-    bp = buf;
-    done = 0;
-    new = 1;
 
-    printf("\n[SOS Starting]\n");
+    // in = open("console", O_RDONLY);
+    // assert(in >= 0);
 
-    while (!done) {
-        if (new) {
-            printf("$ ");
-        }
-        new = 0;
-        found = 0;
+    // bp = buf;
+    // done = 0;
+    // new = 1;
 
-        while (!found && !done) {
-            /* Make sure to flush so anything is visible while waiting for user input */
-            fflush(stdout);
-            r = read(in, bp, BUF_SIZ - 1 + buf - bp);
-            if (r < 0) {
-                printf("Console read failed!\n");
-                done = 1;
-                break;
-            }
-            bp[r] = 0; /* terminate */
-            for (p = bp; p < bp + r; p++) {
-                if (*p == '\03') { /* ^C */
-                    printf("^C\n");
-                    p = buf;
-                    new = 1;
-                    break;
-                } else if (*p == '\04') { /* ^D */
-                    p++;
-                    found = 1;
-                } else if (*p == '\010' || *p == 127) {
-                    /* ^H and BS and DEL */
-                    if (p > buf) {
-                        printf("\010 \010");
-                        p--;
-                        r--;
-                    }
-                    p--;
-                    r--;
-                } else if (*p == '\n') { /* ^J */
-                    printf("%c", *p);
-                    *p = 0;
-                    found = p > buf;
-                    p = buf;
-                    new = 1;
-                    break;
-                } else {
-                    printf("%c", *p);
-                }
-            }
-            bp = p;
-            if (bp == buf) {
-                break;
-            }
-        }
+    // printf("123123123123\n");
 
-        if (!found) {
-            continue;
-        }
+    // printf("[SOS Starting]\n");
 
-        argc = 0;
-        p = buf;
+    // while (!done) {
+    //     if (new) {
+    //         printf("$ ");
+    //     }
+    //     new = 0;
+    //     found = 0;
 
-        while (*p != '\0') {
-            /* Remove any leading spaces */
-            while (*p == ' ')
-                p++;
-            if (*p == '\0')
-                break;
-            argv[argc++] = p; /* Start of the arg */
-            while (*p != ' ' && *p != '\0') {
-                p++;
-            }
+    //     while (!found && !done) {
+    //         /* Make sure to flush so anything is visible while waiting for user input */
+    //         fflush(stdout);
+    //         r = read(in, bp, BUF_SIZ - 1 + buf - bp);
+    //         if (r < 0) {
+    //             printf("Console read failed!\n");
+    //             done = 1;
+    //             break;
+    //         }
+    //         bp[r] = 0; /* terminate */
+    //         for (p = bp; p < bp + r; p++) {
+    //             if (*p == '\03') { /* ^C */
+    //                 printf("^C\n");
+    //                 p = buf;
+    //                 new = 1;
+    //                 break;
+    //             } else if (*p == '\04') { /* ^D */
+    //                 p++;
+    //                 found = 1;
+    //             } else if (*p == '\010' || *p == 127) {
+    //                 /* ^H and BS and DEL */
+    //                 if (p > buf) {
+    //                     printf("\010 \010");
+    //                     p--;
+    //                     r--;
+    //                 }
+    //                 p--;
+    //                 r--;
+    //             } else if (*p == '\n') { /* ^J */
+    //                 printf("%c", *p);
+    //                 *p = 0;
+    //                 found = p > buf;
+    //                 p = buf;
+    //                 new = 1;
+    //                 break;
+    //             } else {
+    //                 printf("%c", *p);
+    //             }
+    //         }
+    //         bp = p;
+    //         if (bp == buf) {
+    //             break;
+    //         }
+    //     }
 
-            if (*p == '\0')
-                break;
+    //     if (!found) {
+    //         continue;
+    //     }
 
-            /* Null out first space */
-            *p = '\0';
-            p++;
-        }
+    //     argc = 0;
+    //     p = buf;
 
-        if (argc == 0) {
-            continue;
-        }
+    //     while (*p != '\0') {
+    //         /* Remove any leading spaces */
+    //         while (*p == ' ')
+    //             p++;
+    //         if (*p == '\0')
+    //             break;
+    //         argv[argc++] = p; /* Start of the arg */
+    //         while (*p != ' ' && *p != '\0') {
+    //             p++;
+    //         }
 
-        found = 0;
+    //         if (*p == '\0')
+    //             break;
 
-        for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {
-            if (strcmp(argv[0], commands[i].name) == 0) {
-                commands[i].command(argc, argv);
-                found = 1;
-                break;
-            }
-        }
+    //         /* Null out first space */
+    //         *p = '\0';
+    //         p++;
+    //     }
 
-        /* Didn't find a command */
-        if (found == 0) {
-            /* They might try to exec a program */
-            if (sos_stat(argv[0], &sbuf) != 0) {
-                printf("Command \"%s\" not found\n", argv[0]);
-            } else if (!(sbuf.st_fmode & FM_EXEC)) {
-                printf("File \"%s\" not executable\n", argv[0]);
-            } else {
-                /* Execute the program */
-                argc = 2;
-                argv[1] = argv[0];
-                argv[0] = "exec";
-                exec(argc, argv);
-            }
-        }
-    }
-    printf("[SOS Exiting]\n");
+    //     if (argc == 0) {
+    //         continue;
+    //     }
+
+    //     found = 0;
+
+    //     for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {
+    //         if (strcmp(argv[0], commands[i].name) == 0) {
+    //             commands[i].command(argc, argv);
+    //             found = 1;
+    //             break;
+    //         }
+    //     }
+
+    //     /* Didn't find a command */
+    //     if (found == 0) {
+    //         /* They might try to exec a program */
+    //         if (sos_stat(argv[0], &sbuf) != 0) {
+    //             printf("Command \"%s\" not found\n", argv[0]);
+    //         } else if (!(sbuf.st_fmode & FM_EXEC)) {
+    //             printf("File \"%s\" not executable\n", argv[0]);
+    //         } else {
+    //             /* Execute the program */
+    //             argc = 2;
+    //             argv[1] = argv[0];
+    //             argv[0] = "exec";
+    //             exec(argc, argv);
+    //         }
+    //     }
+    // }
+    // printf("[SOS Exiting]\n");
 }

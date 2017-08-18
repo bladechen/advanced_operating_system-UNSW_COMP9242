@@ -25,23 +25,34 @@
 
 static struct serial * serial_handler = NULL;
 
+
+int sos_syscall_read(struct proc * proc, seL4_Word reply_cap)
+{
+
+}
+
+
+// This function correspond to `sos_write` defined in APP scope in `sos.h`
 int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap)
 {
 	if (serial_handler == NULL) {
 		serial_handler = serial_init();
 	}
 
-	COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW, "[sos] large buffer msg recieved from tty, in syscall.c..\n");
+    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
 
-	seL4_Word start_app_addr = seL4_GetMR(1);
+    memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
+
+
+	// seL4_Word start_app_addr = seL4_GetMR(1);
+    seL4_Word start_app_addr = ctrl_msg->start_app_buffer_addr;
 
     dprintf(0, "start_app_addr: 0x%x\n", start_app_addr);
 
     seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
 
-    dprintf(0, "here1111111111111111\n");
-
-    int offset = seL4_GetMR(2);
+    // int offset = seL4_GetMR(2);
+    int offset = ctrl_msg->offset;
 
     dprintf(0, "offset %d, reply_cap: %d, start_sos_addr: 0x%x, serial_handler: 0x%x\n", 
         offset, reply_cap, start_sos_addr, serial_handler);

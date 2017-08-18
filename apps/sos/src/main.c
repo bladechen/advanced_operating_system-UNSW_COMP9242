@@ -60,7 +60,7 @@ extern int test_coro();
 /* All badged IRQs set high bet, then we use uniq bits to
  * distinguish interrupt sources */
 
-#define TTY_NAME             CONFIG_SOS_STARTUP_APP
+#define SOSH_NAME             CONFIG_SOS_STARTUP_APP
 #define TTY_PRIORITY         (0)
 #define TTY_EP_BADGE         (101)
 
@@ -74,7 +74,7 @@ const seL4_BootInfo* _boot_info;
 /*
  * A dummy starting syscall
  */
-#define SOS_SYSCALL0 0
+// #define SOS_SYSCALL0 0
 
 seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
@@ -96,7 +96,13 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
     // int protocol_num = seL4_GetMR(2);
 
-    syscall_number = seL4_GetMR(0);
+    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
+
+    memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
+
+    // syscall_number = seL4_GetMR(0);
+    syscall_number = ctrl_msg->syscall_number;
+    dprintf(0, "syscall_number: %d, offset: %d, start_addr: 0x%x\n", syscall_number, ctrl_msg->offset, ctrl_msg->start_app_buffer_addr);
 
     // dprintf(0,"syscall_number:%d , GET_MR1: %d, seL4_GetMR2: %d, GET_MR3: 0x%x, GET_MR4: 0x%x\n",
     //     syscall_number, seL4_GetMR(1), seL4_GetMR(2), seL4_GetMR(3), seL4_GetMR(4));
@@ -107,14 +113,14 @@ void handle_syscall(seL4_Word badge, int num_args) {
 
     /* Process system call */
     switch (syscall_number) {
-        case SOS_SYSCALL0:
-            dprintf(0, "syscall: thread made syscall 0!\n");
+        // case SOS_SYSCALL0:
+        //     dprintf(0, "syscall: thread made syscall 0!\n");
 
-            seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-            seL4_SetMR(0, 0);
-            seL4_Send(reply_cap, reply);
+        //     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
+        //     seL4_SetMR(0, 0);
+        //     seL4_Send(reply_cap, reply);
 
-            break;
+        //     break;
 
         case SOS_SYSCALL_IPC_PRINT_COLSOLE:
             // process the syscall
@@ -214,7 +220,7 @@ void syscall_loop(seL4_CPtr ep)
         else if(label == seL4_NoFault)
         {
             /* System call */
-            dprintf(0, "badge : %x\n", badge);
+            dprintf(0, "badge : 0x%x\n", badge);
             handle_syscall(badge, seL4_MessageInfo_get_length(message) - 1);
         }
         else
@@ -386,11 +392,11 @@ int main(void) {
     init_test_coro();
 
     /* Start the user application */
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create tty process...\n");
-    test_process = proc_create(TTY_NAME, _sos_ipc_ep_cap);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating tty...\n");
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
+    test_process = proc_create(SOSH_NAME, _sos_ipc_ep_cap);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating sosh...\n");
     proc_activate(test_process);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start tty success\n");
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
     // m2_test();
 
