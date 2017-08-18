@@ -286,6 +286,9 @@ int main(void) {
 
     printf("long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test \n");
 
+    sleep(1000);
+
+    printf("After sleep...\n");
 
     // in = open("console", O_RDONLY);
     // assert(in >= 0);

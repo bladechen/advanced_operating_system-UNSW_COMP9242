@@ -19,7 +19,7 @@
 
 
 /* The shared buffer address */
-#define APP_PROCESS_IPC_SHARED_BUFFER   (0xA0002000)
+#define APP_PROCESS_IPC_SHARED_BUFFER       (0xA0002000)
 #define APP_PROCESS_IPC_SHARED_BUFFER_GUARD (0xA0003000)
 #define APP_PROCESS_IPC_SHARED_BUFFER_SIZE  (0x00001000)
 
@@ -27,9 +27,12 @@
 #define SYSCALL_ENDPOINT_SLOT  (1)
 
 /* System calls number for SOS */
-#define SOS_SYSCALL_IPC_PRINT_COLSOLE (2)
-#define SOS_SYSCALL_READ          (3)
-#define SOS_SYSCALL_WRITE         (4)
+#define SOS_SYSCALL_IPC_PRINT_COLSOLE   (0)
+#define SOS_SYSCALL_READ                (1)
+#define SOS_SYSCALL_WRITE               (2)
+#define SOS_SYSCALL_OPEN                (3)
+#define SOS_SYSCALL_USLEEP              (4)
+#define SOS_SYSCALL_TIME_STAMP          (5)
 
 
 /* Endpoint for talking to SOS */
