@@ -281,7 +281,6 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
     printf("[sosh hello]\n");
-    // while (1){}
     /* assert(0); */
 
     char test_long[10000];
@@ -299,6 +298,21 @@ int main(void) {
     // sleep(1000);
 
     // printf("After sleep..\n");
+
+     /* try sleeping */
+	for (int i = 0; i < 100000; i++) {
+		time_t prev_seconds = time(NULL);
+		sleep(1);
+		time_t next_seconds = time(NULL);
+		assert(next_seconds > prev_seconds);
+		printf("Tick %d %d\n", prev_seconds, next_seconds);
+	}
+    while (1)
+    {
+        sleep(4);
+        tty_debug_print("i come back %d\n", time(NULL));
+        printf("After sleep...\n");
+    }
 
     // in = open("console", O_RDONLY);
     // assert(in >= 0);
@@ -420,4 +434,5 @@ int main(void) {
     //     }
     // }
     // printf("[SOS Exiting]\n");
+    while(1){}
 }

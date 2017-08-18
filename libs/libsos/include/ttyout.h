@@ -22,4 +22,5 @@ sos_write(void *data, size_t count);
 extern size_t
 sos_read(void *data, size_t count);
 
+int tty_debug_print(const char *fmt, ...);
 #endif

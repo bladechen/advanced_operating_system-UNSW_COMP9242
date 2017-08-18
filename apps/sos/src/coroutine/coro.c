@@ -147,11 +147,11 @@ void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv)
 {
     coro->_entry = func;
     coro->_argv = argv;
-    /* if (initial_coro(coro) == false) */
-    /* { */
-    /*     destroy_coro(coro); */
-    /*     return NULL; */
-    /* } */
+    if (coro->_status == COROUTINE_READY)
+    {
+        printf ("coro %p alreay in the ready queue\n", coro);
+        return;
+    }
     make_coro_runnable(coro);
 }
 
@@ -299,6 +299,10 @@ void resume_coro(struct coroutine* coro)
 void schedule_loop()
 {
 
+    if (is_list_empty(schedule_obj._pending_list))
+    {
+        return;
+    }
 #ifdef DEBUG_CORO
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"in schedule_loop %p\n", current_running_coro());
 #endif

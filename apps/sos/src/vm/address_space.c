@@ -224,7 +224,7 @@ int as_define_ipc_shared_buffer(struct addrspace * as)
     }
     struct as_region_metadata* r = as_get_region_by_type(as, IPC_SHARED_BUFFER);
     assert(r != NULL);
-    return build_pagetable_link(as_get_page_table(as), 
+    return build_pagetable_link(as_get_page_table(as),
         APP_PROCESS_IPC_SHARED_BUFFER, 4, as_region_vmattrs(r), as_region_caprights(r));
 }
 
@@ -480,7 +480,7 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         // nothing
     }
     else if (fault_addr <= region.elf_vaddr &&
-        fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr && 
+        fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr &&
         fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
         file_copy_addr = region.elf_offset;
@@ -488,7 +488,7 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         file_copy_bytes = seL4_PAGE_SIZE  - vm_copied_addr_offset;
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 3 %u\n", file_copy_bytes); */
     }
-    else if (fault_addr >= region.elf_vaddr && 
+    else if (fault_addr >= region.elf_vaddr &&
         fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 4\n"); */
@@ -497,15 +497,15 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         file_copy_addr = region.elf_offset + (fault_addr - region.region_vaddr -zero_gap);
 
     }
-    else if (fault_addr <= region.elf_vaddr && 
+    else if (fault_addr <= region.elf_vaddr &&
         fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size)
     {
         file_copy_bytes = region.elf_size;
         file_copy_addr = region.elf_offset;
         vm_copied_addr_offset = region.elf_vaddr - fault_addr;
     }
-    else if (fault_addr >= region.elf_vaddr && 
-        fault_addr <= region.elf_vaddr + region.elf_size && 
+    else if (fault_addr >= region.elf_vaddr &&
+        fault_addr <= region.elf_vaddr + region.elf_size &&
         fault_addr +seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size )
     {
         vm_copied_addr_offset = 0;
@@ -575,3 +575,8 @@ struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr)
     return NULL;
 }
 
+void* get_ipc_buffer(struct proc* proc)
+{
+    // XXX must be 4k, otherwise it will not continuous!!!!
+    return (void*)( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER));
+}
