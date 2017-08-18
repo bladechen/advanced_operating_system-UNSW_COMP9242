@@ -26,23 +26,18 @@
 static struct serial * serial_handler = NULL;
 
 
-int sos_syscall_read(struct proc * proc, seL4_Word reply_cap)
+int sos_syscall_read(struct proc * proc, seL4_Word reply_cap, ipc_buffer_ctrl_msg * ctrl_msg)
 {
 
 }
 
 
 // This function correspond to `sos_write` defined in APP scope in `sos.h`
-int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap)
+int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap, ipc_buffer_ctrl_msg * ctrl_msg)
 {
 	if (serial_handler == NULL) {
 		serial_handler = serial_init();
 	}
-
-    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
-
-    memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
-
 
 	// seL4_Word start_app_addr = seL4_GetMR(1);
     seL4_Word start_app_addr = ctrl_msg->start_app_buffer_addr;
@@ -68,13 +63,54 @@ int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap)
     return 0;
 }
 
-int sos_syscall_write(struct proc * proc, seL4_Word reply_cap)
+int sos_syscall_write(struct proc * proc, seL4_Word reply_cap, ipc_buffer_ctrl_msg * ctrl_msg)
 {
 	// read control info from IPC buffer
 	// and read data from shared buffer, then write corresponding
 	// file/device
 
     return 0;
+}
+
+
+
+void handle_syscall(seL4_Word badge, struct proc * app_process) {
+    seL4_Word syscall_number;
+    seL4_CPtr reply_cap;
+
+    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
+    memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
+
+    // syscall_number = seL4_GetMR(0);
+    syscall_number = ctrl_msg->syscall_number;
+    dprintf(0, "syscall_number: %d, offset: %d, start_addr: 0x%x\n", 
+        syscall_number, ctrl_msg->offset, ctrl_msg->start_app_buffer_addr);
+
+    /* Save the caller */
+    reply_cap = cspace_save_reply_cap(cur_cspace);
+    assert(reply_cap != CSPACE_NULL);
+
+    /* Process system call */
+    switch (syscall_number) {
+        case SOS_SYSCALL_IPC_PRINT_COLSOLE:
+            // process the syscall
+            sos_syscall_print_to_console(app_process, reply_cap, ctrl_msg);
+
+            break;
+
+        case SOS_SYSCALL_WRITE:
+            break;
+        case SOS_SYSCALL_READ:
+            break;
+        default:
+            printf("%s:%d (%s) Unknown syscall %d\n",
+                       __FILE__, __LINE__, __func__, syscall_number);
+            /* proc_destroy(test_process); */
+            /* we don't want to reply to an unknown syscall */
+    }
+
+    /* Free the saved reply cap */
+    cspace_free_slot(cur_cspace, reply_cap);
 }
 
 
