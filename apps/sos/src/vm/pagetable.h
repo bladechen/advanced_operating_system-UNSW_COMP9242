@@ -23,6 +23,7 @@ struct pagetable
     struct sel4_pagetable*   pt_list;
 };
 
+struct pagetable* kcreate_pagetable(void);
 struct pagetable* create_pagetable(void);
 void              destroy_pagetable(struct pagetable* pt );
 void              free_page(struct pagetable* pt, vaddr_t vaddr);

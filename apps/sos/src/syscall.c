@@ -52,6 +52,8 @@ int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap)
 int sos_syscall_write(struct proc * proc, seL4_Word reply_cap)
 {
 	// read control info from IPC buffer
+	// and read data from shared buffer, then write corresponding
+	// file/device
 	
 }
 
