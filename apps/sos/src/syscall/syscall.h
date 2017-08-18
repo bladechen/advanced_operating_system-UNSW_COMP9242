@@ -4,6 +4,7 @@
 #define SOS_SYSCALL_H
 
 #include <sos.h>
+#include "proc/proc.h"
 
 // move the `handle_syscall` from main to this file
 void handle_syscall(seL4_Word badge, struct proc * app_process);

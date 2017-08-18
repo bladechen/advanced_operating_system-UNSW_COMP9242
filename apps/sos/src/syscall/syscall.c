@@ -11,6 +11,7 @@
 #include "comm/comm.h"
 
 #include "vm/vmem_layout.h"
+#include "handle_syscall.h"
 
 #define verbose 5
 #include <sys/debug.h>
@@ -29,6 +30,7 @@ static struct serial * serial_handler = NULL;
 int sos_syscall_read(struct proc * proc)
 {
 
+    return 0;
 }
 
 
@@ -49,8 +51,8 @@ int sos_syscall_print_to_console(struct proc * proc)
     // int offset = seL4_GetMR(2);
     int offset = proc->p_ipc_ctrl.offset;
 
-    dprintf(0, "offset %d, reply_cap: %d, start_sos_addr: 0x%x, serial_handler: 0x%x\n",
-        offset, reply_cap, start_sos_addr, serial_handler);
+    /* dprintf(0, "offset %d, reply_cap: %d, start_sos_addr: 0x%x, serial_handler: 0x%x\n", */
+    /*     offset, reply_cap, start_sos_addr, serial_handler); */
 
     int ret = serial_send(serial_handler, (char *)start_sos_addr, offset);
 
@@ -76,7 +78,9 @@ int sos_syscall_write(struct proc * proc)
 int sos_syscall_sleep(struct proc* proc)
 {
     int second = *((int*)(get_ipc_buffer(proc))); // TODO
-    register_timer(second * 1000, cb_block_sleep, proc);
+
+    restart_coro(proc->p_coro, handle_block_sleep, (void*)(second));
+    return 0;
 }
 
 void handle_syscall(seL4_Word badge, struct proc * app_process) {

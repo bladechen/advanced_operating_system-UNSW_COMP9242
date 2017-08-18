@@ -1,6 +1,7 @@
 #include "syscall.h"
-#include "comm.h"
-#include "coro.h"
+#include "comm/comm.h"
+#include "coroutine/coro.h"
+#include "clock/clock.h"
 
 void reply_success( seL4_Word cap)
 {
@@ -14,14 +15,20 @@ void destroy_reply_cap(seL4_Word cap)
     cspace_free_slot(cur_cspace, cap);
 }
 
-void cb_block_sleep(uint32_t id, void* data)
+static void cb_block_sleep(uint32_t id, void* data)
 {
-    restart_coro((struct proc*)(data)->p_coro, handle_block_sleep, NULL);
+    resume_coro(((struct proc*)(data))->p_coro);
 }
 
 void handle_block_sleep(void* argv)
 {
     struct proc* proc = current_running_coro()->_proc;
+    int sleep_second = (int)(argv);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "now sleep  %d proc: %d\n",sleep_second, proc->p_pid);
+
+    register_timer(sleep_second * 1000, cb_block_sleep, proc);
+    yield_coro();
+
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "now wake up proc: %d\n", proc->p_pid);
     reply_success(proc->p_reply_cap);
     destroy_reply_cap(proc->p_reply_cap);
