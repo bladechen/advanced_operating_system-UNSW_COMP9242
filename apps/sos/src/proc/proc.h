@@ -24,6 +24,10 @@ struct proc
 
     struct coroutine*   p_coro;
 
+    seL4_CPtr           p_reply_cap;
+
+    ipc_buffer_ctrl_msg p_ipc_ctrl;
+
 };
 
 
