@@ -152,6 +152,11 @@ void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv)
     /*     destroy_coro(coro); */
     /*     return NULL; */
     /* } */
+    if (coro->_status == COROUTINE_READY)
+    {
+        printf ("coro %p alreay in the ready queue\n", coro);
+        return;
+    }
     make_coro_runnable(coro);
 }
 

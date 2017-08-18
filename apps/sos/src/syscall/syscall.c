@@ -54,7 +54,7 @@ int sos_syscall_print_to_console(struct proc * proc, seL4_Word reply_cap)
     // int offset = seL4_GetMR(2);
     int offset = ctrl_msg->offset;
 
-    dprintf(0, "offset %d, reply_cap: %d, start_sos_addr: 0x%x, serial_handler: 0x%x\n", 
+    dprintf(0, "offset %d, reply_cap: %d, start_sos_addr: 0x%x, serial_handler: 0x%x\n",
         offset, reply_cap, start_sos_addr, serial_handler);
 
     int ret = serial_send(serial_handler, (char *)start_sos_addr, offset);
@@ -78,4 +78,8 @@ int sos_syscall_write(struct proc * proc, seL4_Word reply_cap)
 }
 
 
-
+int sos_syscall_sleep(struct proc* proc)
+{
+    int second = *((int*)(get_ipc_buffer(proc))); // TODO
+    register_timer(second * 1000, cb_block_sleep, proc);
+}

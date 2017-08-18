@@ -111,5 +111,6 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as,
 
 void loop_through_region(struct addrspace *as);
 
+void* get_ipc_buffer(struct proc* proc);
 
 #endif
