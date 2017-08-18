@@ -58,61 +58,83 @@ int sos_sys_read(int file, char *buf, size_t nbyte) {
     return -1;
 }
 
-int sos_sys_write(int file, const char *buf, size_t nbyte)
+int sos_sys_write(int file, const char *vData, size_t nbyte)
 {
-    return 0;
-    // if (nbyte == 0) return 0;
- //    if (buf == NULL) return -1;
- //    if (file < 0) return -1;
+    if (vData == NULL) return -1;
+    if (vData == 0) return -1;
+    if (nbyte < 0) return -1;
+    if (file < 0) return -1;
 
- //    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 10);
- //    seL4_SetTag(tag);
- //    seL4_SetMR(0, SOS_SYSCALL_WRITE);
- //    seL4_SetMR(1, large_Buffer_Transfer_Message);
- //    seL4_SetMR(4, nbyte);
- //    seL4_SetMR(5, file);
+    size_t buflen = nbyte;
+    size_t sent = 0;
+    while (buflen > 0)
+    {
+        seL4_DebugPutChar('A');
+        seL4_DebugPutChar('\n');
+        if (buflen >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
+        {
+            seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
+            seL4_SetTag(tag);
 
- //    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
- //     0,
- //     APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+            ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)(seL4_GetIPCBuffer()->msg);
 
- //    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+            ctrl_msg->syscall_number = SOS_SYSCALL_WRITE;
+            ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+            ctrl_msg->file_id = file;
 
- //    size_t buflen = nbyte;
- //    size_t sent = 0;
- //    while (buflen > 0)
- //    {
- //        if (buflen >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
- //        {
- //            seL4_SetMR(2, APP_PROCESS_IPC_SHARED_BUFFER);
- //            seL4_SetMR(3, APP_PROCESS_IPC_SHARED_BUFFER_GUARD);
- //            memcpy(shared_buffer, buf + sent, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
- //            sent += APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
- //            buflen -= APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
- //            // tty_debug_print("[tty] sned large buffer, do sending buflen, if block...\n");
- //            seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
- //            assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
- //        } else
- //        {
- //            seL4_SetMR(2, APP_PROCESS_IPC_SHARED_BUFFER);
- //            seL4_SetMR(3, APP_PROCESS_IPC_SHARED_BUFFER + buflen);
- //            memcpy(shared_buffer, buf + sent, buflen);
- //            sent += buflen;
- //            buflen = 0;
- //            // tty_debug_print("[tty] sned large buffer, do sending buflen, else block...\n");
- //            seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
- //            // tty_debug_print("[tty] send large buffer, do sending buflen...\n");
- //            assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
- //        }
- //    }
- //    return 0;
+            char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+
+            memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+                0,
+                APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
+            memcpy(shared_buffer, vData + sent, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+            sent += APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
+            buflen -= APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
+            ctrl_msg->offset = APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
+
+            // memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
+
+            seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+            assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
+        } else
+        {
+            seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
+            seL4_SetTag(tag);
+
+            ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)(seL4_GetIPCBuffer()->msg);
+
+            ctrl_msg->syscall_number = SOS_SYSCALL_WRITE;
+            ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+            ctrl_msg->file_id = file;
+
+            char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+
+            memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+                0,
+                APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
+            memcpy(shared_buffer, vData + sent, buflen);
+            sent = buflen;
+            buflen = 0;
+            // seL4_SetMR(2, sent);
+            ctrl_msg->offset = sent;
+            // tty_debug_print("[tty] sned large buffer, do sending buflen, else block...\n");
+            memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
+
+            seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+            // tty_debug_print("[tty] send large buffer, do sending buflen...\n");
+            assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
+        }
+    }
+    return sent;  
 }
 
 void sos_sys_usleep(int msec) {
 
     printf("soshhhh, In sos_sys_usleep function\n");
 
-    if (msec <= 0) return -1;
+    if (msec <= 0) return;
 
     seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
     seL4_SetTag(tag);
@@ -177,26 +199,31 @@ int sos_write(const char *vData, size_t nbyte)
     if (vData == NULL) return -1;
     if (vData == 0) return -1;
 
-    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
-    seL4_SetTag(tag);
-
-    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)malloc(sizeof(ipc_buffer_ctrl_msg));
-
-    ctrl_msg->syscall_number = SOS_SYSCALL_IPC_PRINT_COLSOLE;
-    ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
-
-    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
-
-    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
-        0,
-        APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
-
     size_t buflen = nbyte;
     size_t sent = 0;
     while (buflen > 0)
     {
+        seL4_DebugPutChar('W');
+        seL4_DebugPutChar('\n');
         if (buflen >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
         {
+            seL4_DebugPutChar('F');
+            seL4_DebugPutChar('\n');
+            seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
+            seL4_SetTag(tag);
+
+            ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)(seL4_GetIPCBuffer()->msg);
+
+            ctrl_msg->syscall_number = SOS_SYSCALL_IPC_PRINT_COLSOLE;
+            ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+
+            char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+
+            memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+                0,
+                APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
+
             memcpy(shared_buffer, vData + sent, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
             sent += APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
             buflen -= APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
@@ -204,19 +231,33 @@ int sos_write(const char *vData, size_t nbyte)
             ctrl_msg->offset = APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
             // tty_debug_print("[tty] sned large buffer, do sending buflen, if block...\n");
 
-            memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
+            // memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
 
             seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
             assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
         } else
         {
+            seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
+            seL4_SetTag(tag);
+
+            ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *)(seL4_GetIPCBuffer()->msg);
+
+            ctrl_msg->syscall_number = SOS_SYSCALL_IPC_PRINT_COLSOLE;
+            ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+
+            char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+
+            memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+                0,
+                APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
             memcpy(shared_buffer, vData + sent, buflen);
             sent = buflen;
             buflen = 0;
             // seL4_SetMR(2, sent);
             ctrl_msg->offset = sent;
             // tty_debug_print("[tty] sned large buffer, do sending buflen, else block...\n");
-            memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
+            // memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg));
 
             seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
             // tty_debug_print("[tty] send large buffer, do sending buflen...\n");

@@ -284,11 +284,21 @@ int main(void) {
     // while (1){}
     /* assert(0); */
 
-    printf("long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test \n");
+    char test_long[10000];
+    
+    for(i=0 ; i < 10000; i++) {
+        test_long[i] = 'a';
+    }
 
-    sleep(1000);
+    printf("test_long: %s\n", test_long);
 
-    printf("After sleep...\n");
+    printf("after test\n");
+
+    while(1) {}
+
+    // sleep(1000);
+
+    // printf("After sleep..\n");
 
     // in = open("console", O_RDONLY);
     // assert(in >= 0);
