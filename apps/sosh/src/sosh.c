@@ -285,10 +285,18 @@ int main(void) {
 
     printf("long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test long test \n");
 
+     /* try sleeping */
+	for (int i = 0; i < 100000; i++) {
+		time_t prev_seconds = time(NULL);
+		sleep(1);
+		time_t next_seconds = time(NULL);
+		assert(next_seconds > prev_seconds);
+		printf("Tick %d %d\n", prev_seconds, next_seconds);
+	}
     while (1)
     {
         sleep(4);
-        tty_debug_print("i come back\n");
+        tty_debug_print("i come back %d\n", time(NULL));
         printf("After sleep...\n");
     }
 

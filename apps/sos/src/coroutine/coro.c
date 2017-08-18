@@ -147,11 +147,6 @@ void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv)
 {
     coro->_entry = func;
     coro->_argv = argv;
-    /* if (initial_coro(coro) == false) */
-    /* { */
-    /*     destroy_coro(coro); */
-    /*     return NULL; */
-    /* } */
     if (coro->_status == COROUTINE_READY)
     {
         printf ("coro %p alreay in the ready queue\n", coro);

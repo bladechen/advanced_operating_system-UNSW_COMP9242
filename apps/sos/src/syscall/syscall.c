@@ -61,11 +61,12 @@ int sos_syscall_open(struct proc * proc)
 /*     return 0; */
 /* } */
 
+extern timestamp_t g_cur_timestamp_us;
 int sos_syscall_time_stamp(struct proc * proc)
 {
-    timestamp_t now = time_stamp();
+    timestamp_t now = g_cur_timestamp_us;
+    memcpy(get_ipc_buffer(proc), &now, 8);
     reply_success(proc->p_reply_cap);
-
     return 0;
 }
 
