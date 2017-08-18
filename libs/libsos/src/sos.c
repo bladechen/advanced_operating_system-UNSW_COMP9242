@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sos.h>
+#include "sys.h"
 
 #include <sel4/sel4.h>
 
@@ -41,7 +42,7 @@
 
 
 /*
-*	These functions are called by APP, mainly used to 
+*	These functions are called by APP, mainly used to
 *	encapsulate the control messages like the the start
 * 	of the buffer and the read offset and send to SOS/wait
 * 	response from sos via IPC.
@@ -57,8 +58,9 @@ int sos_sys_read(int file, char *buf, size_t nbyte) {
     return -1;
 }
 
-int sos_sys_write(int file, const char *buf, size_t nbyte) 
+int sos_sys_write(int file, const char *buf, size_t nbyte)
 {
+    return 0;
 	// if (nbyte == 0) return 0;
  //    if (buf == NULL) return -1;
  //    if (file < 0) return -1;
@@ -70,15 +72,15 @@ int sos_sys_write(int file, const char *buf, size_t nbyte)
  //    seL4_SetMR(4, nbyte);
  //    seL4_SetMR(5, file);
 
- //    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER), 
- //    	0, 
+ //    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+ //    	0,
  //    	APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
 
- //    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);    
+ //    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
 
  //    size_t buflen = nbyte;
  //    size_t sent = 0;
- //    while (buflen > 0) 
+ //    while (buflen > 0)
  //    {
  //        if (buflen >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
  //        {
@@ -102,7 +104,7 @@ int sos_sys_write(int file, const char *buf, size_t nbyte)
  //            // tty_debug_print("[tty] send large buffer, do sending buflen...\n");
  //            assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
  //        }
- //    }    
+ //    }
  //    return 0;
 }
 
@@ -115,7 +117,32 @@ int64_t sos_sys_time_stamp(void) {
     return -1;
 }
 
+int sos_sys_close(int file)
+{
+    assert(!"You need to implement this");
+    return 0;
+}
 
+int sos_stat(const char *path, sos_stat_t *buf)
+{
+    handle_no_implemented_syscall();
+    return 0;
+}
+
+
+int sos_getdirent(int pos, char *name, size_t nbyte)
+{
+    handle_no_implemented_syscall();
+    return 0;
+}
+
+/* int sos_write(const char *buf, size_t nbyte) */
+/* { */
+/*     handle_no_implemented_syscall(); */
+/*     return 0; */
+/*  */
+/*  */
+/* } */
 int sos_sys_print_to_console(char * vData, size_t nbyte)
 {
 	if (vData == NULL) return -1;
@@ -128,13 +155,13 @@ int sos_sys_print_to_console(char * vData, size_t nbyte)
 
     char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
 
-    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER), 
-    	0, 
+    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+    	0,
     	APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
 
     size_t buflen = nbyte;
     size_t sent = 0;
-    while (buflen > 0) 
+    while (buflen > 0)
     {
         if (buflen >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
         {
@@ -156,7 +183,7 @@ int sos_sys_print_to_console(char * vData, size_t nbyte)
             // tty_debug_print("[tty] send large buffer, do sending buflen...\n");
             assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
         }
-    }    
-    return sent;   
+    }
+    return sent;
 }
 

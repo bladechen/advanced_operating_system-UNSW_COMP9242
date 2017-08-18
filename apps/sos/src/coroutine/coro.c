@@ -127,6 +127,7 @@ static bool init_stack(struct coroutine* coro)
     /* uint32_t cap = 0; */
     /* assert(0 == _build_paddr_to_vaddr_frame(paddr,schedule_obj._stack_base, &cap)); */
     coro->_stack_addr = (void*)(alloc_stack_mem());
+    /* coro->_stack_addr =  malloc(STACK_SIZE);; */
     if (coro->_stack_addr == 0)
     {
         return false;
@@ -263,13 +264,26 @@ struct coroutine* create_coro(coroutine_func func, void* argv)
     return coro;
 }
 
+
 void resume_coro(struct coroutine* coro)
 {
-    current_running_coro()->_status = COROUTINE_READY;
-    assert(current_running_coro() != coro);
-    set_running_coro(coro);
-    coro->_status = COROUTINE_RUNNING;
-    _restore_ctx(coro);
+
+    assert(current_running_coro() == schedule_obj._daemon);
+    if (setjmp(current_running_coro()->_ctx._jmp) == 0)
+    {
+        (( struct coroutine*)(current_running_coro()))->_status = COROUTINE_READY;
+        assert(current_running_coro() != coro);
+        set_running_coro(coro);
+
+        coro->_status = COROUTINE_RUNNING;
+        _restore_ctx(coro);
+    }
+    assert(current_running_coro()->_status == COROUTINE_RUNNING);
+    /* current_running_coro()->_status = COROUTINE_READY; */
+    /* assert(current_running_coro() != coro); */
+    /* set_running_coro(coro); */
+    /* coro->_status = COROUTINE_RUNNING; */
+    /* _restore_ctx(coro); */
 }
 
 

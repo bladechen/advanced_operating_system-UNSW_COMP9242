@@ -74,6 +74,7 @@ void proc_bootstrap()
     static char* kname = "sos_kernel";
     bootstrap_coro_env();
     init_kproc(kname);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "kernel proc at: %p, coroutine at: %p\n", &kproc, kproc.p_coro)
 }
 
 /* void loop_through_region(struct addrspace *as); */
@@ -156,7 +157,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // According to `extern char _cpio_archive[];` in main.c
     // It has been declared in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "loading %s elf_base: %x, entry point:%x\n", name, elf_base, elf_getEntryPoint(elf_base));
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), name);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "name: %s\n", name);
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
 
