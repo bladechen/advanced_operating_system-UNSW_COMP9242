@@ -109,6 +109,9 @@ int sos_sys_write(int file, const char *buf, size_t nbyte)
 }
 
 void sos_sys_usleep(int msec) {
+
+
+
     assert(!"You need to implement this");
 }
 
@@ -140,7 +143,8 @@ int sos_getdirent(int pos, char *name, size_t nbyte)
 *   This function will be called in sys_stdio.c, when `printf` try to
 *   print to STDOUT/STDERR.
 *   It will write to console through serial. This also fulfill
-*   purpose of `sos_sys_print_to_console` for m0.
+*   purpose of `sos_sys_print_to_console` for m0. And in SOS syscall.c
+*   the corresponding function is still named `sos_sys_print_to_console`.
 */
 int sos_write(const char *vData, size_t nbyte) 
 { 

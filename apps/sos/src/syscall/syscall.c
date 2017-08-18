@@ -24,9 +24,9 @@
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_print_to_console, .will_block=false},
     {.syscall=&sos_syscall_open, .will_block=false},
-    {.syscall=&sos_syscall_read, .will_block=false},
+    {.syscall=&sos_syscall_read, .will_block=true},
     {.syscall=&sos_syscall_write, .will_block=false},
-    {.syscall=&sos_syscall_usleep, .will_block=false},
+    {.syscall=&sos_syscall_usleep, .will_block=true},
     {.syscall=&sos_syscall_time_stamp, .will_block=false}};
 
 static struct serial * serial_handler = NULL;
