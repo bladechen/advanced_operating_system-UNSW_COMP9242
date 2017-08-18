@@ -169,6 +169,9 @@ void syscall_loop(seL4_CPtr ep)
         {
             /* System call */
             dprintf(0, "badge : 0x%x\n", badge);
+
+            // TODO: under multiprocess circumstance, pass the corresponding
+            // APP process.
             handle_syscall(badge, test_process);
         }
         else

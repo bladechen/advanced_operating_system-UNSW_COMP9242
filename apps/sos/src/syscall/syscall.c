@@ -2,20 +2,15 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
 #include <cspace/cspace.h>
-
 #include <serial/serial.h>
 #include <clock/clock.h>
-
 #include "comm/comm.h"
-
 #include "vm/vmem_layout.h"
 
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
-
 #include "vm/frametable.h"
 #include "vm/address_space.h"
 #include "proc/proc.h"
@@ -23,14 +18,36 @@
 #include "vm/pagetable.h"
 #include <sos.h>
 
-static struct serial * serial_handler = NULL;
+// used to replace the long switch case in `handle_syscall`
+#define NUMBER_OF_SYSCALL   6
 
+syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
+    {.syscall=&sos_syscall_print_to_console, .will_block=false},
+    {.syscall=&sos_syscall_open, .will_block=false},
+    {.syscall=&sos_syscall_read, .will_block=false},
+    {.syscall=&sos_syscall_write, .will_block=false},
+    {.syscall=&sos_syscall_usleep, .will_block=false},
+    {.syscall=&sos_syscall_time_stamp, .will_block=false}};
+
+static struct serial * serial_handler = NULL;
 
 int sos_syscall_read(struct proc * proc)
 {
-
+    return 0;
 }
 
+int sos_syscall_open(struct proc * proc)
+{
+    return 0;
+}
+int sos_syscall_usleep(struct proc * proc)
+{
+    return 0;
+}
+int sos_syscall_time_stamp(struct proc * proc)
+{
+    return 0;
+}
 
 // This function correspond to `sos_write` defined in APP scope in `sos.h`
 int sos_syscall_print_to_console(struct proc * proc)
@@ -73,7 +90,6 @@ int sos_syscall_write(struct proc * proc)
 }
 
 
-
 void handle_syscall(seL4_Word badge, struct proc * app_process) {
     seL4_Word syscall_number;
     seL4_CPtr reply_cap;
@@ -95,28 +111,43 @@ void handle_syscall(seL4_Word badge, struct proc * app_process) {
     memset(&(app_process->p_ipc_ctrl), 0, sizeof(ipc_buffer_ctrl_msg));
     memcpy(&(app_process->p_ipc_ctrl), ctrl_msg, sizeof(ipc_buffer_ctrl_msg)); 
 
-    /* Process system call */
-    switch (syscall_number) {
-        case SOS_SYSCALL_IPC_PRINT_COLSOLE:
-            // process the syscall
-            sos_syscall_print_to_console(app_process);
 
-            break;
-
-        case SOS_SYSCALL_WRITE:
-            break;
-        case SOS_SYSCALL_READ:
-            break;
-        default:
-            printf("%s:%d (%s) Unknown syscall %d\n",
+    if (syscall_number < 0 || syscall_number > NUMBER_OF_SYSCALL) {
+        printf("%s:%d (%s) Unknown syscall %d\n",
                        __FILE__, __LINE__, __func__, syscall_number);
-            /* proc_destroy(test_process); */
-            /* we don't want to reply to an unknown syscall */
+        assert("unknown syscall number!\n");
     }
 
-    /* Free the saved reply cap */ 
-    // TODO, decide whether free the slot here or int the function
-    cspace_free_slot(cur_cspace, reply_cap);
+    /* Invoke corresponding syscall */
+    (*syscall_func_arr[syscall_number].syscall)(app_process);
+
+    // If the syscall won't block we will process the reply_cap revoke here
+    if (syscall_func_arr[syscall_number].will_block == false) {
+        cspace_free_slot(cur_cspace, reply_cap);
+    }
+
+    // /* Process system call */
+    // switch (syscall_number) {
+    //     case SOS_SYSCALL_IPC_PRINT_COLSOLE:
+    //         // process the syscall
+    //         sos_syscall_print_to_console(app_process);
+
+    //         break;
+
+    //     case SOS_SYSCALL_WRITE:
+    //         break;
+    //     case SOS_SYSCALL_READ:
+    //         break;
+    //     default:
+    //         printf("%s:%d (%s) Unknown syscall %d\n",
+    //                    __FILE__, __LINE__, __func__, syscall_number);
+    //         /* proc_destroy(test_process); */
+    //         /* we don't want to reply to an unknown syscall */
+    // }
+
+    // /* Free the saved reply cap */ 
+    // // TODO, decide whether free the slot here or int the function
+    // cspace_free_slot(cur_cspace, reply_cap);
 }
 
 
