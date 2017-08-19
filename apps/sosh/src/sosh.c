@@ -308,6 +308,21 @@ void test_sos_sys_write()
     }
     sos_sys_write(1, b, BUF_SZ);
 }
+void test_read()
+{
+    char stack_buf[11000];
+    /* for this test you'll need to paste a lot of data into
+     *           the console, without newlines */
+
+    tty_debug_print("[sosh] begin test read\n");
+    int result = sos_sys_read(0, &stack_buf, 10000);
+    assert(result == 10000);
+    /* stack_buf[10]  = 0; */
+    /* tty_debug_print("[sosh] read: [%s]\n", stack_buf); */
+
+    tty_debug_print("[sosh] end test read\n");
+
+}
 int main(void) {
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
@@ -318,6 +333,7 @@ int main(void) {
 
     test_heap();
     test_sos_sys_write();
+    test_read();
     /* while(1) {} */
     /* char test_long[10000]; */
     /*  */

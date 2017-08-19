@@ -24,9 +24,9 @@
 
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_print_to_console, .will_block=false},
-    {.syscall=&sos_syscall_open, .will_block=false},
-    {.syscall=&sos_syscall_write, .will_block=false},
     {.syscall=&sos_syscall_read, .will_block=true},
+    {.syscall=&sos_syscall_write, .will_block=false},
+    {.syscall=&sos_syscall_open, .will_block=false},
     {.syscall=&sos_syscall_usleep, .will_block=true},
     {.syscall=&sos_syscall_time_stamp, .will_block=false},
     {.syscall=&sos_syscall_brk, .will_block=false}};
@@ -40,7 +40,8 @@ struct serial * serial_handler = NULL;
 
 int sos_syscall_read(struct proc * proc)
 {
-    dprintf(0, "[SOS] syscall read\n");
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read\n");
+    /* dprintf(0, "[SOS] syscall read\n"); */
 
     // This nbyte won't be larger lan
     // int nbyte = proc->p_ipc_ctrl.offset;
@@ -71,6 +72,7 @@ int sos_syscall_time_stamp(struct proc * proc)
     memcpy(get_ipc_buffer(proc), &now, 8);
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.ret_val = 0;
+    ctrl.offset = 0;
     ipc_reply(&ctrl, &(proc->p_reply_cap));
     return 0;
 }
@@ -107,11 +109,6 @@ int sos_syscall_write(struct proc * proc)
 	// read control info from IPC buffer
 	// and read data from shared buffer, then write corresponding
 	// file/device
-
-    if (serial_handler == NULL) {
-        serial_handler = serial_init();
-    }
-
     //TODO fixme
     sos_syscall_print_to_console(proc);
     return 0;

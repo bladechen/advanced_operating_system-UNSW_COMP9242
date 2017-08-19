@@ -319,6 +319,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
 /*
  * Main entry point - called by crt.
  */
+extern void cb_block_read(struct serial *serial, char c);
+extern struct serial * serial_handler;
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -331,7 +333,10 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
+    // TODO, create console
 
+    serial_handler = serial_init();
+    assert(0 == serial_register_handler(serial_handler, &cb_block_read));
     assert(0 == start_timer(_sos_interrupt_ep_cap));
     // serial_handler = serial_init();
 
