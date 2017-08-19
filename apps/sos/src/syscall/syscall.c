@@ -85,9 +85,8 @@ int sos_syscall_print_to_console(struct proc * proc)
 	}
 
 	// seL4_Word start_app_addr = seL4_GetMR(1);
-    seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
 
-    seL4_Word start_sos_addr = get_ipc_buffer(proc);
+    seL4_Word start_sos_addr = (seL4_Word)get_ipc_buffer(proc);
 
     // int offset = seL4_GetMR(2);
     int offset = proc->p_ipc_ctrl.offset;

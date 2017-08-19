@@ -2,6 +2,8 @@
 #define _COMM_H_
 #include <autoconf.h>
 #include <sel4/bootinfo.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <assert.h>
 #include <string.h>
@@ -25,6 +27,7 @@
 
 #include <ut_manager/ut.h>
 
+#define mode_t uint32_t
 #ifndef verbose
     #define verbose 5
     #include <sys/debug.h>
@@ -128,6 +131,7 @@ static inline seL4_CPtr enable_irq(int irq, seL4_CPtr aep)
     conditional_panic(err, "Failure to acknowledge pending interrupts");
     return cap;
 }
+
 // #undef verbose
 #ifdef comm_verbose
 #undef verbose

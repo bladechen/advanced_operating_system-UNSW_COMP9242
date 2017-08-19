@@ -79,4 +79,9 @@ void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv);
 
 
 struct coroutine* current_running_coro();
+
+static inline struct proc* get_current_proc()
+{
+    return current_running_coro()->_proc;
+}
 #endif

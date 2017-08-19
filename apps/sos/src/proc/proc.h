@@ -3,6 +3,7 @@
 
 #include "comm/comm.h"
 #include "vm/pagetable.h"
+#include "fs/fdtable.h"
 #include "vm/address_space.h"
 #include "coroutine/coro.h"
 #include <sos.h>
@@ -13,6 +14,7 @@ struct proc
     uint32_t p_pid; // hard code make it to 2, TODO in M8 need manage pid
     struct addrspace*  p_addrspace;
     struct pagetable*  p_pagetable;
+    struct files_struct*  fs_struct;
 
     // sel4 kernel pagetable moved to p_pagetable
     // ipc cap moved into p_addrspace
