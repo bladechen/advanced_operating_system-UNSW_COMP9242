@@ -23,6 +23,7 @@ int sos_syscall_read(struct proc * proc);
 int sos_syscall_write(struct proc * proc);
 int sos_syscall_usleep(struct proc * proc);
 int sos_syscall_time_stamp(struct proc * proc);
+int sos_syscall_brk(struct proc * proc);
 
 
 #endif // SOS_SYSCALL_H

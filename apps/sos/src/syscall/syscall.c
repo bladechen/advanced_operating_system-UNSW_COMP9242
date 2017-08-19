@@ -28,7 +28,8 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_write, .will_block=false},
     {.syscall=&sos_syscall_read, .will_block=true},    
     {.syscall=&sos_syscall_usleep, .will_block=true},
-    {.syscall=&sos_syscall_time_stamp, .will_block=false}};
+    {.syscall=&sos_syscall_time_stamp, .will_block=false},
+    {.syscall=&sos_syscall_brk, .will_block=false}};
 
 static struct serial * serial_handler = NULL;
 
@@ -138,13 +139,22 @@ int sos_syscall_write(struct proc * proc)
 }
 
 
-
-
 int sos_syscall_usleep(struct proc* proc)
 {
     int msecond = *((int*)(get_ipc_buffer(proc)));
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", proc->p_pid, msecond);
     restart_coro(proc->p_coro, handle_block_sleep, (void*)(msecond));
+    return 0;
+}
+
+int sos_syscall_brk(struct proc * proc)
+{
+    seL4_Word newbrk = *((int*)(get_ipc_buffer(proc)));
+
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, newbrk: %d\n", proc->p_pid, newbrk);
+
+
+
     return 0;
 }
 

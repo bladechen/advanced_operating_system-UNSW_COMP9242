@@ -144,7 +144,7 @@ void sos_sys_usleep(int msec) {
     ctrl_msg->syscall_number = SOS_SYSCALL_USLEEP;
     ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
 
-    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+    // char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
 
     memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
         0,
@@ -156,7 +156,7 @@ void sos_sys_usleep(int msec) {
 
     ctrl_msg->file_id = -1;
 
-    /* memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg)); */
+    // memcpy(seL4_GetIPCBuffer()->msg, ctrl_msg, sizeof(ipc_buffer_ctrl_msg)); 
 
     seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
@@ -173,7 +173,7 @@ int64_t sos_sys_time_stamp(void) {
     ctrl_msg->syscall_number = SOS_SYSCALL_TIME_STAMP;
     ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
 
-    char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+    // char * shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
 
     memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
         0,
@@ -292,5 +292,38 @@ int sos_write(const char *vData, size_t nbyte)
         }
     }
     return sent;
+}
+
+
+seL4_Word sos_sys_brk(seL4_Word newbrk)
+{
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 5);
+    seL4_SetTag(tag);
+
+    ipc_buffer_ctrl_msg * ctrl_msg = (ipc_buffer_ctrl_msg *) seL4_GetIPCBuffer()->msg;
+
+    ctrl_msg->syscall_number = SOS_SYSCALL_BRK;
+    ctrl_msg->start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+
+    memset((void*)(APP_PROCESS_IPC_SHARED_BUFFER),
+        0,
+        APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
+    *(seL4_Word *)APP_PROCESS_IPC_SHARED_BUFFER = newbrk;
+
+    ctrl_msg->offset = sizeof(seL4_Word);
+
+    ctrl_msg->file_id = -1;
+
+    seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
+
+    // receive message from SOS
+    if(0 == seL4_MessageInfo_get_label(rep_msginfo)) 
+    {
+        return newbrk;
+    } else
+    {
+        return NULL; // return error message or return NULL?
+    }
 }
 

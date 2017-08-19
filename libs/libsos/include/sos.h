@@ -33,6 +33,7 @@
 #define SOS_SYSCALL_OPEN                (3)
 #define SOS_SYSCALL_USLEEP              (4)
 #define SOS_SYSCALL_TIME_STAMP          (5)
+#define SOS_SYSCALL_BRK                 (6)
 
 
 /* Endpoint for talking to SOS */
@@ -158,6 +159,7 @@ void sos_sys_usleep(int msec);
 /* Sleeps for the specified number of milliseconds.
  */
 
+seL4_Word sos_sys_brk(seL4_Word newbrk);
 
 /*************************************************************************/
 /*                                   */
