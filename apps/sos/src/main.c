@@ -88,7 +88,7 @@ extern fhandle_t mnt_point;
 
 
 // this represent the process start by ourself.
-static struct proc * test_process;
+struct proc * test_process;
 
 
 void update_timestamp(void);

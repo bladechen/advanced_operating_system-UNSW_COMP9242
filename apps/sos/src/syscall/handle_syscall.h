@@ -27,3 +27,4 @@ static inline int ipc_reply(struct ipc_buffer_ctrl_msg* ctrl, seL4_Word *reply_c
 
 
 void handle_block_sleep(void* argv);
+void handle_block_read(void* argv);
