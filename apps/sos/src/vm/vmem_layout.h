@@ -45,11 +45,9 @@
 
 
 // maximum (256M - 4K * 2) for heap
-#define APP_PROCESS_HEAP_START_GUARD  (0x20000000)
 #define APP_PROCESS_HEAP_START        (0x20001000)
 // #define APP_PROCESS_HEAP_END          (0x2FFFE000)
 #define APP_PROCESS_HEAP_END          (0x21FFE000)
-#define APP_PROCESS_HEAP_END_GUARD    (0x30000000)
 
 // TODO reserved for the extended part.
 #define APP_PROCESS_MMAP_START        (0x30000000)
@@ -57,10 +55,8 @@
 
 
 // maximum (32M - 4K * 2) for stack
-#define APP_PROCESS_STACK_BOTTON_GUARD (0x8E000000)
 #define APP_PROCESS_STACK_BOTTOM      (0x8E001000)
 #define APP_PROCESS_STACK_TOP         (0x8FFFE000)
-#define APP_PROCESS_STACK_TOP_GUARD   (0x90000000)
 
 // #define PROCESS_STACK_TOP   (0x90000000) is different from this design?
 

@@ -56,14 +56,40 @@ typedef int fmode_t;
 #define ST_SPECIAL 2    /* special (console) file */
 typedef int st_type_t;
 
+#define IPC_CTRL_MSG_LENGTH (sizeof (ipc_buffer_ctrl_msg))
 // This struct is for transfering control message over IPC
 // the actual data is put in app-sos shared buffer
 typedef struct ipc_buffer_ctrl_msg {
+
+    int   ret_val;
+    int         seq_num; //only for check purpose
+
     int         syscall_number;
     seL4_Word   start_app_buffer_addr;
     int         offset;
     int         file_id;
+
 } ipc_buffer_ctrl_msg;
+
+extern void *memcpy(void* ptr_dst, const void* ptr_src, unsigned int n);
+
+size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl);
+static inline void serialize_ipc_ctrl_msg(struct ipc_buffer_ctrl_msg* msg)
+{
+    memcpy(seL4_GetIPCBuffer()->msg, msg, IPC_CTRL_MSG_LENGTH);
+}
+static inline void unserialize_ipc_ctrl_msg(struct ipc_buffer_ctrl_msg* msg)
+{
+
+    memcpy(msg, seL4_GetIPCBuffer()->msg,IPC_CTRL_MSG_LENGTH);
+
+}
+
+int ipc_call(struct ipc_buffer_ctrl_msg* ctrl,const  void* data,  struct ipc_buffer_ctrl_msg* ret);
+
+int ipc_recv(struct ipc_buffer_ctrl_msg* ctrl, void* data, size_t count, struct ipc_buffer_ctrl_msg* ret);
+
+// we assume reply data buffer would be less than ipc shared buffer
 
 
 typedef struct {

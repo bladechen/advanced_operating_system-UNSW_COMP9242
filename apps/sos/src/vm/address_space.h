@@ -113,4 +113,6 @@ void loop_through_region(struct addrspace *as);
 
 void* get_ipc_buffer(struct proc* proc);
 
+int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out);
+
 #endif

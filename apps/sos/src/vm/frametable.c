@@ -36,6 +36,7 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
 {
 
     *cap = 0;
+    /* printf ("_build_paddr_to_vaddr_frame: 0x%x to 0x%x\n", paddr , vaddr); */
     int ret;
     ret = cspace_ut_retype_addr(paddr,
                                 seL4_ARM_SmallPageObject,

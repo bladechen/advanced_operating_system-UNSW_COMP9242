@@ -21,10 +21,7 @@ void handle_block_sleep(void* argv)
     yield_coro();
 
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "now wake up proc: %d, now time: %llu\n", proc->p_pid, time_stamp()/1000);
-    if (proc->p_reply_cap != 0)
-    {
-        reply_success(proc->p_reply_cap);
-        destroy_reply_cap(proc->p_reply_cap);
-    }
-    proc->p_reply_cap = 0;
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.ret_val = 0;
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
 }

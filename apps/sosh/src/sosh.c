@@ -275,6 +275,39 @@ struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
         {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
         {"benchmark", benchmark}};
 
+#define BUF_SZ 80000
+void test_heap(void)
+{
+    tty_debug_print("[sosh] begin test heap\n");
+    char *heap_buf = malloc(BUF_SZ);
+    assert(heap_buf != NULL);
+    tty_debug_print("malloc: %p\n", heap_buf);
+    for (int i = 0; i < BUF_SZ; i ++)
+    {
+        heap_buf[i] = (char) i;
+    }
+    for (int i = 0; i < BUF_SZ; i ++)
+    {
+        assert(heap_buf[i] == (char)i);
+    }
+    /* heap_buf[BUF_SZ+5000] = 1000; */
+    char* tmp = heap_buf;
+    heap_buf = malloc(BUF_SIZ/2);
+    tty_debug_print("malloc: %p\n", heap_buf);
+    free(tmp);
+    free(heap_buf);
+    tty_debug_print("[sosh] end test heap\n");
+    return;
+}
+void test_sos_sys_write()
+{
+    char * b = malloc(BUF_SZ);
+    for (int i=0;i < BUF_SZ;i ++)
+    {
+        b[i] = 'a';
+    }
+    sos_sys_write(1, b, BUF_SZ);
+}
 int main(void) {
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
@@ -283,20 +316,23 @@ int main(void) {
     printf("[sosh hello]\n");
     /* assert(0); */
 
-    char test_long[10000];
-    
-    for(i=0 ; i < 10000; i++) {
-        test_long[i] = 'a';
-    }
+    test_heap();
+    test_sos_sys_write();
+    /* while(1) {} */
+    /* char test_long[10000]; */
+    /*  */
+    /* for(i=0 ; i < 10000; i++) { */
+    /*     test_long[i] = 'a'; */
+    /* } */
+    /*  */
+    /* printf("test_long: %s\n", test_long); */
+    /*  */
+    /* printf("after test\n"); */
+    /*  */
+    /* char * test = "sos_sys_write\n"; */
+    /* sos_sys_write(1, test, 14); */
 
-    printf("test_long: %s\n", test_long);
-
-    printf("after test\n");
-
-    char * test = "sos_sys_write\n";
-    sos_sys_write(1, test, 14);
-
-    while(1) {}
+    /* while(1) {} */
 
     // sleep(1000);
 
