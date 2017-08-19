@@ -20,7 +20,7 @@
 #include <sos.h>
 
 // used to replace the long switch case in `handle_syscall`
-#define NUMBER_OF_SYSCALL   6
+#define NUMBER_OF_SYSCALL   7
 
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_print_to_console, .will_block=false},

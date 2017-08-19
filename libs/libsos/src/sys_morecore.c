@@ -50,27 +50,27 @@ sys_brk(va_list ap)
     uintptr_t ret;
     uintptr_t newbrk = va_arg(ap, uintptr_t);
 
-    // /*if the newbrk is 0, return the bottom of the heap*/
-    // if (!newbrk) {
-    //     ret = morecore_base;
-    // } else if (newbrk < morecore_top && newbrk > (uintptr_t)morecore_area) {
-    //     ret = morecore_base = newbrk;
-    // } else {
-    //     ret = 0;
-    // }
-
-    // return ret;
-
-    /*if the newbrk is 0 or below heap region, return the bottom of the heap*/
-    if (newbrk == 0 || newbrk < (uintptr_t) morecore_base) {
+    /*if the newbrk is 0, return the bottom of the heap*/
+    if (!newbrk) {
         ret = morecore_base;
+    } else if (newbrk < morecore_top && newbrk > (uintptr_t)morecore_area) {
+        ret = morecore_base = newbrk;
     } else {
-        /* All other region checking can be handled by SOS */
-        ret = sos_sys_brk((seL4_Word) newbrk);
-        if (ret) morecore_base = ret;
+        ret = 0;
     }
 
     return ret;
+
+    // /*if the newbrk is 0 or below heap region, return the bottom of the heap*/
+    // if (newbrk == 0 || newbrk < (uintptr_t) morecore_base) {
+    //     ret = morecore_base;
+    // } else {
+    //     /* All other region checking can be handled by SOS */
+    //     ret = sos_sys_brk((seL4_Word) newbrk);
+    //     if (ret) morecore_base = ret;
+    // }
+
+    // return ret;
 }
 
 /* Large mallocs will result in muslc calling mmap, so we do a minimal implementation
