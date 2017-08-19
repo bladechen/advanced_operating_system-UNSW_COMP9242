@@ -11,3 +11,4 @@ static inline void destroy_reply_cap(seL4_Word cap)
     cspace_free_slot(cur_cspace, cap);
 }
 void handle_block_sleep(void* argv);
+void handle_block_read(void* argv);

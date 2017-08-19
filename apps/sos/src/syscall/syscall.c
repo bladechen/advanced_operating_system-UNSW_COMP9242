@@ -31,10 +31,31 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_time_stamp, .will_block=false},
     {.syscall=&sos_syscall_brk, .will_block=false}};
 
-static struct serial * serial_handler = NULL;
+struct serial * serial_handler = NULL;
+
+/*
+*   In M4, assume read from/write to console device
+*/
 
 int sos_syscall_read(struct proc * proc)
 {
+    dprintf(0, "[SOS] syscall read\n");
+
+    // This nbyte won't be larger lan 
+    // int nbyte = proc->p_ipc_ctrl.offset;
+    // int file = proc->p_ipc_ctrl.file_id;
+
+    // seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
+    // seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
+
+    // int read_len = 0;
+
+    // while(read_len < nbyte) {
+    //     // console read 1 char at a time, so advance by 1 every loop
+    //     read_len++;
+    restart_coro(proc->p_coro, handle_block_read, NULL);
+    // }
+    
     return 0;
 }
 
@@ -42,25 +63,6 @@ int sos_syscall_open(struct proc * proc)
 {
     return 0;
 }
-
-/* int sos_syscall_usleep(struct proc * proc) */
-/* { */
-/*     seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr; */
-/*  */
-/*     seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr); */
-/*  */
-/*     int offset = proc->p_ipc_ctrl.offset; */
-/*  */
-/*     int msec = 0; */
-/*  */
-/*     memcpy(&msec, (int *)start_sos_addr, offset); */
-/*  */
-/*     dprintf(0, "in SOS `sos_syscall_usleep`, time: %d \n", msec); */
-/*  */
-/*     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); */
-/*     seL4_Send(proc->p_reply_cap, reply); */
-/*     return 0; */
-/* } */
 
 extern timestamp_t g_cur_timestamp_us;
 int sos_syscall_time_stamp(struct proc * proc)
