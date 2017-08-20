@@ -38,48 +38,37 @@ struct serial * serial_handler = NULL;
 *   In M4, assume read from/write to console device
 */
 
-int sos_syscall_read(struct proc * proc)
+void sos_syscall_read(void* argv)
 {
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read\n");
-    /* dprintf(0, "[SOS] syscall read\n"); */
-
-    // This nbyte won't be larger lan
-    // int nbyte = proc->p_ipc_ctrl.offset;
-    // int file = proc->p_ipc_ctrl.file_id;
-
-    // seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
-    // seL4_Word start_sos_addr = page_phys_addr(proc->p_pagetable, start_app_addr);
-
-    // int read_len = 0;
-
-    // while(read_len < nbyte) {
-    //     // console read 1 char at a time, so advance by 1 every loop
-    //     read_len++;
-    restart_coro(proc->p_coro, handle_block_read, NULL);
-    // }
-
-    return 0;
+    handle_block_read(NULL);
 }
 
-int sos_syscall_open(struct proc * proc)
+void sos_syscall_open(void* argv)
 {
-    return 0;
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
 }
 
-int sos_syscall_time_stamp(struct proc * proc)
+void sos_syscall_time_stamp(void * argv)
 {
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
     timestamp_t now = g_cur_timestamp_us;
     memcpy(get_ipc_buffer(proc), &now, 8);
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.ret_val = 0;
     ctrl.offset = 0;
     ipc_reply(&ctrl, &(proc->p_reply_cap));
-    return 0;
 }
 
 // This function correspond to `sos_write` defined in APP scope in `sos.h`
-int sos_syscall_print_to_console(struct proc * proc)
+void sos_syscall_print_to_console(void * argv)
 {
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
 	if (serial_handler == NULL) {
 		serial_handler = serial_init();
 	}
@@ -100,30 +89,33 @@ int sos_syscall_print_to_console(struct proc * proc)
     ctrl.offset = 0;
     ctrl.ret_val = ret;
     ipc_reply(&ctrl, &(proc->p_reply_cap));
-    return 0;
 }
 
-int sos_syscall_write(struct proc * proc)
+void sos_syscall_write(void* argv)
 {
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
 	// read control info from IPC buffer
 	// and read data from shared buffer, then write corresponding
 	// file/device
     //TODO fixme
     sos_syscall_print_to_console(proc);
-    return 0;
 }
 
 
-int sos_syscall_usleep(struct proc* proc)
+void sos_syscall_usleep(void * argv)
 {
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
     int msecond = *((int*)(get_ipc_buffer(proc)));
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", proc->p_pid, msecond);
-    restart_coro(proc->p_coro, handle_block_sleep, (void*)(msecond));
-    return 0;
+    handle_block_sleep((void*)(msecond));
 }
 
-int sos_syscall_brk(struct proc * proc)
+void sos_syscall_brk(void* argv)
 {
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
     seL4_Word newbrk = *((int*)(get_ipc_buffer(proc)));
 
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, newbrk: 0x%x\n", proc->p_pid, newbrk);
@@ -144,7 +136,6 @@ int sos_syscall_brk(struct proc * proc)
     }
 
     ipc_reply(&ctrl, &(proc->p_reply_cap));
-    return 0;
 }
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
@@ -159,6 +150,7 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
     dprintf(0, "syscall_number: %d, offset: %d, start_addr: 0x%x\n",
         syscall_number, ctrl_msg->offset, ctrl_msg->start_app_buffer_addr);
 
+    assert(coro_status(app_process->p_coro) == COROUTINE_INIT);
     /* Save the caller */
     reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
@@ -174,12 +166,13 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
     }
 
     /* Invoke corresponding syscall */
-    (*syscall_func_arr[syscall_number].syscall)(app_process);
+    restart_coro(app_process->p_coro, syscall_func_arr[syscall_number].syscall, app_process);
+    /* (*syscall_func_arr[syscall_number].syscall)(app_process); */
 
     // If the syscall won't block we will process the reply_cap revoke here
-    if (syscall_func_arr[syscall_number].will_block == false) {
-        destroy_reply_cap(&(app_process->p_reply_cap));
-    }
+    /* if (syscall_func_arr[syscall_number].will_block == false) { */
+    /*     #<{(| destroy_reply_cap(&(app_process->p_reply_cap)); |)}># */
+    /* } */
 
 }
 

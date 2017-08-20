@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 typedef struct syscall_func {
-	int (*syscall)(struct proc *);
+	void (*syscall)(void* );
 	bool will_block;
 } syscall_func;
 
@@ -17,13 +17,13 @@ typedef struct syscall_func {
 void handle_syscall(seL4_Word badge, struct proc * app_process);
 
 // you can get control message via IPC within the function
-int sos_syscall_print_to_console(struct proc * proc);
-int sos_syscall_open(struct proc * proc);
-int sos_syscall_read(struct proc * proc);
-int sos_syscall_write(struct proc * proc);
-int sos_syscall_usleep(struct proc * proc);
-int sos_syscall_time_stamp(struct proc * proc);
-int sos_syscall_brk(struct proc * proc);
+void sos_syscall_print_to_console(void* proc);
+void sos_syscall_open(void* proc);
+void sos_syscall_read(void* proc);
+void sos_syscall_write(void* proc);
+void sos_syscall_usleep(void* proc);
+void sos_syscall_time_stamp(void* proc);
+void sos_syscall_brk(void * proc);
 
 
 #endif // SOS_SYSCALL_H

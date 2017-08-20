@@ -91,7 +91,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
-    process->p_pid = 2;
+    process->p_pid = 1;
 
     /*
     *  pagetable will take care of the virtual address root

@@ -63,6 +63,11 @@ struct schedule
 };
 
 
+static inline int coro_status(struct coroutine* coro)
+{
+    return coro->_status;
+}
+
 void bootstrap_coro_env();
 void set_kproc_coro(struct proc* proc);
 void shutdown_coro_env();

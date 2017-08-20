@@ -50,12 +50,11 @@ void handle_block_read(void* argv)
     int nbyte = proc->p_ipc_ctrl.offset;
     assert(nbyte <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
 
-    seL4_Word start_app_addr = proc->p_ipc_ctrl.start_app_buffer_addr;
-    seL4_Word start_sos_addr = get_ipc_buffer(proc);
+    seL4_Word start_sos_addr = (seL4_Word)get_ipc_buffer(proc);
 
     int read_len = 0;
 
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "now read block, proc: %d, read len: %d\n",proc->p_pid, nbyte);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "now read block, proc: %d, read buf len: %d\n",proc->p_pid, nbyte);
 
     while (read_len < nbyte)
     {
@@ -73,6 +72,8 @@ void handle_block_read(void* argv)
     struct ipc_buffer_ctrl_msg ret_ctrl;
     ret_ctrl.ret_val = 0;
     ret_ctrl.offset = read_len;
+
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "read reply, proc: %d, read len: %d\n",proc->p_pid, read_len);
 
 
     ipc_reply(&ret_ctrl, &(proc->p_reply_cap));

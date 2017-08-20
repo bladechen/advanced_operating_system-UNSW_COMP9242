@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <sos.h>
+#include <ttyout.h>
 
 /*
  * Statically allocated morecore area.
