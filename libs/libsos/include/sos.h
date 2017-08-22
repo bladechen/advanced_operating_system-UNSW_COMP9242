@@ -34,6 +34,7 @@
 #define SOS_SYSCALL_USLEEP              (4)
 #define SOS_SYSCALL_TIME_STAMP          (5)
 #define SOS_SYSCALL_BRK                 (6)
+#define SOS_SYSCALL_CLOSE               (7)
 
 
 /* Endpoint for talking to SOS */
@@ -68,6 +69,10 @@ typedef struct ipc_buffer_ctrl_msg {
     seL4_Word   start_app_buffer_addr;
     int         offset;
     int         file_id;
+
+    int mode;
+
+
 
 } ipc_buffer_ctrl_msg;
 

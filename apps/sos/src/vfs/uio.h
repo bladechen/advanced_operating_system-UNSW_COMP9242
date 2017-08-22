@@ -64,18 +64,18 @@ enum uio_rw {
 };
 
 /* Source/destination. */
-enum uio_seg {
-        UIO_USERISPACE,			/* User process code. */
-        UIO_USERSPACE,			/* User process data. */
-        UIO_SYSSPACE,			/* Kernel. */
-};
+// enum uio_seg {
+//         UIO_USERISPACE,			#<{(| User process code. |)}>#
+//         UIO_USERSPACE,			#<{(| User process data. |)}>#
+//         UIO_SYSSPACE,			#<{(| Kernel. |)}>#
+// };
 
 struct uio {
 	struct iovec     *uio_iov;	/* Data blocks */
 	unsigned          uio_iovcnt;	/* Number of iovecs */
 	off_t             uio_offset;	/* Desired offset into object */
 	size_t            uio_resid;	/* Remaining amt of data to xfer */
-	enum uio_seg      uio_segflg;	/* What kind of pointer we have */
+	// enum uio_seg      uio_segflg;	#<{(| What kind of pointer we have |)}>#
 	enum uio_rw       uio_rw;	/* Whether op is a read or write */
 	struct addrspace *uio_space;	/* Address space for user pointer */
 };
@@ -135,12 +135,8 @@ int uiomovezeros(size_t len, struct uio *uio);
  *      result = VOP_READ(vn, &myuio);
  *      ...
  */
-// FIXME
-inline void uio_kinit(struct iovec * io, struct uio *uio,
-	       void *kbuf, size_t len, off_t pos, enum uio_rw rw)
-{
-
-}
+void uio_kinit(struct iovec * io, struct uio *uio,
+	       void *kbuf, size_t len, off_t pos, enum uio_rw rw);
 
 
 #endif /* _UIO_H_ */

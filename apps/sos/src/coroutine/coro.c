@@ -20,7 +20,6 @@ static inline void zero_context(struct context* jbf)
     memset(jbf->_jmp, 0, sizeof (jbf->_jmp));
 }
 
-static void make_coro_runnable(struct coroutine* coro);
 static struct coroutine* new_coro();
 static void set_running_coro(struct coroutine* co);
 static void init_context(struct coroutine* coro);
@@ -247,7 +246,7 @@ void destroy_coro(struct coroutine* coro)
     }
     free(coro);
 }
-static void make_coro_runnable(struct coroutine* coro)
+void make_coro_runnable(struct coroutine* coro)
 {
     assert(coro->_status == COROUTINE_INIT ||
            coro->_status == COROUTINE_SUSPEND);
@@ -276,6 +275,7 @@ void resume_coro(struct coroutine* coro)
 {
 
     assert(current_running_coro() == schedule_obj._daemon);
+    assert(coro->_status == COROUTINE_SUSPEND);
     if (setjmp(current_running_coro()->_ctx._jmp) == 0)
     {
         (( struct coroutine*)(current_running_coro()))->_status = COROUTINE_READY;

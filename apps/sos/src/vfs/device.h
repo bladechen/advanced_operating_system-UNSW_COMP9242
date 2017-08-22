@@ -27,42 +27,70 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _KERN_IOVEC_H_
-#define _KERN_IOVEC_H_
+#ifndef _DEVICE_H_
+#define _DEVICE_H_
 
 /*
- * iovec structure, used in the readv/writev scatter/gather I/O calls,
- * and within the kernel for keeping track of blocks of data for I/O.
+ * Devices.
  */
 
-struct iovec {
-	/*
-	 * For maximum type safety, when in the kernel, distinguish
-	 * user pointers from kernel pointers.
-	 *
-	 * (A pointer is a user pointer if it *came* from userspace,
-	 * not necessarily if it *points* to userspace. If a system
-	 * call passes 0xdeadbeef, it points to the kernel, but it's
-	 * still a user pointer.)
-	 *
-	 * In userspace, there are only user pointers; also, the name
-	 * iov_base is defined by POSIX.
-	 *
-	 * Note that to work properly (without extra unwanted fiddling
-	 * around) this scheme requires that void* and userptr_t have
-	 * the same machine representation. Machines where this isn't
-	 * true are theoretically possible under the C standard, but
-	 * do not exist in practice.
-	 */
-// #ifdef _KERNEL
-//         union {
-//                 userptr_t  iov_ubase;	#<{(| user-supplied pointer |)}>#
-//                 void      *iov_kbase;	#<{(| kernel-supplied pointer |)}>#
-//         };
-// #else
-	void *iov_base;			/* user-supplied pointer */
-// #endif
-        size_t iov_len;			/* Length of data */
+
+struct uio;  /* in <uio.h> */
+
+/*
+ * Filesystem-namespace-accessible device.
+ */
+typedef long blksize_t;
+typedef long blkcnt_t;
+typedef long dev_t;
+struct device {
+	const struct device_ops *d_ops;
+
+	blkcnt_t d_blocks;
+	blksize_t d_blocksize;
+
+	dev_t d_devnumber;	/* serial number for this device */
+
+	void *d_data;		/* device-specific data */
 };
 
-#endif /* _KERN_IOVEC_H_ */
+/*
+ * Device operations.
+ *      devop_eachopen - called on each open call to allow denying the open
+ *      devop_io - for both reads and writes (the uio indicates the direction)
+ *      devop_ioctl - miscellaneous control operations
+ */
+struct device_ops {
+	int (*devop_eachopen)(struct device *, int flags_from_open);
+	int (*devop_io)(struct device *, struct uio *);
+	int (*devop_ioctl)(struct device *, int op, const void*  data);
+
+
+	int (*devop_reclaim)(struct device *);
+};
+
+/*
+ * Macros to shorten the calling sequences.
+ */
+#define DEVOP_EACHOPEN(d, f)	((d)->d_ops->devop_eachopen(d, f))
+#define DEVOP_IO(d, u)		((d)->d_ops->devop_io(d, u))
+#define DEVOP_IOCTL(d, op, p)	((d)->d_ops->devop_ioctl(d, op, p))
+#define DEVOP_RECLAIM(d)	((d)->d_ops->devop_reclaim(d))
+
+
+/* Create vnode for a vfs-level device. */
+struct vnode *dev_create_vnode(struct device *dev);
+
+/* Undo dev_create_vnode. */
+// void dev_uncreate_vnode(struct vnode *vn);
+
+/* Initialization functions for builtin vfs-level devices. */
+void devnull_create(void);
+
+/* Function that kicks off device probe and attach. */
+void dev_bootstrap(void);
+
+void dev_uncreate_vnode(struct vnode*);
+
+
+#endif /* _DEVICE_H_ */

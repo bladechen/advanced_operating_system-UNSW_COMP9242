@@ -33,6 +33,7 @@
 #include "comm/comm.h"
 #include "vfs.h"
 #include "vnode.h"
+#include "fs.h"
 
 static struct vnode *bootfs_vnode = NULL;
 
@@ -112,117 +113,110 @@ vfs_clearbootfs(void)
  * path and choose the vnode to begin the name lookup relative to.
  */
 
-//FIXME
-int vfs_getroot(const char *devname, struct vnode **ret)
-{
-    return 0;
-
-}
 static
 int
 getdevice(char *path, char **subpath, struct vnode **startvn)
 {
     // FIXME
-	/* int slash=-1, colon=-1, i; */
-	/* struct vnode *vn; */
-	/* int result; */
-    /*  */
-    /*  */
-	/* #<{(| */
-	/*  * Entirely empty filenames aren't legal. */
-	/*  |)}># */
-	/* if (path[0] == 0) { */
-	/* 	return EINVAL; */
-	/* } */
-    /*  */
-	/* #<{(| */
-	/*  * Locate the first colon or slash. */
-	/*  |)}># */
-    /*  */
-	/* for (i=0; path[i]; i++) { */
-	/* 	if (path[i]==':') { */
-	/* 		colon = i; */
-	/* 		break; */
-	/* 	} */
-	/* 	if (path[i]=='/') { */
-	/* 		slash = i; */
-	/* 		break; */
-	/* 	} */
-	/* } */
-    /*  */
-	/* if (colon < 0 && slash != 0) { */
-	/* 	#<{(| */
-	/* 	 * No colon before a slash, so no device name */
-	/* 	 * specified, and the slash isn't leading or is also */
-	/* 	 * absent, so this is a relative path or just a bare */
-	/* 	 * filename. Start from the current directory, and */
-	/* 	 * use the whole thing as the subpath. */
-	/* 	 |)}># */
-	/* 	*subpath = path; */
-	/* 	return vfs_getcurdir(startvn); */
-	/* } */
-    /*  */
-	/* if (colon>0) { */
-	/* 	#<{(| device:path - get root of device's filesystem |)}># */
-	/* 	path[colon]=0; */
-	/* 	while (path[colon+1]=='/') { */
-	/* 		#<{(| device:/path - skip slash, treat as device:path |)}># */
-	/* 		colon++; */
-	/* 	} */
-	/* 	*subpath = &path[colon+1]; */
-    /*  */
-	/* 	result = vfs_getroot(path, startvn); */
-	/* 	if (result) { */
-	/* 		return result; */
-	/* 	} */
-    /*  */
-	/* 	return 0; */
-	/* } */
-    /*  */
-	/* #<{(| */
-	/*  * We have either /path or :path. */
-	/*  * */
-	/*  * /path is a path relative to the root of the "boot filesystem". */
-	/*  * :path is a path relative to the root of the current filesystem. */
-	/*  |)}># */
-	/* assert(colon==0 || slash==0); */
-    /*  */
-	/* if (path[0]=='/') { */
-	/* 	if (bootfs_vnode==NULL) { */
-	/* 		return ENOENT; */
-	/* 	} */
-	/* 	VOP_INCREF(bootfs_vnode); */
-	/* 	*startvn = bootfs_vnode; */
-	/* } */
-	/* else { */
-	/* 	assert(path[0]==':'); */
-    /*  */
-	/* 	result = vfs_getcurdir(&vn); */
-	/* 	if (result) { */
-	/* 		return result; */
-	/* 	} */
-    /*  */
-	/* 	#<{(| */
-	/* 	 * The current directory may not be a device, so it */
-	/* 	 * must have a fs. */
-	/* 	 |)}># */
-	/* 	assert(vn->vn_fs!=NULL); */
-    /*  */
-	/* 	result = FSOP_GETROOT(vn->vn_fs, startvn); */
-    /*  */
-	/* 	VOP_DECREF(vn); */
-    /*  */
-	/* 	if (result) { */
-	/* 		return result; */
-	/* 	} */
-	/* } */
-    /*  */
-	/* while (path[1]=='/') { */
-	/* 	#<{(| ///... or :/... |)}># */
-	/* 	path++; */
-	/* } */
-    /*  */
-	/* *subpath = path+1; */
+	int slash=-1, colon=-1, i;
+	struct vnode *vn;
+	int result;
+
+	/*
+	 * Entirely empty filenames aren't legal.
+	 */
+	if (path == NULL || path[0] == 0) {
+		return EINVAL;
+	}
+
+	/*
+	 * Locate the first colon or slash.
+	 */
+
+	for (i=0; path[i]; i++) {
+		if (path[i]==':') {
+			colon = i;
+			break;
+		}
+		if (path[i]=='/') {
+			slash = i;
+			break;
+		}
+	}
+
+	if (colon < 0 && slash != 0) {
+		/*
+		 * No colon before a slash, so no device name
+		 * specified, and the slash isn't leading or is also
+		 * absent, so this is a relative path or just a bare
+		 * filename. Start from the current directory, and
+		 * use the whole thing as the subpath.
+		 */
+		*subpath = path;
+		return vfs_getcurdir(startvn);
+	}
+
+	if (colon>0) {
+		/* device:path - get root of device's filesystem */
+		path[colon]=0;
+		while (path[colon+1]=='/') {
+			/* device:/path - skip slash, treat as device:path */
+			colon++;
+		}
+		*subpath = &path[colon+1];
+
+		result = vfs_getroot(path, startvn);
+		if (result) {
+			return result;
+		}
+
+		return 0;
+	}
+
+	/*
+	 * We have either /path or :path.
+	 *
+	 * /path is a path relative to the root of the "boot filesystem".
+	 * :path is a path relative to the root of the current filesystem.
+	 */
+	assert(colon==0 || slash==0);
+
+	if (path[0]=='/') {
+		if (bootfs_vnode==NULL) {
+			return ENOENT;
+		}
+		VOP_INCREF(bootfs_vnode);
+		*startvn = bootfs_vnode;
+	}
+	else {
+		assert(path[0]==':');
+
+		result = vfs_getcurdir(&vn);
+		if (result) {
+			return result;
+		}
+
+		/*
+		 * The current directory may not be a device, so it
+		 * must have a fs.
+		 */
+		assert(vn->vn_fs!=NULL);
+
+		result = FSOP_GETROOT(vn->vn_fs, startvn);
+
+		VOP_DECREF(vn);
+
+		if (result) {
+			return result;
+		}
+	}
+
+	while (path[1]=='/') {
+		/* ///... or :/... */
+		path++;
+	}
+
+	*subpath = path+1;
 
 	return 0;
 }

@@ -28,8 +28,26 @@
 
 int sos_sys_open(const char *path, fmode_t mode)
 {
-    assert(!"You need to implement this");
-    return -1;
+
+    tty_debug_print("[app] sos_sys_open: %s, with mode %d\n", path, mode);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_OPEN;
+    ctrl_msg.mode = mode;
+
+    ctrl_msg.offset = strlen(path);
+    if (ctrl_msg.offset >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
+    {
+        ctrl_msg.offset = APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
+    }
+
+    ctrl_msg.file_id = -1;
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, path, &ret));
+    tty_debug_print("[app] sos_sys_open return: val %d, fd %d\n",ret.ret_val,  ret.file_id);
+
+    /* assert(!"You need to implement this"); */
+    return (ret.ret_val == 0) ? ret.file_id: (-ret.ret_val);
 }
 
 int sos_sys_read(int file, char *buf, size_t nbyte)
@@ -126,8 +144,17 @@ int64_t sos_sys_time_stamp(void)
 
 int sos_sys_close(int file)
 {
-    assert(!"You need to implement this");
-    return 0;
+    tty_debug_print("[app] sos_sys_close: fd, %d", file);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_CLOSE;
+
+    ctrl_msg.file_id = file;
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
+    tty_debug_print("[app] sos_sys_close return: %d\n",  ret.ret_val);
+
+    return ret.ret_val;
 }
 
 int sos_stat(const char *path, sos_stat_t *buf)
@@ -179,7 +206,12 @@ size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_ms
         ctrl->offset = can_send_buflen;
         struct ipc_buffer_ctrl_msg ret;
         assert(0 == ipc_call(ctrl,  vData + sent_len, &ret));
-        assert(ret.ret_val > 0);
+        if (ret.ret_val != 0)
+        {
+            tty_debug_print("[app] my_serial_send error!!!!! len: %d\n", sent_len);
+            return sent_len;
+        }
+        /* assert(ret.ret_val > 0); */
         sent_len += ret.ret_val;
     }
     assert(count == sent_len);

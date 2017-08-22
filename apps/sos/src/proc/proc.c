@@ -43,18 +43,9 @@ static void clear_proc(struct proc* proc)
     proc->p_ep_cap = 0;
     proc->p_coro = NULL;
     proc->p_reply_cap = 0;
+    proc->fs_struct = NULL;
 }
 
-/* static struct proc* _cur_proc = NULL; */
-/* struct proc* get_current_app_proc() */
-/* { */
-/*     return _cur_proc; */
-/*  */
-/* } */
-/* void set_current_app_proc(struct proc* proc) */
-/* { */
-/*     _cur_proc = proc; */
-/* } */
 
 static void init_kproc(char* kname)
 {
@@ -111,6 +102,13 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     if (process->p_addrspace == NULL)
     {
         ERROR_DEBUG( "proc_create: get a null p_pagetable\n");
+        proc_destroy(process);
+        return NULL;
+    }
+
+    if( init_fd_table(process))
+    {
+        ERROR_DEBUG( "init_fd_table error\n");
         proc_destroy(process);
         return NULL;
     }

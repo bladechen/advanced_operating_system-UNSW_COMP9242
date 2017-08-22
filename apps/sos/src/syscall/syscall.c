@@ -12,15 +12,17 @@
 #define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
+#include "dev/console.h"
 #include "vm/frametable.h"
 #include "vm/address_space.h"
 #include "proc/proc.h"
 #include "syscall.h"
 #include "vm/pagetable.h"
 #include <sos.h>
+#include "fs/file_syscall.h"
 
 // used to replace the long switch case in `handle_syscall`
-#define NUMBER_OF_SYSCALL   7
+#define NUMBER_OF_SYSCALL   100
 
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_print_to_console, .will_block=false},
@@ -29,10 +31,12 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_open, .will_block=false},
     {.syscall=&sos_syscall_usleep, .will_block=true},
     {.syscall=&sos_syscall_time_stamp, .will_block=false},
-    {.syscall=&sos_syscall_brk, .will_block=false}};
+    {.syscall=&sos_syscall_brk, .will_block=false},
+    {.syscall=&sos_syscall_close, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
-struct serial * serial_handler = NULL;
+/* extern struct serial * serial_handler = NULL; */
+extern struct serial_console _serial;
 
 /*
 *   In M4, assume read from/write to console device
@@ -43,13 +47,62 @@ void sos_syscall_read(void* argv)
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read\n");
-    handle_block_read(NULL);
+    size_t read_len = 0;
+    struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
+    assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    int ret = syscall_read(msg->file_id, (char*)APP_PROCESS_IPC_SHARED_BUFFER, msg->offset, &read_len);
+    struct ipc_buffer_ctrl_msg ctrl;
+    if (ret == 0 )
+    {
+        ctrl.ret_val = 0;
+        ctrl.offset = read_len;
+    }
+    else
+    {
+        ctrl.ret_val = read_len;
+    }
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
 void sos_syscall_open(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
+    static char file_name [1000];
+    memcpy(file_name, get_ipc_buffer(proc), proc->p_ipc_ctrl.offset);
+    file_name[proc->p_ipc_ctrl.offset] = 0;
+    if (strcpy(file_name, "cosonle") == 0)
+    {
+        file_name[proc->p_ipc_ctrl.offset ] = ':';
+        file_name[1 + proc->p_ipc_ctrl.offset] = 0;
+    }
+
+    int fd = 0;
+    int ret = syscall_open(file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode, &fd);
+    struct ipc_buffer_ctrl_msg ctrl;
+    if (ret == 0 )
+    {
+        ctrl.ret_val = 0;
+        ctrl.file_id = fd;
+    }
+    else
+    {
+        ctrl.ret_val = fd;
+    }
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
+void sos_syscall_close(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+
+    int err = 0;
+    syscall_close(proc->p_ipc_ctrl.file_id, &err);
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.ret_val = err;
+    ctrl.offset = 0;
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
 void sos_syscall_time_stamp(void * argv)
@@ -69,9 +122,6 @@ void sos_syscall_print_to_console(void * argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
-	if (serial_handler == NULL) {
-		serial_handler = serial_init();
-	}
 
 	// seL4_Word start_app_addr = seL4_GetMR(1);
 
@@ -80,14 +130,15 @@ void sos_syscall_print_to_console(void * argv)
     // int offset = seL4_GetMR(2);
     int offset = proc->p_ipc_ctrl.offset;
 
-
-    int ret = serial_send(serial_handler, (char *)start_sos_addr, offset);
+    // bypass fs/vfs check, because it may not open "console:""
+    int ret = serial_send(_serial._serial_handler, (char *)start_sos_addr, offset);
 
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW,
         "[sos] serial send len: %d \n",ret);
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.offset = 0;
-    ctrl.ret_val = ret;
+    ctrl.ret_val = 0;
+    ctrl.offset = ret;
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -95,11 +146,22 @@ void sos_syscall_write(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
-	// read control info from IPC buffer
-	// and read data from shared buffer, then write corresponding
-	// file/device
-    //TODO fixme
-    sos_syscall_print_to_console(proc);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_write\n");
+    size_t write_len = 0;
+    struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
+    assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    int ret = syscall_write(msg->file_id, (char*)APP_PROCESS_IPC_SHARED_BUFFER, msg->offset, &write_len);
+    struct ipc_buffer_ctrl_msg ctrl;
+    if (ret == 0 )
+    {
+        ctrl.ret_val = 0;
+        ctrl.offset = write_len;
+    }
+    else
+    {
+        ctrl.ret_val = write_len;
+    }
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
 

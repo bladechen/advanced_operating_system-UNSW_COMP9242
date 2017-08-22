@@ -2,9 +2,10 @@
 #include "comm/list.h"
 #include "comm/comm.h"
 #include "file.h"
-#include "vfs/uio.h"
 #include "vfs/vfs.h"
 #include "vfs/vnode.h"
+#include "vfs/uio.h"
+
 static struct files_table g_ftb;
 
 void init_kern_file_table(void)

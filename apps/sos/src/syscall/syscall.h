@@ -24,6 +24,7 @@ void sos_syscall_write(void* proc);
 void sos_syscall_usleep(void* proc);
 void sos_syscall_time_stamp(void* proc);
 void sos_syscall_brk(void * proc);
+void sos_syscall_close(void * proc);
 
 
 #endif // SOS_SYSCALL_H
