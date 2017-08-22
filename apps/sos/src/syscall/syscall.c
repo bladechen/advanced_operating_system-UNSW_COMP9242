@@ -46,11 +46,12 @@ void sos_syscall_read(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read\n");
-    size_t read_len = 0;
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read, from pid: %d\n", proc->p_pid);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    size_t read_len = 0;
     assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
-    int ret = syscall_read(msg->file_id, (char*)APP_PROCESS_IPC_SHARED_BUFFER, msg->offset, &read_len);
+    int ret = syscall_read(msg->file_id, (char*)get_ipc_buffer(proc), msg->offset, &read_len);
     struct ipc_buffer_ctrl_msg ctrl;
     if (ret == 0 )
     {
@@ -59,8 +60,10 @@ void sos_syscall_read(void* argv)
     }
     else
     {
+        ctrl.offset = 0;
         ctrl.ret_val = read_len;
     }
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "read finish pid: %d, ret: %d, len: %u\n", proc->p_pid, ret, read_len);
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -71,7 +74,7 @@ void sos_syscall_open(void* argv)
     static char file_name [1000];
     memcpy(file_name, get_ipc_buffer(proc), proc->p_ipc_ctrl.offset);
     file_name[proc->p_ipc_ctrl.offset] = 0;
-    if (strcpy(file_name, "cosonle") == 0)
+    if (strcmp(file_name, "console") == 0)
     {
         file_name[proc->p_ipc_ctrl.offset ] = ':';
         file_name[1 + proc->p_ipc_ctrl.offset] = 0;
@@ -80,6 +83,7 @@ void sos_syscall_open(void* argv)
     int fd = 0;
     int ret = syscall_open(file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode, &fd);
     struct ipc_buffer_ctrl_msg ctrl;
+        ctrl.offset = 0;
     if (ret == 0 )
     {
         ctrl.ret_val = 0;
@@ -136,7 +140,6 @@ void sos_syscall_print_to_console(void * argv)
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW,
         "[sos] serial send len: %d \n",ret);
     struct ipc_buffer_ctrl_msg ctrl;
-    ctrl.offset = 0;
     ctrl.ret_val = 0;
     ctrl.offset = ret;
     ipc_reply(&ctrl, &(proc->p_reply_cap));
@@ -146,11 +149,13 @@ void sos_syscall_write(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_write\n");
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_write, from pid: %d\n", proc->p_pid);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, writelen: %d %d\n", proc->p_ipc_ctrl.file_id, proc->p_ipc_ctrl.offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+
     size_t write_len = 0;
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
     assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
-    int ret = syscall_write(msg->file_id, (char*)APP_PROCESS_IPC_SHARED_BUFFER, msg->offset, &write_len);
+    int ret = syscall_write(msg->file_id, (char*)get_ipc_buffer(proc), msg->offset, &write_len);
     struct ipc_buffer_ctrl_msg ctrl;
     if (ret == 0 )
     {
@@ -160,6 +165,7 @@ void sos_syscall_write(void* argv)
     else
     {
         ctrl.ret_val = write_len;
+        ctrl.offset = 0;
     }
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }

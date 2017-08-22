@@ -105,8 +105,16 @@ int sos_sys_write(int file, const char *vData, size_t nbyte)
     ctrl_msg.syscall_number = SOS_SYSCALL_WRITE;
     ctrl_msg.start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
     ctrl_msg.file_id = file;
-    return my_serial_send(vData, nbyte, & ctrl_msg);
-
+    int err = 0;
+    size_t len = my_serial_send( vData, nbyte, & ctrl_msg, &err);
+    if (err == 0)
+    {
+        return len;
+    }
+    else
+    {
+        return -err;
+    }
 }
 
 void sos_sys_usleep(int msec)
@@ -144,13 +152,14 @@ int64_t sos_sys_time_stamp(void)
 
 int sos_sys_close(int file)
 {
-    tty_debug_print("[app] sos_sys_close: fd, %d", file);
+    tty_debug_print("[app] sos_sys_close: fd, %d\n", file);
     struct ipc_buffer_ctrl_msg ctrl_msg ;
 
     ctrl_msg.syscall_number = SOS_SYSCALL_CLOSE;
 
     ctrl_msg.file_id = file;
     struct ipc_buffer_ctrl_msg ret;
+    ctrl_msg.offset = 0;
     assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
     tty_debug_print("[app] sos_sys_close return: %d\n",  ret.ret_val);
 
@@ -196,10 +205,11 @@ int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data, struct ip
 *   purpose of `sos_sys_print_to_console` for m0. And in SOS syscall.c
 *   the corresponding function is still named `sos_sys_print_to_console`.
 */
-size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl)
+size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl, int* err)
 {
     size_t sent_len = 0;
     tty_debug_print("[app] begin my_serial_send len: %d\n", count);
+    *err = 0;
     while (sent_len != count)
     {
         int can_send_buflen = (count - sent_len) > APP_PROCESS_IPC_SHARED_BUFFER_SIZE? APP_PROCESS_IPC_SHARED_BUFFER_SIZE: count - sent_len;
@@ -208,11 +218,16 @@ size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_ms
         assert(0 == ipc_call(ctrl,  vData + sent_len, &ret));
         if (ret.ret_val != 0)
         {
-            tty_debug_print("[app] my_serial_send error!!!!! len: %d\n", sent_len);
+            tty_debug_print("[app] my_serial_send error!!!!!ret: %d len: %d\n", ret.ret_val, sent_len);
+            if (sent_len == 0)
+            {
+                *err = ret.ret_val;
+            }
+
             return sent_len;
         }
         /* assert(ret.ret_val > 0); */
-        sent_len += ret.ret_val;
+        sent_len += ret.offset;
     }
     assert(count == sent_len);
     tty_debug_print("[app] end my_serial_send len: %d\n", count);
@@ -230,7 +245,16 @@ int sos_write(const char *vData, size_t nbyte)
     ctrl_msg.syscall_number = SOS_SYSCALL_IPC_PRINT_COLSOLE;
     ctrl_msg.start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
 
-    return my_serial_send( vData, nbyte, & ctrl_msg);
+    int err = 0;
+    size_t len = my_serial_send( vData, nbyte, & ctrl_msg, &err);
+    if (err == 0)
+    {
+        return len;
+    }
+    else
+    {
+        return -err;
+    }
 }
 
 

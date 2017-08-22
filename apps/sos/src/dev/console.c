@@ -5,13 +5,13 @@
 
 struct serial_console _serial;
 
-static void produce_char(char c)
+static bool produce_char(char c)
 {
 
     if (_serial._read_buf_size == MAXIMUM_SERIAL_READ_BUFFER)
     {
         ERROR_DEBUG("serial read drop char: [%c]\n", c);
-        return;
+        return false;
     }
     int idx;
     if (_serial._read_buf_head + _serial._read_buf_size < MAXIMUM_SERIAL_READ_BUFFER)
@@ -25,6 +25,7 @@ static void produce_char(char c)
     }
     _serial._read_buffer[idx] = c;
     _serial._read_buf_size ++;
+    return true;
 }
 
 /* static int consume_chars(char* buf, int buf_len) */
@@ -54,6 +55,8 @@ static char comsume_one_char()
     P(_serial._read_sem);
     char ret = _serial._read_buffer[_serial._read_buf_head];
     _serial._read_buf_head = (_serial._read_buf_head + 1) % MAXIMUM_SERIAL_READ_BUFFER;
+    _serial._read_buf_size --;
+    printf ("after consume, available chars: %d\n" , _serial._read_buf_size);
     return ret;
 }
 
@@ -61,8 +64,11 @@ static void handle_serial_input(struct  serial* handler, char in)
 {
     // only one serial handler can be registered.
     assert(handler == _serial._serial_handler);
-    produce_char(in);
-    V(_serial._read_sem); // V responsible for put blocking coro into pending queue.
+    if (produce_char(in))
+    {
+        printf ("available chars: %d\n" , _serial._read_buf_size);
+        V(_serial._read_sem); // V responsible for put blocking coro into pending queue.
+    }
     return;
 }
 
@@ -72,16 +78,19 @@ static int con_eachopen(struct device *dev, int openflags)
     assert((struct serial_console*)(dev->d_data) == &_serial);
     if (openflags == O_WRONLY)
     {
+        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "con_eachopen: %d, write only\n", openflags);
         return 0;
     }
     if (openflags == O_RDONLY || openflags == O_RDWR)
     {
         if (_serial._read_exclusive_flag)
         {
+            COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"con_eachopen: %d busy\n", openflags);
             return EBUSY;
         }
         else
         {
+            COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"con_eachopen: %d, get read perm\n", openflags);
             _serial._read_exclusive_flag = 1;
             _serial._coro = current_running_coro();
             return 0;
@@ -91,6 +100,7 @@ static int con_eachopen(struct device *dev, int openflags)
     {
         return EINVAL;
     }
+
 }
 
 static int con_io(struct device* dev, struct uio* uio)
@@ -122,12 +132,13 @@ static int con_io(struct device* dev, struct uio* uio)
 		else
         {
             assert(uio->uio_resid <= MAXIMUM_SERIAL_WRITE_BUFFER);
+            int sent_len = uio->uio_resid;
 			result = uiomove(_serial._write_buffer, MAXIMUM_SERIAL_WRITE_BUFFER, uio);
 			if (result)
             {
 				return result;
 			}
-            assert(uio->uio_resid == serial_send(_serial._serial_handler, _serial._write_buffer,uio->uio_resid));
+            assert(sent_len == serial_send(_serial._serial_handler, _serial._write_buffer, sent_len));
 		}
 	}
 	return 0;

@@ -78,7 +78,7 @@ typedef struct ipc_buffer_ctrl_msg {
 
 extern void *memcpy(void* ptr_dst, const void* ptr_src, unsigned int n);
 
-size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl);
+size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl, int*);
 static inline void serialize_ipc_ctrl_msg(const struct ipc_buffer_ctrl_msg* msg)
 {
     memcpy(seL4_GetIPCBuffer()->msg, msg, IPC_CTRL_MSG_LENGTH);

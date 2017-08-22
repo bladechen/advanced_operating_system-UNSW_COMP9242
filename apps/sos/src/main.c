@@ -38,6 +38,7 @@
 #include <sys/panic.h>
 
 #include "unittest/test.h"
+#include "dev/console.h"
 
 #include "vm/frametable.h"
 #include "vm/address_space.h"
@@ -347,6 +348,7 @@ int main(void) {
 
     vfs_bootstrap();
     init_kern_file_table();
+    init_console();
     /* init_test_coro(); */
 
     /* Start the user application */

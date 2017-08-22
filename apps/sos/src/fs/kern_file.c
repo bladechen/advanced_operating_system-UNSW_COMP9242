@@ -70,7 +70,8 @@ int close_kern_file(struct file* fs)
      */
     // using atomic can avoid race condition happened in vnode_decref/emufs_reclaim
 
-    if (fs->ref_count != 1)
+    fs->ref_count --;
+    if (fs->ref_count != 0)
     {
         return 0;
     }

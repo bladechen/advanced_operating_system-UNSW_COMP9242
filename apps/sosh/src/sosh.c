@@ -20,6 +20,9 @@
 #include <time.h>
 #include <sys/time.h>
 #include <utils/time.h>
+#include <stdio.h>
+#include <stdio.h>
+#include <string.h>
 
 /* Your OS header file */
 #include <sos.h>
@@ -306,22 +309,90 @@ void test_sos_sys_write()
     {
         b[i] = 'a';
     }
-    sos_sys_write(1, b, BUF_SZ);
+	int ret = sos_sys_write(1, b, BUF_SZ);
+    printf ("test_sos_sys_write return %d %s\n", ret, strerror(-ret));
+	free(b);
 }
+
+
+#define SMALL_BUF_SZ 2
+
+char test_str[] = "Basic test string for read/write";
+char small_buf[SMALL_BUF_SZ];
+
+/* int test_buffers(int console_fd) { */
+/* 	#<{(| test a small string from the code segment |)}># */
+/* 	int result = sos_sys_write(console_fd, test_str, strlen(test_str)); */
+/* 	assert(result == strlen(test_str)); */
+/*  */
+/* 	#<{(| test reading to a small buffer |)}># */
+/* 	result = sos_sys_read(console_fd, small_buf, SMALL_BUF_SZ); */
+/* 	#<{(| make sure you type in at least SMALL_BUF_SZ |)}># */
+/* 	assert(result == SMALL_BUF_SZ); */
+/*  */
+/* 	#<{(| test reading into a large on-stack buffer |)}># */
+/* 	char stack_buf[BUF_SZ]; */
+/* 	#<{(| for this test you'll need to paste a lot of data into */
+/* 	   the console, without newlines |)}># */
+/*  */
+/* 	result = sos_sys_read(console_fd, &stack_buf, BUF_SZ); */
+/* 	assert(result == BUF_SZ); */
+/*  */
+/* 	result = sos_sys_write(console_fd, &stack_buf, BUF_SZ); */
+/* 	assert(result == BUF_SZ); */
+/*  */
+/* 	#<{(| this call to malloc should trigger an brk |)}># */
+/* 	char *heap_buf = malloc(BUF_SZ); */
+/* 	assert(heap_buf != NULL); */
+/*  */
+/* 	#<{(| for this test you'll need to paste a lot of data into */
+/* 	   the console, without newlines |)}># */
+/* 	result = sos_sys_read(console_fd, &heap_buf, BUF_SZ); */
+/* 	assert(result == BUF_SZ); */
+/*  */
+/* 	result = sos_sys_write(console_fd, &heap_buf, BUF_SZ); */
+/* 	assert(result == BUF_SZ); */
+/*  */
+/* 	#<{(| try sleeping |)}># */
+/* 	for (int i = 0; i < 5; i++) { */
+/* 		time_t prev_seconds = time(NULL); */
+/* 		second_sleep(1); */
+/* 		time_t next_seconds = time(NULL); */
+/* 		assert(next_seconds > prev_seconds); */
+/* 		printf("Tick\n"); */
+/* 	} */
+/* } */
 void test_read()
 {
-    char stack_buf[11000];
+    char stack_buf[51000];
     /* for this test you'll need to paste a lot of data into
      *           the console, without newlines */
 
     tty_debug_print("[sosh] begin test read\n");
-    int result = sos_sys_read(0, &stack_buf, 10000);
-    assert(result == 10000);
+    int result = sos_sys_read(0, &stack_buf, 5000);
+    assert(result == 5000);
     /* stack_buf[10]  = 0; */
     /* tty_debug_print("[sosh] read: [%s]\n", stack_buf); */
 
     tty_debug_print("[sosh] end test read\n");
 
+}
+void test_file_syscall()
+{
+    int fd = sos_sys_open("console", O_RDWR);
+    tty_debug_print("sos_sys_open, return: %d\n", fd);
+
+    int result = sos_sys_write(fd , test_str, strlen(test_str));
+    assert(result == strlen(test_str));
+    assert(fd == 0);
+
+    /* test reading to a small buffer */
+    result = sos_sys_read(fd , small_buf, SMALL_BUF_SZ);
+    /* make sure you type in at least SMALL_BUF_SZ */
+    assert(result == SMALL_BUF_SZ);
+    test_read();
+    assert( sos_sys_close(fd) == 0);
+    return;
 }
 int main(void) {
     char buf[BUF_SIZ];
@@ -329,11 +400,13 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
     printf("[sosh hello]\n");
-    /* assert(0); */
 
     test_heap();
     test_sos_sys_write();
-    test_read();
+    printf("[sosh bye]\n");
+    test_file_syscall();
+
+    while(1){}
     /* while(1) {} */
     /* char test_long[10000]; */
     /*  */

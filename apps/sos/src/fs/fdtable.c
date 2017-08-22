@@ -153,6 +153,7 @@ int do_sys_open(int dfd,const char* filename, int flags, mode_t mode, struct fil
         return fd;
     }
     struct file* fp = NULL;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "do_sys_open, dfd: %d, fileanme: %s, flags: %d\n", dfd, filename, flags);
     int ret  = do_flip_open(&fp, dfd, (char*)filename, flags, mode);
     if ( ret != 0)
     {

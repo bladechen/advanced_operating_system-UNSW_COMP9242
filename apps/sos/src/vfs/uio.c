@@ -158,5 +158,4 @@ uio_kinit(struct iovec *iov, struct uio *u,
 	u->uio_resid = len;
 	/* u->uio_segflg = UIO_SYSSPACE; */
 	u->uio_rw = rw;
-	u->uio_space = NULL;
 }
