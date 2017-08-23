@@ -10,14 +10,13 @@ static bool produce_char(char c)
 
     if (_serial._read_buf_size == MAXIMUM_SERIAL_READ_BUFFER)
     {
-        ERROR_DEBUG("serial read drop char: [%c]\n", c);
+        /* ERROR_DEBUG("serial exceed buffer size, starts drop char: [%c]\n", c); */
         return false;
     }
     int idx;
     if (_serial._read_buf_head + _serial._read_buf_size < MAXIMUM_SERIAL_READ_BUFFER)
     {
         idx = _serial._read_buf_head + _serial._read_buf_size;
-
     }
     else
     {
@@ -56,7 +55,9 @@ static char comsume_one_char()
     char ret = _serial._read_buffer[_serial._read_buf_head];
     _serial._read_buf_head = (_serial._read_buf_head + 1) % MAXIMUM_SERIAL_READ_BUFFER;
     _serial._read_buf_size --;
-    printf ("after consume, available chars: %d\n" , _serial._read_buf_size);
+    assert(_serial._read_buf_size >= 0 && _serial._read_buf_size <= MAXIMUM_SERIAL_READ_BUFFER);
+    assert(_serial._read_buf_size == _serial._read_sem->_sem_count);
+    /* printf ("after consume, available chars: %d\n" , _serial._read_buf_size); */
     return ret;
 }
 
@@ -66,9 +67,15 @@ static void handle_serial_input(struct  serial* handler, char in)
     assert(handler == _serial._serial_handler);
     if (produce_char(in))
     {
-        printf ("available chars: %d\n" , _serial._read_buf_size);
+        /* printf ("available chars: %d\n" , _serial._read_buf_size); */
         V(_serial._read_sem); // V responsible for put blocking coro into pending queue.
     }
+    if (!(_serial._read_buf_size >= 0 && _serial._read_buf_size <= MAXIMUM_SERIAL_READ_BUFFER))
+    {
+        printf("%d\n", _serial._read_buf_size);
+    }
+    assert(_serial._read_buf_size >= 0 && _serial._read_buf_size <= MAXIMUM_SERIAL_READ_BUFFER);
+    assert(_serial._read_buf_size == _serial._read_sem->_sem_count);
     return;
 }
 
@@ -103,6 +110,22 @@ static int con_eachopen(struct device *dev, int openflags)
 
 }
 
+#define MAX_SENT_LEN 1200
+static int do_serial_send(char* buf, int len)
+{
+    int ret = 0;
+    int sent_len = 0;
+    while (sent_len != len)
+    {
+        ret = serial_send(_serial._serial_handler, buf + sent_len , (len - sent_len) > MAX_SENT_LEN ? MAX_SENT_LEN: len - sent_len);
+        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "serial_send len [%u]\n", ret);
+
+        assert(ret > 0);
+        sent_len += ret;
+    }
+    return sent_len;
+}
+
 static int con_io(struct device* dev, struct uio* uio)
 {
     assert((struct serial_console*)(dev->d_data) == &_serial);
@@ -111,6 +134,9 @@ static int con_io(struct device* dev, struct uio* uio)
 	char ch;
 
 	(void)dev;  // unused
+
+    COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "start con_io[%d], res len: %d\n", uio->uio_rw, uio->uio_resid);
+    COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "* current console read available chars: [%u]\n", _serial._read_buf_size);
 
 	while (uio->uio_resid > 0)
     {
@@ -136,11 +162,18 @@ static int con_io(struct device* dev, struct uio* uio)
 			result = uiomove(_serial._write_buffer, MAXIMUM_SERIAL_WRITE_BUFFER, uio);
 			if (result)
             {
+                ERROR_DEBUG("uiomove error: %d\n", result);
 				return result;
 			}
-            assert(sent_len == serial_send(_serial._serial_handler, _serial._write_buffer, sent_len));
+
+            int ret = do_serial_send(_serial._write_buffer, sent_len);
+
+            COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "sos serial_send len [%u]\n", sent_len);
+
+            assert(ret == sent_len);
 		}
 	}
+    COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "* after con io, remaining read chars [%u]\n", _serial._read_buf_size);
 	return 0;
 
 }
@@ -158,6 +191,8 @@ static int con_reclaim(struct device* dev)
     assert((struct serial_console*)(dev->d_data) == &_serial);
     if (current_running_coro() == _serial._coro)
     {
+
+        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"con_reclaim: %p, release read on the console\n", _serial._coro);
         _serial._coro = NULL;
         _serial._read_exclusive_flag = 0;
     }

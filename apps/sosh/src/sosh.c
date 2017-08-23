@@ -278,7 +278,7 @@ struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
         {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
         {"benchmark", benchmark}};
 
-#define BUF_SZ 80000
+#define BUF_SZ 8000
 void test_heap(void)
 {
     tty_debug_print("[sosh] begin test heap\n");
@@ -320,48 +320,69 @@ void test_sos_sys_write()
 char test_str[] = "Basic test string for read/write";
 char small_buf[SMALL_BUF_SZ];
 
-/* int test_buffers(int console_fd) { */
-/* 	#<{(| test a small string from the code segment |)}># */
-/* 	int result = sos_sys_write(console_fd, test_str, strlen(test_str)); */
-/* 	assert(result == strlen(test_str)); */
-/*  */
-/* 	#<{(| test reading to a small buffer |)}># */
-/* 	result = sos_sys_read(console_fd, small_buf, SMALL_BUF_SZ); */
-/* 	#<{(| make sure you type in at least SMALL_BUF_SZ |)}># */
-/* 	assert(result == SMALL_BUF_SZ); */
-/*  */
-/* 	#<{(| test reading into a large on-stack buffer |)}># */
-/* 	char stack_buf[BUF_SZ]; */
-/* 	#<{(| for this test you'll need to paste a lot of data into */
-/* 	   the console, without newlines |)}># */
-/*  */
-/* 	result = sos_sys_read(console_fd, &stack_buf, BUF_SZ); */
-/* 	assert(result == BUF_SZ); */
-/*  */
-/* 	result = sos_sys_write(console_fd, &stack_buf, BUF_SZ); */
-/* 	assert(result == BUF_SZ); */
-/*  */
-/* 	#<{(| this call to malloc should trigger an brk |)}># */
-/* 	char *heap_buf = malloc(BUF_SZ); */
-/* 	assert(heap_buf != NULL); */
-/*  */
-/* 	#<{(| for this test you'll need to paste a lot of data into */
-/* 	   the console, without newlines |)}># */
-/* 	result = sos_sys_read(console_fd, &heap_buf, BUF_SZ); */
-/* 	assert(result == BUF_SZ); */
-/*  */
-/* 	result = sos_sys_write(console_fd, &heap_buf, BUF_SZ); */
-/* 	assert(result == BUF_SZ); */
-/*  */
-/* 	#<{(| try sleeping |)}># */
-/* 	for (int i = 0; i < 5; i++) { */
-/* 		time_t prev_seconds = time(NULL); */
-/* 		second_sleep(1); */
-/* 		time_t next_seconds = time(NULL); */
-/* 		assert(next_seconds > prev_seconds); */
-/* 		printf("Tick\n"); */
-/* 	} */
-/* } */
+
+
+void verify_chars(char* buf, int len)
+{
+    static int current_len = 0;
+    tty_debug_print("%p begin verify_chars, current len: %d , in len: %d\n",buf, current_len, len);
+    for (int i = 0; i < len ; i ++)
+    {
+        /* tty_debug_print("verify_chars, current len: %d , i: %d\n", current_len, i); */
+        assert(((current_len + i)%26 + 'a') == buf[i]);
+    }
+    tty_debug_print("finish verify_chars\n");
+    current_len += len;
+}
+
+int test_buffers(int console_fd)
+{
+	/* test a small string from the code segment */
+	int result = sos_sys_write(console_fd, test_str, strlen(test_str));
+	assert(result == strlen(test_str));
+
+	/* test reading to a small buffer */
+	result = sos_sys_read(console_fd, small_buf, SMALL_BUF_SZ);
+	/* make sure you type in at least SMALL_BUF_SZ */
+	assert(result == SMALL_BUF_SZ);
+    verify_chars(small_buf, SMALL_BUF_SZ);
+
+	/* test reading into a large on-stack buffer */
+	char stack_buf[BUF_SZ];
+	/* for this test you'll need to paste a lot of data into
+	   the console, without newlines */
+
+	result = sos_sys_read(console_fd, stack_buf, BUF_SZ);
+	assert(result == BUF_SZ);
+    verify_chars(stack_buf ,BUF_SZ);
+
+	result = sos_sys_write(console_fd, stack_buf, BUF_SZ);
+	assert(result == BUF_SZ);
+
+	/* this call to malloc should trigger an brk */
+	char *heap_buf = malloc(BUF_SZ);
+	assert(heap_buf != NULL);
+    int test_stack = 1000;
+    tty_debug_print("malloc %p, %p, %p\n", heap_buf, &heap_buf, &test_stack);
+
+	/* for this test you'll need to paste a lot of data into
+	   the console, without newlines */
+	result = sos_sys_read(console_fd, heap_buf, BUF_SZ);
+	assert(result == BUF_SZ);
+    verify_chars(heap_buf , BUF_SZ);
+
+	result = sos_sys_write(console_fd, heap_buf, BUF_SZ);
+	assert(result == BUF_SZ);
+
+	/* try sleeping */
+	for (int i = 0; i < 5; i++) {
+		time_t prev_seconds = time(NULL);
+		sleep(1);
+		time_t next_seconds = time(NULL);
+		assert(next_seconds > prev_seconds);
+		printf("Tick\n");
+	}
+}
 void test_read()
 {
     char stack_buf[51000];
@@ -381,6 +402,8 @@ void test_file_syscall()
 {
     int fd = sos_sys_open("console", O_RDWR);
     tty_debug_print("sos_sys_open, return: %d\n", fd);
+
+    test_buffers(fd);
 
     int result = sos_sys_write(fd , test_str, strlen(test_str));
     assert(result == strlen(test_str));
@@ -403,8 +426,8 @@ int main(void) {
 
     test_heap();
     test_sos_sys_write();
-    printf("[sosh bye]\n");
     test_file_syscall();
+    printf("[sosh bye]\n");
 
     while(1){}
     /* while(1) {} */

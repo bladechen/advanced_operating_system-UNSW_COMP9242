@@ -113,7 +113,7 @@ void P(struct semaphore* sem)
 void V(struct semaphore* sem)
 {
     assert(sem != NULL);
-    printf("V: %d\n", sem->_sem_count);
+    /* printf("V: %d\n", sem->_sem_count); */
     if (sem->_max_count != -1 && sem->_sem_count == sem->_max_count)
     {
         // if someone is blocking in P, but V does not wake that guy up, something wrong with _max_count setting!

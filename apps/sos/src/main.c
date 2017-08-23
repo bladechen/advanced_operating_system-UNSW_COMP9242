@@ -322,7 +322,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
 /*
  * Main entry point - called by crt.
  */
-extern void cb_block_read(struct serial *serial, char c);
+extern struct serial_console _serial;
+/* static char buf[6000] = {0}; */
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -369,6 +370,7 @@ int main(void) {
     // init_test_coro();
     /* test_process->p_reply_cap = 0; */
     /* sos_syscall_sleep(test_process); */
+    /* serial_send(_serial._serial_handler, buf, 6000); */
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

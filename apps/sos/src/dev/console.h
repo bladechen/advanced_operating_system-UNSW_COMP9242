@@ -17,7 +17,7 @@ struct serial_console
 
     char _read_buffer[MAXIMUM_SERIAL_READ_BUFFER];
     uint32_t _read_buf_head;
-    uint32_t _read_buf_size; // how many char in the buffer
+    volatile uint32_t _read_buf_size; // how many char in the buffer
 
 
     char _write_buffer[MAXIMUM_SERIAL_WRITE_BUFFER];
