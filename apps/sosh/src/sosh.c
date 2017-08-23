@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2014, NICTA
  *
@@ -20,9 +21,6 @@
 #include <time.h>
 #include <sys/time.h>
 #include <utils/time.h>
-#include <stdio.h>
-#include <stdio.h>
-#include <string.h>
 
 /* Your OS header file */
 #include <sos.h>
@@ -38,11 +36,11 @@ static sos_stat_t sbuf;
 static void prstat(const char *name) {
     /* print out stat buf */
     printf("%c%c%c%c 0x%06x 0x%lx 0x%06lx %s\n",
-            sbuf.st_type == ST_SPECIAL ? 's' : '-',
-            sbuf.st_fmode & FM_READ ? 'r' : '-',
-            sbuf.st_fmode & FM_WRITE ? 'w' : '-',
-            sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
-            sbuf.st_atime, name);
+           sbuf.st_type == ST_SPECIAL ? 's' : '-',
+           sbuf.st_fmode & FM_READ ? 'r' : '-',
+           sbuf.st_fmode & FM_WRITE ? 'w' : '-',
+           sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
+           sbuf.st_atime, name);
 }
 
 static int cat(int argc, char **argv) {
@@ -125,7 +123,7 @@ static int ps(int argc, char **argv) {
 
     for (i = 0; i < processes; i++) {
         printf("%3d %4d %7d %s\n", process[i].pid, process[i].size,
-                process[i].stime, process[i].command);
+               process[i].stime, process[i].command);
     }
 
     free(process);
@@ -274,316 +272,135 @@ struct command {
 };
 
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
-        "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
-        {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-        {"benchmark", benchmark}};
+    "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
+               {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
+               {"benchmark", benchmark}};
 
-#define BUF_SZ 8000
-void test_heap(void)
-{
-    tty_debug_print("[sosh] begin test heap\n");
-    char *heap_buf = malloc(BUF_SZ);
-    assert(heap_buf != NULL);
-    tty_debug_print("malloc: %p\n", heap_buf);
-    for (int i = 0; i < BUF_SZ; i ++)
-    {
-        heap_buf[i] = (char) i;
-    }
-    for (int i = 0; i < BUF_SZ; i ++)
-    {
-        assert(heap_buf[i] == (char)i);
-    }
-    /* heap_buf[BUF_SZ+5000] = 1000; */
-    char* tmp = heap_buf;
-    heap_buf = malloc(BUF_SIZ/2);
-    tty_debug_print("malloc: %p\n", heap_buf);
-    free(tmp);
-    free(heap_buf);
-    tty_debug_print("[sosh] end test heap\n");
-    return;
-}
-void test_sos_sys_write()
-{
-    char * b = malloc(BUF_SZ);
-    for (int i=0;i < BUF_SZ;i ++)
-    {
-        b[i] = 'a';
-    }
-	int ret = sos_sys_write(1, b, BUF_SZ);
-    printf ("test_sos_sys_write return %d %s\n", ret, strerror(-ret));
-	free(b);
-}
-
-
-#define SMALL_BUF_SZ 2
-
-char test_str[] = "Basic test string for read/write";
-char small_buf[SMALL_BUF_SZ];
-
-
-
-void verify_chars(char* buf, int len)
-{
-    static int current_len = 0;
-    tty_debug_print("%p begin verify_chars, current len: %d , in len: %d\n",buf, current_len, len);
-    for (int i = 0; i < len ; i ++)
-    {
-        /* tty_debug_print("verify_chars, current len: %d , i: %d\n", current_len, i); */
-        assert(((current_len + i)%26 + 'a') == buf[i]);
-    }
-    tty_debug_print("finish verify_chars\n");
-    current_len += len;
-}
-
-int test_buffers(int console_fd)
-{
-	/* test a small string from the code segment */
-	int result = sos_sys_write(console_fd, test_str, strlen(test_str));
-	assert(result == strlen(test_str));
-
-	/* test reading to a small buffer */
-	result = sos_sys_read(console_fd, small_buf, SMALL_BUF_SZ);
-	/* make sure you type in at least SMALL_BUF_SZ */
-	assert(result == SMALL_BUF_SZ);
-    verify_chars(small_buf, SMALL_BUF_SZ);
-
-	/* test reading into a large on-stack buffer */
-	char stack_buf[BUF_SZ];
-	/* for this test you'll need to paste a lot of data into
-	   the console, without newlines */
-
-	result = sos_sys_read(console_fd, stack_buf, BUF_SZ);
-	assert(result == BUF_SZ);
-    verify_chars(stack_buf ,BUF_SZ);
-
-	result = sos_sys_write(console_fd, stack_buf, BUF_SZ);
-	assert(result == BUF_SZ);
-
-	/* this call to malloc should trigger an brk */
-	char *heap_buf = malloc(BUF_SZ);
-	assert(heap_buf != NULL);
-    int test_stack = 1000;
-    tty_debug_print("malloc %p, %p, %p\n", heap_buf, &heap_buf, &test_stack);
-
-	/* for this test you'll need to paste a lot of data into
-	   the console, without newlines */
-	result = sos_sys_read(console_fd, heap_buf, BUF_SZ);
-	assert(result == BUF_SZ);
-    verify_chars(heap_buf , BUF_SZ);
-
-	result = sos_sys_write(console_fd, heap_buf, BUF_SZ);
-	assert(result == BUF_SZ);
-
-	/* try sleeping */
-	for (int i = 0; i < 5; i++) {
-		time_t prev_seconds = time(NULL);
-		sleep(1);
-		time_t next_seconds = time(NULL);
-		assert(next_seconds > prev_seconds);
-		printf("Tick\n");
-	}
-}
-void test_read()
-{
-    char stack_buf[51000];
-    /* for this test you'll need to paste a lot of data into
-     *           the console, without newlines */
-
-    tty_debug_print("[sosh] begin test read\n");
-    int result = sos_sys_read(0, &stack_buf, 5000);
-    assert(result == 5000);
-    /* stack_buf[10]  = 0; */
-    /* tty_debug_print("[sosh] read: [%s]\n", stack_buf); */
-
-    tty_debug_print("[sosh] end test read\n");
-
-}
-void test_file_syscall()
-{
-    int fd = sos_sys_open("console", O_RDWR);
-    tty_debug_print("sos_sys_open, return: %d\n", fd);
-
-    test_buffers(fd);
-
-    int result = sos_sys_write(fd , test_str, strlen(test_str));
-    assert(result == strlen(test_str));
-    assert(fd == 0);
-
-    /* test reading to a small buffer */
-    result = sos_sys_read(fd , small_buf, SMALL_BUF_SZ);
-    /* make sure you type in at least SMALL_BUF_SZ */
-    assert(result == SMALL_BUF_SZ);
-    test_read();
-    assert( sos_sys_close(fd) == 0);
-    return;
-}
 int main(void) {
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
     char *bp, *p;
-    printf("[sosh hello]\n");
 
-    test_heap();
-    test_sos_sys_write();
-    test_file_syscall();
-    printf("[sosh bye]\n");
+    in = open("console", O_RDONLY);
+    assert(in >= 0);
 
-    while(1){}
-    /* while(1) {} */
-    /* char test_long[10000]; */
-    /*  */
-    /* for(i=0 ; i < 10000; i++) { */
-    /*     test_long[i] = 'a'; */
-    /* } */
-    /*  */
-    /* printf("test_long: %s\n", test_long); */
-    /*  */
-    /* printf("after test\n"); */
-    /*  */
-    /* char * test = "sos_sys_write\n"; */
-    /* sos_sys_write(1, test, 14); */
+    bp = buf;
+    done = 0;
+    new = 1;
 
-    /* while(1) {} */
+    printf("\n[SOS Starting]\n");
 
-    // sleep(1000);
+    while (!done) {
+        if (new) {
+            printf("$ ");
+        }
+        new = 0;
+        found = 0;
 
-    // printf("After sleep..\n");
+        while (!found && !done) {
+            /* Make sure to flush so anything is visible while waiting for user input */
+            fflush(stdout);
+            r = read(in, bp, BUF_SIZ - 1 + buf - bp);
+            if (r < 0) {
+                printf("Console read failed!\n");
+                done = 1;
+                break;
+            }
+            bp[r] = 0; /* terminate */
 
-     /* try sleeping */
-	for (int i = 0; i < 100000; i++) {
-		time_t prev_seconds = time(NULL);
-		sleep(1);
-		time_t next_seconds = time(NULL);
-		assert(next_seconds > prev_seconds);
-		printf("Tick %d %d\n", prev_seconds, next_seconds);
-	}
-    while (1)
-    {
-        sleep(4);
-        tty_debug_print("i come back %d\n", time(NULL));
-        printf("After sleep...\n");
+            tty_debug_print("[sosh] read user input: %s\n", bp);
+            for (p = bp; p < bp + r; p++) {
+                if (*p == '\03') { /* ^C */
+                    printf("^C\n");
+                    p = buf;
+                    new = 1;
+                    break;
+                } else if (*p == '\04') { /* ^D */
+                    p++;
+                    found = 1;
+                } else if (*p == '\010' || *p == 127) {
+                    /* ^H and BS and DEL */
+                    if (p > buf) {
+                        printf("\010 \010");
+                        p--;
+                        r--;
+                    }
+                    p--;
+                    r--;
+                } else if (*p == '\n') { /* ^J */
+                    printf("%c", *p);
+                    *p = 0;
+                    found = p > buf;
+                    p = buf;
+                    new = 1;
+                    break;
+                } else {
+                    printf("%c", *p);
+                }
+            }
+            bp = p;
+            if (bp == buf) {
+                break;
+            }
+        }
+
+        if (!found) {
+            continue;
+        }
+
+        argc = 0;
+        p = buf;
+
+        while (*p != '\0') {
+            /* Remove any leading spaces */
+            while (*p == ' ')
+                p++;
+            if (*p == '\0')
+                break;
+            argv[argc++] = p; /* Start of the arg */
+            while (*p != ' ' && *p != '\0') {
+                p++;
+            }
+
+            if (*p == '\0')
+                break;
+
+            /* Null out first space */
+            *p = '\0';
+            p++;
+        }
+
+        if (argc == 0) {
+            continue;
+        }
+
+        found = 0;
+        tty_debug_print("[sosh] executing command, argc: %d, %s\n", argc, argv[0]);
+
+        for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {
+            if (strcmp(argv[0], commands[i].name) == 0) {
+                commands[i].command(argc, argv);
+                found = 1;
+                break;
+            }
+        }
+
+        /* Didn't find a command */
+        if (found == 0) {
+            /* They might try to exec a program */
+            if (sos_stat(argv[0], &sbuf) != 0) {
+                printf("Command \"%s\" not found\n", argv[0]);
+            } else if (!(sbuf.st_fmode & FM_EXEC)) {
+                printf("File \"%s\" not executable\n", argv[0]);
+            } else {
+                /* Execute the program */
+                argc = 2;
+                argv[1] = argv[0];
+                argv[0] = "exec";
+                exec(argc, argv);
+            }
+        }
     }
-
-    // in = open("console", O_RDONLY);
-    // assert(in >= 0);
-
-    // bp = buf;
-    // done = 0;
-    // new = 1;
-
-    // printf("123123123123\n");
-
-    // printf("[SOS Starting]\n");
-
-    // while (!done) {
-    //     if (new) {
-    //         printf("$ ");
-    //     }
-    //     new = 0;
-    //     found = 0;
-
-    //     while (!found && !done) {
-    //         /* Make sure to flush so anything is visible while waiting for user input */
-    //         fflush(stdout);
-    //         r = read(in, bp, BUF_SIZ - 1 + buf - bp);
-    //         if (r < 0) {
-    //             printf("Console read failed!\n");
-    //             done = 1;
-    //             break;
-    //         }
-    //         bp[r] = 0; /* terminate */
-    //         for (p = bp; p < bp + r; p++) {
-    //             if (*p == '\03') { /* ^C */
-    //                 printf("^C\n");
-    //                 p = buf;
-    //                 new = 1;
-    //                 break;
-    //             } else if (*p == '\04') { /* ^D */
-    //                 p++;
-    //                 found = 1;
-    //             } else if (*p == '\010' || *p == 127) {
-    //                 /* ^H and BS and DEL */
-    //                 if (p > buf) {
-    //                     printf("\010 \010");
-    //                     p--;
-    //                     r--;
-    //                 }
-    //                 p--;
-    //                 r--;
-    //             } else if (*p == '\n') { /* ^J */
-    //                 printf("%c", *p);
-    //                 *p = 0;
-    //                 found = p > buf;
-    //                 p = buf;
-    //                 new = 1;
-    //                 break;
-    //             } else {
-    //                 printf("%c", *p);
-    //             }
-    //         }
-    //         bp = p;
-    //         if (bp == buf) {
-    //             break;
-    //         }
-    //     }
-
-    //     if (!found) {
-    //         continue;
-    //     }
-
-    //     argc = 0;
-    //     p = buf;
-
-    //     while (*p != '\0') {
-    //         /* Remove any leading spaces */
-    //         while (*p == ' ')
-    //             p++;
-    //         if (*p == '\0')
-    //             break;
-    //         argv[argc++] = p; /* Start of the arg */
-    //         while (*p != ' ' && *p != '\0') {
-    //             p++;
-    //         }
-
-    //         if (*p == '\0')
-    //             break;
-
-    //         /* Null out first space */
-    //         *p = '\0';
-    //         p++;
-    //     }
-
-    //     if (argc == 0) {
-    //         continue;
-    //     }
-
-    //     found = 0;
-
-    //     for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {
-    //         if (strcmp(argv[0], commands[i].name) == 0) {
-    //             commands[i].command(argc, argv);
-    //             found = 1;
-    //             break;
-    //         }
-    //     }
-
-    //     /* Didn't find a command */
-    //     if (found == 0) {
-    //         /* They might try to exec a program */
-    //         if (sos_stat(argv[0], &sbuf) != 0) {
-    //             printf("Command \"%s\" not found\n", argv[0]);
-    //         } else if (!(sbuf.st_fmode & FM_EXEC)) {
-    //             printf("File \"%s\" not executable\n", argv[0]);
-    //         } else {
-    //             /* Execute the program */
-    //             argc = 2;
-    //             argv[1] = argv[0];
-    //             argv[0] = "exec";
-    //             exec(argc, argv);
-    //         }
-    //     }
-    // }
-    // printf("[SOS Exiting]\n");
-    while(1){}
+    printf("[SOS Exiting]\n");
 }

@@ -7,25 +7,25 @@
 
 pid_t sos_process_create(const char *path)
 {
-    handle_no_implemented_syscall();
+    handle_no_implemented_syscall("sos_process_create");
     return 0;
 }
 
 int sos_process_delete(pid_t pid)
 {
-    handle_no_implemented_syscall();
+    handle_no_implemented_syscall("sos_process_delete");
     return 0;
 }
 
 
 pid_t sos_process_wait(pid_t pid)
 {
-    handle_no_implemented_syscall();
+    handle_no_implemented_syscall("sos_process_wait");
     return 0;
 }
 
 int sos_process_status(sos_process_t *processes, unsigned max)
 {
-    handle_no_implemented_syscall();
+    handle_no_implemented_syscall("sos_process_status");
     return 0;
 }

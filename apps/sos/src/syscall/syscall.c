@@ -9,7 +9,7 @@
 #include "vm/vmem_layout.h"
 #include "handle_syscall.h"
 
-#define verbose 5
+#define verbose  -1
 #include <sys/debug.h>
 #include <sys/panic.h>
 #include "dev/console.h"
@@ -48,7 +48,8 @@ void sos_syscall_read(void* argv)
     assert(proc == get_current_proc());
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read, from pid: %d\n", proc->p_pid);
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    /* COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE); */
+    ERROR_DEBUG("* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
     size_t read_len = 0;
     assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
     int ret = syscall_read(msg->file_id, (char*)get_ipc_buffer(proc), msg->offset, &read_len);

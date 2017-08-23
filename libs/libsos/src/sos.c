@@ -47,7 +47,7 @@ int sos_sys_open(const char *path, fmode_t mode)
     tty_debug_print("[app] sos_sys_open return: val %d, fd %d\n",ret.ret_val,  ret.file_id);
 
     /* assert(!"You need to implement this"); */
-    return (ret.ret_val == 0) ? ret.file_id: (-ret.ret_val);
+    return (ret.ret_val == 0) ? ret.file_id: (ret.ret_val);
 }
 
 int sos_sys_read(int file, char *buf, size_t nbyte)
@@ -70,11 +70,11 @@ int sos_sys_read(int file, char *buf, size_t nbyte)
         ctrl_msg.offset = (nbyte - read_len) > APP_PROCESS_IPC_SHARED_BUFFER_SIZE ? APP_PROCESS_IPC_SHARED_BUFFER_SIZE: nbyte - read_len;
         struct ipc_buffer_ctrl_msg ret;
         assert(0 == ipc_call(&ctrl_msg, NULL, &ret));
-        tty_debug_print("[sosh] read ret: %d, len: %d, total: %d\n", ret.ret_val, ret.offset, ret.offset + read_len);
+        /* tty_debug_print("[sosh] read ret: %d, len: %d, total: %d\n", ret.ret_val, ret.offset, ret.offset + read_len); */
         if (ret.ret_val == 0)
         {
             size_t off = ret.offset;
-            if (off < ret.offset) // new line comes. return
+            if (off < ctrl_msg.offset) // new line comes. return
             {
                 memcpy(buf + read_len, shared_buffer, off);
                 return read_len + off;
@@ -168,14 +168,14 @@ int sos_sys_close(int file)
 
 int sos_stat(const char *path, sos_stat_t *buf)
 {
-    handle_no_implemented_syscall();
+    handle_no_implemented_syscall("sos_stat");
     return 0;
 }
 
 
 int sos_getdirent(int pos, char *name, size_t nbyte)
 {
-    handle_no_implemented_syscall();
+    handle_no_implemented_syscall("sos_getdirent");
     return 0;
 }
 
@@ -208,7 +208,7 @@ int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data, struct ip
 size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl, int* err)
 {
     size_t sent_len = 0;
-    tty_debug_print("[app] begin my_serial_send len: %d\n", count);
+    /* tty_debug_print("[app] begin my_serial_send len: %d\n", count); */
     *err = 0;
     while (sent_len != count)
     {
@@ -230,7 +230,7 @@ size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_ms
         sent_len += ret.offset;
     }
     assert(count == sent_len);
-    tty_debug_print("[app] end my_serial_send len: %d\n", count);
+    /* tty_debug_print("[app] end my_serial_send len: %d\n", count); */
     return sent_len;
 }
 

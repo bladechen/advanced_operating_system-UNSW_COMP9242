@@ -45,8 +45,8 @@ static void wchan_wakeone(struct wchan* wc)
     struct coroutine* coro = wc->_head->_coro;
     assert(coro != NULL);
     wc->_head = tmp->_next;
-    printf ("wchan_wakeone, size: %d, next: %p\n",
-            wc->_size, wc->_head);
+    /* printf ("wchan_wakeone, size: %d, next: %p\n", */
+    /*         wc->_size, wc->_head); */
     free(tmp);
     make_coro_runnable(coro);
     /* resume_coro(coro); // XXX? put into running queue, or wake up? */

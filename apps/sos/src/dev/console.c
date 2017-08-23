@@ -5,8 +5,20 @@
 
 struct serial_console _serial;
 
+
+struct device *console_dev = NULL;
+/* static char last_char = 0; */
 static bool produce_char(char c)
 {
+    /* if (last_char == 0 ) */
+    /* { */
+    /*     last_char = c; */
+    /* } */
+    /* else */
+    /* { */
+    /*     assert((last_char == 'z' && c == 'a')||(last_char == (c - 1))); */
+    /*     last_char = c; */
+    /* } */
 
     if (_serial._read_buf_size == MAXIMUM_SERIAL_READ_BUFFER)
     {
@@ -63,16 +75,13 @@ static char comsume_one_char()
 
 static void handle_serial_input(struct  serial* handler, char in)
 {
+    printf ("handle_serial_input :%c\n", in);
     // only one serial handler can be registered.
     assert(handler == _serial._serial_handler);
     if (produce_char(in))
     {
         /* printf ("available chars: %d\n" , _serial._read_buf_size); */
         V(_serial._read_sem); // V responsible for put blocking coro into pending queue.
-    }
-    if (!(_serial._read_buf_size >= 0 && _serial._read_buf_size <= MAXIMUM_SERIAL_READ_BUFFER))
-    {
-        printf("%d\n", _serial._read_buf_size);
     }
     assert(_serial._read_buf_size >= 0 && _serial._read_buf_size <= MAXIMUM_SERIAL_READ_BUFFER);
     assert(_serial._read_buf_size == _serial._read_sem->_sem_count);
@@ -210,6 +219,7 @@ static const struct device_ops console_devops =
 static void attach_console_to_vfs()
 {
      struct device *dev = malloc(sizeof(struct device));
+     console_dev = dev;
      assert(dev != NULL);
      dev->d_ops = &console_devops;
      dev->d_blocks = 0;

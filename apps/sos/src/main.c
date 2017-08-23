@@ -48,7 +48,7 @@
 #include "syscall/syscall.h"
 #include <sos.h>
 
-uint32_t dbflags = 0xFFFFFFFF;
+uint32_t dbflags = 0 ;//0xFFFFFFFF;
 
 extern int test_coro();
 
@@ -171,7 +171,7 @@ void syscall_loop(seL4_CPtr ep)
         else if(label == seL4_NoFault)
         {
             /* System call */
-            dprintf(0, "badge : 0x%x\n", badge);
+            /* dprintf(0, "badge : 0x%x\n", badge); */
 
             // TODO: under multiprocess circumstance, pass the corresponding
             // APP process.

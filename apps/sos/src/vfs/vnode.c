@@ -33,6 +33,7 @@
 #include "comm/comm.h"
 #include "vfs.h"
 #include "vnode.h"
+#include "assert.h"
 
 /*
  * Initialize an abstract vnode.
@@ -84,6 +85,7 @@ vnode_incref(struct vnode *vn)
  * Called by VOP_DECREF.
  * Calls VOP_RECLAIM if the refcount hits zero.
  */
+extern struct device *console_dev;
 void
 vnode_decref(struct vnode *vn)
 {
@@ -102,6 +104,16 @@ vnode_decref(struct vnode *vn)
 		/* Don't decrement; pass the reference to VOP_RECLAIM. */
 		destroy = true;
 	}
+
+
+    // XXX very ugly way, because console dev's read is exlusive, so close should call its reclaim function to
+    // release read perm.
+    if (vn->vn_data == console_dev)
+    {
+        assert(0 == VOP_RECLAIM(vn));
+    }
+
+    /* printf ("vnode ref: %d\n", vn->vn_refcount); */
 
 	if (destroy) {
 		result = VOP_RECLAIM(vn);
