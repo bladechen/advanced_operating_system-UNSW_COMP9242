@@ -18,7 +18,7 @@ CFILES := $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/*.c))
 RHDRFILES := '$(wildcard $(SOURCE_DIR)/include/*) nfs'
 
 # Extra flags for c compliler
-CFLAGS := -Wall -Werror
+CFLAGS := -Wall
 
 include $(SEL4_COMMON)/common.mk
 

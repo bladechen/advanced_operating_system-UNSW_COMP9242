@@ -583,7 +583,7 @@ enum rpc_stat nfs_write(const fhandle_t *fh, int offset, int count,
  * @return    0 if all tests completed successfully. Otherwise, returns the
  *            number of errors recorded.
  */
-int nfs_test(char *mnt);
+int nfs_test(struct fhandle *mnt);
 
 
 #endif /* __NFS_NFS_H */
