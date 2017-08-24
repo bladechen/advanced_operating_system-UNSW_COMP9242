@@ -446,8 +446,8 @@ my_write(fhandle_t *fh, int offset, int length, char* data, int *err){
 #define PARALLEL 2
 
 /* Guarantee to fill multiple packets */
-#define TEST_DATA_SIZE (4096 * 2)
-
+// #define TEST_DATA_SIZE (4096 * 2)
+#define TEST_DATA_SIZE 12
 static int 
 test_file_access(struct fhandle *mnt)
 {
@@ -472,11 +472,13 @@ test_file_access(struct fhandle *mnt)
     assert(my_create(mnt, FILE1, &sattr, NULL, &fh) == NFS_OK);
 
     /* Generate some random* data */
-    data = (char*)malloc(TEST_DATA_SIZE * 2);
-    for(i = 0; i < TEST_DATA_SIZE; i++){
-        data[2 * i + 0] = i >> 8;
-        data[2 * i + 1] = i >> 0;
-    }
+    // data = (char*)malloc(TEST_DATA_SIZE * 2);
+    data = "hello world";
+    // for(i = 0; i < TEST_DATA_SIZE; i++){
+    //     // data[2 * i + 0] = i >> 8;
+    //     // data[2 * i + 1] = i >> 0;
+    //     data[i] = 'h';
+    // }
     /* write all data to file 1 at offset 0 */
     assert(my_write(&fh,   0, TEST_DATA_SIZE +   0, data +   0, &err) == NFS_OK);
     /* read all data from file 1 at offset 0 */
