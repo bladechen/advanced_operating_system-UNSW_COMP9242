@@ -17,7 +17,25 @@
 #include <stdint.h>
 #include <sel4/sel4.h>
 
-/* System calls for SOS */
+
+/* The shared buffer address */
+#define APP_PROCESS_IPC_SHARED_BUFFER       (0xA0002000)
+#define APP_PROCESS_IPC_SHARED_BUFFER_GUARD (0xA0003000)
+#define APP_PROCESS_IPC_SHARED_BUFFER_SIZE  (0x00001000)
+
+/* The position of corresponding ep in SOS*/
+#define SYSCALL_ENDPOINT_SLOT  (1)
+
+/* System calls number for SOS */
+#define SOS_SYSCALL_IPC_PRINT_COLSOLE   (0)
+#define SOS_SYSCALL_READ                (1)
+#define SOS_SYSCALL_WRITE               (2)
+#define SOS_SYSCALL_OPEN                (3)
+#define SOS_SYSCALL_USLEEP              (4)
+#define SOS_SYSCALL_TIME_STAMP          (5)
+#define SOS_SYSCALL_BRK                 (6)
+#define SOS_SYSCALL_CLOSE               (7)
+
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)
@@ -39,6 +57,45 @@ typedef int fmode_t;
 #define ST_SPECIAL 2    /* special (console) file */
 typedef int st_type_t;
 
+#define IPC_CTRL_MSG_LENGTH (sizeof (ipc_buffer_ctrl_msg))
+// This struct is for transfering control message over IPC
+// the actual data is put in app-sos shared buffer
+typedef struct ipc_buffer_ctrl_msg {
+
+    int   ret_val;
+    int         seq_num; //only for check purpose
+
+    int         syscall_number;
+    seL4_Word   start_app_buffer_addr;
+    int         offset;
+    int         file_id;
+
+    int mode;
+
+
+
+} ipc_buffer_ctrl_msg;
+
+extern void *memcpy(void* ptr_dst, const void* ptr_src, unsigned int n);
+
+size_t my_serial_send(const void *vData, size_t count, struct ipc_buffer_ctrl_msg* ctrl, int*);
+static inline void serialize_ipc_ctrl_msg(const struct ipc_buffer_ctrl_msg* msg)
+{
+    memcpy(seL4_GetIPCBuffer()->msg, msg, IPC_CTRL_MSG_LENGTH);
+}
+static inline void unserialize_ipc_ctrl_msg(struct ipc_buffer_ctrl_msg* msg)
+{
+
+    memcpy(msg, seL4_GetIPCBuffer()->msg,IPC_CTRL_MSG_LENGTH);
+
+}
+
+int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data,  struct ipc_buffer_ctrl_msg* ret);
+
+int ipc_recv(struct ipc_buffer_ctrl_msg* ctrl, void* data, size_t count, struct ipc_buffer_ctrl_msg* ret);
+
+// we assume reply data buffer would be less than ipc shared buffer
+
 
 typedef struct {
   st_type_t st_type;    /* file type */
@@ -56,6 +113,10 @@ typedef struct {
   unsigned  stime;           /* start time in msec since booting */
   char      command[N_NAME]; /* Name of exectuable */
 } sos_process_t;
+
+// move the m0 print to console system call, transform
+// and apply to current work flow, to see if it works.
+int sos_sys_print_to_console(char * vData, size_t nbyte);
 
 /* I/O system calls */
 
@@ -129,6 +190,7 @@ void sos_sys_usleep(int msec);
 /* Sleeps for the specified number of milliseconds.
  */
 
+seL4_Word sos_sys_brk(seL4_Word newbrk);
 
 /*************************************************************************/
 /*                                   */

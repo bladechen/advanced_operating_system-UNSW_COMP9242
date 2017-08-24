@@ -108,27 +108,11 @@ int main(void){
 
     int i = 0;
     do {
-        printf("task:\tHello world, I'm\ttty_test! number: %d\n", i);
-        /* p -= (4096 * (1<<6)); */
-        /* printf("now read the stack addr %p, which should fault!!!\n", p); */
-        /* printf("%d\n", *p); */
-        /* *p = 100; */
-        /* printf("success!!\n", p); */
-        /*  */
-        /* delay(1000000000); */
-        /* delay(1000000000); */
-        /* delay(1000000000); */
-        /* #<{(| p -= (4096 * (1<<6)); |)}># */
-        /* printf("now read the stack addr %p, which should fault!!!\n", p); */
-        /* *p = 100; */
-        /* printf("success!!\n", p); */
-
-
-        // *(int*)(0xD0000000) = 100;
-        // fflush(NULL);
+        printf("task:\tHello world, I'm\ttty_test!\n");
         thread_block();
+        i++;
         // sleep(1);	// Implement this as a syscall
-    } while(1);
+    } while(i< 10);
 
     return 0;
 }

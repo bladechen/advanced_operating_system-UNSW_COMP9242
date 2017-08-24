@@ -35,11 +35,15 @@ void frametable_init(void);
 sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr);
 void frame_free(seL4_Word vaddr);
 
+// int sos_frame_remap(sos_vaddr_t in_vaddr, sos_vaddr_t out_vaddr, int right);
+
+// sos_vaddr_t frame_alloc_readonly(sos_vaddr_t * vaddr_ptr);
 
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap);
 
 uint32_t get_frame_app_cap(sos_vaddr_t vaddr);
 uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
+
 
 
 void flush_sos_frame(sos_vaddr_t vaddr);// TODO why?

@@ -36,6 +36,7 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
 {
 
     *cap = 0;
+    /* printf ("_build_paddr_to_vaddr_frame: 0x%x to 0x%x\n", paddr , vaddr); */
     int ret;
     ret = cspace_ut_retype_addr(paddr,
                                 seL4_ARM_SmallPageObject,
@@ -412,3 +413,30 @@ void flush_sos_frame(seL4_Word vaddr)
 	seL4_CPtr cap = e->sos_cap;
 	seL4_ARM_Page_Unify_Instruction(cap, 0, seL4_PAGE_SIZE);
 }
+
+
+/* int sos_frame_remap(sos_vaddr_t in_vaddr, sos_vaddr_t out_vaddr, int right) */
+/* { */
+/*     frame_table_entry* e = _get_ft_entry(in_vaddr); */
+/*     assert(NULL != _frame_entry_status(e)); // just to verify status |)}># */
+/*     assert(e->sos_cap != 0); */
+/* 	assert(e->app_cap == 0); */
+/*  */
+/* 	e->app_cap = cspace_copy_cap(cur_cspace, cur_cspace, e->sos_cap, seL4_AllRights); */
+/*     (e->app_cap != 0); */
+/*  */
+/* 	#<{(| int err = seL4_ARM_Page_Unmap(e->sos_cap); |)}># */
+/*     #<{(| conditional_panic(err, "Failed to unmap page from SOS window\n"); |)}># */
+/*     int ret = map_page(e->app_cap, */
+/*                        seL4_CapInitThreadPD, */
+/*                        out_vaddr, */
+/*                        right, */
+/*                        #<{(| seL4_CanRead, |)}># */
+/*                        seL4_ARM_Default_VMAttributes); */
+/*     assert(ret == 0); */
+/*     if (ret != 0) */
+/*     { */
+/*         return ESEL4API; */
+/*     } */
+/*     return 0; */
+/* } */

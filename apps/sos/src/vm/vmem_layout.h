@@ -22,6 +22,10 @@
 #define WINDOW_START 0x20000000
 #define WINDOW_END   0x60000000
 
+
+#define COROUTINE_STACK_START 0x60000000
+#define COROUTINE_STACK_END   0x70000000
+
 /* Operations to get/recover the frame number*/
 #define PAGE_SHIFT(X)      ((X) >> seL4_PageBits)
 #define PAGE_UNSHIFT(X)    ((X) << seL4_PageBits)
@@ -41,11 +45,9 @@
 
 
 // maximum (256M - 4K * 2) for heap
-#define APP_PROCESS_HEAP_START_GUARD  (0x20000000)
 #define APP_PROCESS_HEAP_START        (0x20001000)
 // #define APP_PROCESS_HEAP_END          (0x2FFFE000)
 #define APP_PROCESS_HEAP_END          (0x21FFE000)
-#define APP_PROCESS_HEAP_END_GUARD    (0x30000000)
 
 // TODO reserved for the extended part.
 #define APP_PROCESS_MMAP_START        (0x30000000)
@@ -53,16 +55,19 @@
 
 
 // maximum (32M - 4K * 2) for stack
-#define APP_PROCESS_STACK_BOTTON_GUARD (0x8E000000)
 #define APP_PROCESS_STACK_BOTTOM      (0x8E001000)
 #define APP_PROCESS_STACK_TOP         (0x8FFFE000)
-#define APP_PROCESS_STACK_TOP_GUARD   (0x90000000)
 
 // #define PROCESS_STACK_TOP   (0x90000000) is different from this design?
 
 
 #define APP_PROCESS_IPC_BUFFER  (0xA0000000)
 #define APP_PROCESS_IPC_GUARD   (0xA0001000)
+
+// 16k app-sos shared buffer
+#define APP_PROCESS_IPC_SHARED_BUFFER   (0xA0002000)
+#define APP_PROCESS_IPC_SHARED_BUFFER_GUARD (0xA0003000)
+#define APP_PROCESS_IPC_SHARED_BUFFER_SIZE	(0x00001000)
 
 #define APP_PROCESS_VMEM_START  (0xC0000000)
 

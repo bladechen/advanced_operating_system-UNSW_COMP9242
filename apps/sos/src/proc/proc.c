@@ -22,13 +22,13 @@
 
 #include "proc.h"
 #include "vm/address_space.h"
+#include "vm/pagetable.h"
+
+struct proc kproc;
 
 // TODO, now we assume there is only one process, and the badge
 // is hard coded, may try create badge dynamically
 #define TEMP_ONE_PROCESS_BADGE (1<<3)
-#define TEMP_TWO_PROCESS_BADGE (1<<4)
-
-static bool two_process = false;
 
 extern char _cpio_archive[];
 
@@ -41,20 +41,32 @@ static void clear_proc(struct proc* proc)
     proc->p_tcb = NULL;
     proc->p_croot = NULL;
     proc->p_ep_cap = 0;
-
+    proc->p_coro = NULL;
+    proc->p_reply_cap = 0;
+    proc->fs_struct = NULL;
 }
 
-static struct proc* _cur_proc = NULL;
-struct proc* get_current_app_proc()
+
+static void init_kproc(char* kname)
 {
-    return _cur_proc;
-
+    clear_proc(&kproc);
+    kproc.p_name = kname;
+    kproc.p_pid = 0;
+    kproc.p_pagetable = (struct pagetable*)(kcreate_pagetable());
+    kproc.p_addrspace = NULL; // i don't need the restriction.
+    kproc.p_tcb = NULL;
+    kproc.p_croot = NULL;
+    kproc.p_ep_cap = 0;
+    set_kproc_coro(&kproc);
 }
-void set_current_app_proc(struct proc* proc)
+
+void proc_bootstrap()
 {
-    _cur_proc = proc;
+    static char* kname = "sos_kernel";
+    bootstrap_coro_env();
+    init_kproc(kname);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "kernel proc at: %p, coroutine at: %p\n", &kproc, kproc.p_coro)
 }
-
 
 /* void loop_through_region(struct addrspace *as); */
 
@@ -70,12 +82,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
-    if (two_process == false) {
-        process->p_pid = 2;
-    } else {
-        process->p_pid = 3;
-    }
-    
+    process->p_pid = 1;
 
     /*
     *  pagetable will take care of the virtual address root
@@ -98,6 +105,13 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
         proc_destroy(process);
         return NULL;
     }
+
+    if( init_fd_table(process))
+    {
+        ERROR_DEBUG( "init_fd_table error\n");
+        proc_destroy(process);
+        return NULL;
+    }
     process->p_addrspace->proc = process;
 
     // Create a simple 1 level CSpace
@@ -106,22 +120,13 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     // the order is first init ipc buffer, then setup fault ep?
     as_define_ipc(process->p_addrspace);
+    as_define_ipc_shared_buffer(process->p_addrspace);
     // Copy the fault endpoint to the user app to enable IPC
-    if (two_process == false) {
-        process->p_ep_cap = cspace_mint_cap(process->p_croot,
+    process->p_ep_cap = cspace_mint_cap(process->p_croot,
                                         cur_cspace,
                                         fault_ep_cap,
                                         seL4_AllRights,
                                         seL4_CapData_Badge_new(TEMP_ONE_PROCESS_BADGE));
-        two_process = true;
-    } else {
-        process->p_ep_cap = cspace_mint_cap(process->p_croot,
-                                        cur_cspace,
-                                        fault_ep_cap,
-                                        seL4_AllRights,
-                                        seL4_CapData_Badge_new(TEMP_TWO_PROCESS_BADGE));
-    }
-    
     assert(process->p_ep_cap != CSPACE_NULL);
     assert(process->p_ep_cap == 1);// FIXME
 
@@ -150,7 +155,8 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // According to `extern char _cpio_archive[];` in main.c
     // It has been declared in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "loading %s elf_base: %x, entry point:%x\n", name, elf_base, elf_getEntryPoint(elf_base));
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), name);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "name: %s\n", name);
     conditional_panic(!elf_base, "Unable to locate cpio header");
 
 
@@ -168,6 +174,13 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // TODO: as_define_mmap(process->p_addrspace);
 
     loop_through_region(process->p_addrspace);
+
+    // each user level process has one coroutine at sos side
+    process->p_coro = create_coro(NULL, NULL);
+    assert(process->p_coro != NULL);
+    process->p_coro->_proc = process;
+
+    process->p_reply_cap = 0;
     return process;
 }
 
@@ -215,7 +228,7 @@ int proc_destroy(struct proc * process)
 
     free(process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
-
-
     return 0;
 }
+
+

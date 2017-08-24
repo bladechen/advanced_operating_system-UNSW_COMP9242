@@ -119,7 +119,7 @@ static inline void __list_del(struct list_head *prev, struct list_head *next)
  * @entry: the element to delete from the list.
  * Note: list_empty on entry does not return true after this, the entry is in an undefined state.
  */
-void list_reset(struct list_head *link);
+void list_del(struct list_head *link);
 
 /**
  * list_del_init - deletes entry from list and reinitialize it.
@@ -303,7 +303,7 @@ static inline void list_splice_init(struct list_head *list,
  *
  */
 #define link_detach(cur, member) do{\
-    list_reset(&((cur)->member));\
+    list_del(&((cur)->member));\
 } while(0);
 
 struct list* create_list();
@@ -314,7 +314,6 @@ bool is_list_empty(const struct list* );
 void make_list_empty(struct list *); /*  the caller should destroy all the linked entry, this function is simply detach all the entrys*/
 
 
-void* list_head(struct list* l);
 // void* list_tail(struct list* l);
 
 
@@ -329,6 +328,7 @@ bool is_linked(struct list_head* );
 
 
 
+struct list_head* list_front(struct list* l);
 
 
 #endif

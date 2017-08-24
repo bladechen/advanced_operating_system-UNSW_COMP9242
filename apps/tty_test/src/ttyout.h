@@ -25,6 +25,10 @@ extern void ttyout_init(void);
 #define SYSCALL_ENDPOINT_SLOT  (1)
 #define SYSCALL_IPC_PRINT_COLSOLE (2)
 
+// protocol id
+#define seL4_IPC_Message 1
+#define large_Buffer_Transfer_Message 2
+
 
 /* routines needed by the libs/c i.e. -lc implementation */
 

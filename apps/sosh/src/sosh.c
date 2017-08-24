@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2014, NICTA
  *
@@ -35,11 +36,11 @@ static sos_stat_t sbuf;
 static void prstat(const char *name) {
     /* print out stat buf */
     printf("%c%c%c%c 0x%06x 0x%lx 0x%06lx %s\n",
-            sbuf.st_type == ST_SPECIAL ? 's' : '-',
-            sbuf.st_fmode & FM_READ ? 'r' : '-',
-            sbuf.st_fmode & FM_WRITE ? 'w' : '-',
-            sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
-            sbuf.st_atime, name);
+           sbuf.st_type == ST_SPECIAL ? 's' : '-',
+           sbuf.st_fmode & FM_READ ? 'r' : '-',
+           sbuf.st_fmode & FM_WRITE ? 'w' : '-',
+           sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
+           sbuf.st_atime, name);
 }
 
 static int cat(int argc, char **argv) {
@@ -122,7 +123,7 @@ static int ps(int argc, char **argv) {
 
     for (i = 0; i < processes; i++) {
         printf("%3d %4d %7d %s\n", process[i].pid, process[i].size,
-                process[i].stime, process[i].command);
+               process[i].stime, process[i].command);
     }
 
     free(process);
@@ -271,9 +272,9 @@ struct command {
 };
 
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
-        "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
-        {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-        {"benchmark", benchmark}};
+    "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
+               {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
+               {"benchmark", benchmark}};
 
 int main(void) {
     char buf[BUF_SIZ];
@@ -307,6 +308,8 @@ int main(void) {
                 break;
             }
             bp[r] = 0; /* terminate */
+
+            tty_debug_print("[sosh] read user input: %s\n", bp);
             for (p = bp; p < bp + r; p++) {
                 if (*p == '\03') { /* ^C */
                     printf("^C\n");
@@ -373,6 +376,7 @@ int main(void) {
         }
 
         found = 0;
+        tty_debug_print("[sosh] executing command, argc: %d, %s\n", argc, argv[0]);
 
         for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {
             if (strcmp(argv[0], commands[i].name) == 0) {

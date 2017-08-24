@@ -20,12 +20,16 @@
 #include "comm/comm.h"
 #include "frametable.h"
 
-const char REGION_NAME[10][10] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "OTHER"};
+const char REGION_NAME[10][20] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "OTHER"};
 static void dump_region(struct as_region_metadata* region);
-static int build_pagetable_link(struct pagetable* pt,  vaddr_t vaddr, int pages, seL4_ARM_VMAttributes vm, seL4_CapRights right );
 
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region);
 static seL4_CapRights        as_region_caprights(struct as_region_metadata* region);
+static int build_pagetable_link(struct pagetable* pt,
+                                vaddr_t vaddr,
+                                int pages,
+                                seL4_ARM_VMAttributes vm,
+                                seL4_CapRights right);
 
 
 
@@ -98,6 +102,24 @@ static int convert_to_pages(size_t memsize)
         pgsize = 1 + ((memsize-1)>>seL4_PageBits);
 
     return pgsize;
+}
+
+static int upper_mem(size_t memsize)
+{
+    if (IS_PAGE_ALIGNED(memsize ))
+    {
+        return memsize;
+    }
+    else
+    {
+        return memsize + (seL4_PAGE_SIZE - memsize % seL4_PAGE_SIZE);
+    }
+    /* return ((~(memsize & (~seL4_PAGE_MASK))) & (~seL4_PAGE_MASK)) + memsize; */
+    /* int pgsize = 0; */
+    /* if ( memsize != 0 ) */
+    /*     pgsize = 1 + ((memsize-1)>>seL4_PageBits); */
+    /*  */
+    /* return pgsize; */
 }
 
 void loop_through_region(struct addrspace *as)
@@ -186,7 +208,7 @@ int as_define_heap (struct addrspace* as)
                             APP_PROCESS_HEAP_START,
                             NULL, 0,
                             /* 0, 0, */
-                            APP_PROCESS_HEAP_END - APP_PROCESS_HEAP_START, 0,
+                            0, 0,
                             /* APP_PROCESS_HEAP_END- APP_PROCESS_HEAP_START, */
                             PF_R, PF_W, 0, HEAP);
 
@@ -207,8 +229,24 @@ int as_define_ipc(struct addrspace* as)
     return build_pagetable_link(as_get_page_table(as), APP_PROCESS_IPC_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
 }
 
+int as_define_ipc_shared_buffer(struct addrspace * as)
+{
+    int ret = as_define_region(as,
+                                APP_PROCESS_IPC_SHARED_BUFFER,
+                                NULL, 0,
+                                4 << seL4_PageBits, 0,
+                                PF_R, PF_W, 0, IPC_SHARED_BUFFER);
+    if (ret != 0)
+    {
+        return ret;
+    }
+    struct as_region_metadata* r = as_get_region_by_type(as, IPC_SHARED_BUFFER);
+    assert(r != NULL);
+    return build_pagetable_link(as_get_page_table(as),
+        APP_PROCESS_IPC_SHARED_BUFFER, APP_PROCESS_IPC_SHARED_BUFFER_SIZE >> 12, as_region_vmattrs(r), as_region_caprights(r));
+}
 
-static int build_pagetable_link(struct pagetable* pt,
+int build_pagetable_link(struct pagetable* pt,
                                 vaddr_t vaddr,
                                 int pages,
                                 seL4_ARM_VMAttributes vm,
@@ -262,6 +300,7 @@ void  as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
     as_destroy_region_pages(as_get_page_table(as), to_del, to_del->region_vaddr, to_del->npages);
 
 }
+
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region)
 {
     if (region->rwxflag & PF_X)
@@ -440,7 +479,6 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
     assert(!(fault_addr &(~seL4_PAGE_MASK)));
     assert(r->npages * seL4_PAGE_SIZE >= r->elf_size);
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "current process 0x%x fault addr: 0x%x\n", get_current_app_proc(), fault_addr);
     const struct as_region_metadata region = *r;
 
     uint32_t file_copy_addr = 0;
@@ -459,14 +497,17 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 2\n"); */
         // nothing
     }
-    else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
+    else if (fault_addr <= region.elf_vaddr &&
+        fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr &&
+        fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
         file_copy_addr = region.elf_offset;
         vm_copied_addr_offset =  region.elf_vaddr - fault_addr;
         file_copy_bytes = seL4_PAGE_SIZE  - vm_copied_addr_offset;
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 3 %u\n", file_copy_bytes); */
     }
-    else if (fault_addr >= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
+    else if (fault_addr >= region.elf_vaddr &&
+        fault_addr + seL4_PAGE_SIZE <= region.elf_vaddr + region.elf_size)
     {
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "case 4\n"); */
         file_copy_bytes = seL4_PAGE_SIZE;
@@ -474,13 +515,16 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         file_copy_addr = region.elf_offset + (fault_addr - region.region_vaddr -zero_gap);
 
     }
-    else if (fault_addr <= region.elf_vaddr && fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size)
+    else if (fault_addr <= region.elf_vaddr &&
+        fault_addr + seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size)
     {
         file_copy_bytes = region.elf_size;
         file_copy_addr = region.elf_offset;
         vm_copied_addr_offset = region.elf_vaddr - fault_addr;
     }
-    else if (fault_addr >= region.elf_vaddr && fault_addr <= region.elf_vaddr + region.elf_size && fault_addr +seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size )
+    else if (fault_addr >= region.elf_vaddr &&
+        fault_addr <= region.elf_vaddr + region.elf_size &&
+        fault_addr +seL4_PAGE_SIZE >= region.elf_vaddr + region.elf_size )
     {
         vm_copied_addr_offset = 0;
         file_copy_bytes = (region.elf_vaddr + region.elf_size) - fault_addr;
@@ -517,6 +561,12 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
 int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr)
 {
 
+    /* printf ("%x %x %x\n", fault_addr, region->region_vaddr, region->region_vaddr + (region->npages << 12)); */
+    if (region->region_vaddr + (region->npages << 12)  <= fault_addr || fault_addr < region->region_vaddr)
+    {
+        return EFAULT;
+
+    }
     assert(pt != NULL && region != NULL);
     assert((fault_addr &(~seL4_PAGE_MASK)) == 0);
     int ret = alloc_page(pt,
@@ -549,3 +599,65 @@ struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr)
     return NULL;
 }
 
+
+int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out)
+{
+    *brk_out = 0;
+
+    uint32_t amount =  upper_mem(brk_in);
+    printf ("heap brk in: 0x%x\n", amount);
+    if (amount >= APP_PROCESS_HEAP_END)
+    {
+        return EINVAL;
+    }
+    assert(as != NULL);
+    struct list_head *current = NULL;
+    struct list_head *tmp_head = NULL;
+    struct as_region_metadata* tmp = NULL;
+
+    list_for_each_safe(current, tmp_head, &(as->list->head))
+    {
+        tmp = list_entry(current, struct as_region_metadata, link);
+        if (tmp->type == HEAP)
+        {
+            break;
+        }
+    }
+
+    assert(tmp != NULL);
+    int heap_break = (tmp->region_vaddr + (tmp->npages << 12));
+    if (amount == 0)
+    {
+        *brk_out =  (tmp->region_vaddr + (tmp->npages << 12));// return addr after brk.
+        return 0;
+    }
+    else if (amount <= heap_break)
+    {
+        *brk_out = heap_break;
+        return 0;
+    }
+    else
+    {
+        assert(IS_PAGE_ALIGNED(amount));
+        int inc_pages =  (amount - heap_break)>> 12 ;
+        printf("heap start: 0x%x, inc: %d\n", heap_break, inc_pages);
+        tmp->npages += inc_pages;
+        *brk_out =  (tmp->region_vaddr + (tmp->npages << 12));
+        /* int ret = build_pagetable_link(as->proc->p_pagetable, heap_break, inc_pages, as_region_vmattrs(tmp), as_region_caprights(tmp)); */
+        /* if (ret != 0) */
+        /* { */
+        /*     return ret; */
+        /* } */
+        /*  */
+        /* tmp->npages += inc_pages; */
+        /* *brk_out =  (tmp->region_vaddr + (tmp->npages << 12));// return addr after brk. */
+        return 0;
+    }
+
+}
+
+void* get_ipc_buffer(struct proc* proc)
+{
+    // XXX must be 4k, otherwise it will not continuous!!!!
+    return (void*)( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER));
+}

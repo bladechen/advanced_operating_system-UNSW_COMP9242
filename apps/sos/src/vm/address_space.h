@@ -19,6 +19,7 @@ enum region_type
     STACK,
     HEAP,
     IPC,
+    IPC_SHARED_BUFFER,
     OTHER,
 };
 
@@ -77,6 +78,7 @@ int               as_define_region(struct addrspace *as,
 int               as_define_stack(struct addrspace* as, vaddr_t* stack_pointer);
 int               as_define_heap (struct addrspace* as);
 int               as_define_ipc  (struct addrspace* as);
+int               as_define_ipc_shared_buffer(struct addrspace * as);
 int               as_define_mmap (struct addrspace* as); // TODO
 
 struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr);
@@ -108,4 +110,9 @@ int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata *
 int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr);
 
 void loop_through_region(struct addrspace *as);
+
+void* get_ipc_buffer(struct proc* proc);
+
+int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out);
+
 #endif

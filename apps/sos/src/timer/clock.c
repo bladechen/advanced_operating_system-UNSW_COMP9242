@@ -258,7 +258,7 @@ typedef struct gpt {
 static gpt_t g_gpt;
 static epit_t g_epit1;
 static epit_t g_epit2;
-static volatile timestamp_t g_cur_timestamp_us = 0;
+volatile timestamp_t g_cur_timestamp_us = 0;
 
 static volatile bool g_timedriver_is_init = 0;
 

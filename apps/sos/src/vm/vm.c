@@ -13,7 +13,7 @@ void vm_shutdown(void)
 {
 
 }
-int vm_fault(vaddr_t vaddr)
+int vm_fault(struct proc* cur_proc, vaddr_t vaddr)
 {
     /*  For VM fault triggerd in CODE/DATA address space range,
      *  we try to solve it by allocate new frame, then loading contents from elf files.
@@ -21,7 +21,6 @@ int vm_fault(vaddr_t vaddr)
      *  a new frame for its usage.
      */
 
-    struct proc* cur_proc = get_current_app_proc();
     assert (cur_proc != NULL);
     if (vaddr == 0) // dereference NULL pointer
     {
@@ -35,7 +34,7 @@ int vm_fault(vaddr_t vaddr)
         ERROR_DEBUG( "can not find region via vaddr 0x%x\n", vaddr);
         return EFAULT;
     }
-    if (region->type == IPC)
+    if (region->type == IPC || region->type == IPC_SHARED_BUFFER)
     {
         ERROR_DEBUG( "ipc region should be mapped 0x%x\n", vaddr);
         assert(0); // should not happend, because we map while start proc.
