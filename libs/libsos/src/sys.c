@@ -3,6 +3,6 @@
 #include "sos.h"
 void handle_no_implemented_syscall(const char* s)
 {
-    tty_debug_print("[sosh] system call [%s] not implemented", s);
+    printf("system call not implemented\n", s);
     /* assert(0); */
 }
