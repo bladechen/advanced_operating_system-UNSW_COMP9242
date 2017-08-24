@@ -342,7 +342,7 @@ vfs_doadd(const char *dname, int mountable, struct device *dev, struct fs *fs)
 	index = 0;
 
 
-	name = strdup(dname); //FIXME, maybe we need strdup.
+	name = strdup(dname);
 	if (name==NULL) {
 		result = ENOMEM;
 		goto fail;

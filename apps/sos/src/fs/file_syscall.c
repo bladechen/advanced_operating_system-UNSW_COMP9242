@@ -13,12 +13,17 @@
 
 #define MAX_FILENAME_LENGTH 128
 
+static inline int make_positive(int v)
+{
+    return (v < 0) ? -v : v;
+}
+
 int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
 {
     int result = do_sys_open(-1, filename, flags, mode, get_current_proc()->fs_struct);
     if (result < 0)
     {
-        *fd_num = result;
+        *fd_num = make_positive(result);
         return -1;
     }
     *fd_num = result;
@@ -27,7 +32,8 @@ int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
 
 int syscall_close(int fd_num, int* retval)
 {
-    *retval = do_sys_close(fd_num);
+    *retval = make_positive(do_sys_close(fd_num));
+
     return (*retval == 0 )? 0 : -1;
 }
 int syscall_read(int fd, char* buf, size_t buflen, size_t* retval)
@@ -36,8 +42,8 @@ int syscall_read(int fd, char* buf, size_t buflen, size_t* retval)
     int result = do_sys_read(fd, buf, buflen);
     if (result < 0)
     {
-        ERROR_DEBUG ("do sys read errorn\n");
-        *retval = -result;
+        ERROR_DEBUG ("do sys read error\n");
+        *retval = make_positive(result);
         return -1;
     }
     *retval = result;
@@ -46,17 +52,17 @@ int syscall_read(int fd, char* buf, size_t buflen, size_t* retval)
 
 int syscall_write(int fd,  const char* buf, size_t nbytes, size_t* retval)
 {
-    if (nbytes == 0)
-    {
-        int result = do_sys_write(fd, NULL, 0);
-        *retval = result;
-        return (*retval == 0)? 0: -1;
-
-    }
+    /* if (nbytes == 0) */
+    /* { */
+    /*     int result = do_sys_write(fd, NULL, 0); */
+    /*     *retval = result; */
+    /*     return (*retval == 0)? 0: -1; */
+    /*  */
+    /* } */
     int result = do_sys_write(fd, buf, nbytes);
     if (result < 0)
     {
-        *retval = - result;
+        *retval = make_positive( result);
         return -1;
     }
     *retval = result;

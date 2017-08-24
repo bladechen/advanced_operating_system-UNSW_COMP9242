@@ -369,9 +369,9 @@ static int __init_fdt(struct fdtable* fdt)
         fdt->open_fds_bits[i] = 0;
         fdt->fd_array[i] = NULL;
     }
-    fdt->fd_array[0] = 0x01;
-    fdt->fd_array[1] = 0x01;
-    fdt->fd_array[2] = 0x01;
+    fdt->fd_array[0] = (void*)0x01;
+    fdt->fd_array[1] = (void*)0x01;
+    fdt->fd_array[2] = (void*)0x01;
     fdt->open_fds_bits[0] = 0x7;
     /* fdt->open_fds_bits[0] =  */
 

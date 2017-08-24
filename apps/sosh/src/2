@@ -309,8 +309,12 @@ void test_sos_sys_write()
     {
         b[i] = 'a';
     }
-	int ret = sos_sys_write(1, b, BUF_SZ);
+	int ret = sos_sys_write(100, b, BUF_SZ);
+    assert(ret < 0);
     printf ("test_sos_sys_write return %d %s\n", ret, strerror(-ret));
+	ret = sos_sys_read(100, b, BUF_SZ);
+    assert(ret < 0);
+	assert( 0!= sos_sys_close(100));
 	free(b);
 }
 
@@ -343,9 +347,9 @@ void verify_chars(char* buf, int len)
 int test_posix()
 {
     int  console_fd = sos_sys_open("console", O_RDWR);
-    assert(console_fd == 0);
+    assert(console_fd >= 0);
     assert( sos_sys_open("console", O_RDWR) < 0);
-    assert( sos_sys_open("console", O_WRONLY) == 1);
+    assert( sos_sys_open("console", O_WRONLY) == 4);
 	/* test a small string from the code segment */
 	int result = sos_sys_write(console_fd, test_str, strlen(test_str));
 	assert(result == strlen(test_str));
@@ -482,7 +486,7 @@ void test_read()
      *           the console, without newlines */
 
     tty_debug_print("[sosh] begin test read\n");
-    int result = sos_sys_read(0, &stack_buf, 5000);
+    int result = sos_sys_read(3, &stack_buf, 5000);
     assert(result == 5000);
     verify_chars(stack_buf, 5000);
     /* stack_buf[10]  = 0; */
@@ -500,7 +504,7 @@ void test_file_syscall()
 
     int result = sos_sys_write(fd , test_str, strlen(test_str));
     assert(result == strlen(test_str));
-    assert(fd == 0);
+    assert(fd == 3);
 
     /* test reading to a small buffer */
     result = sos_sys_read(fd , small_buf, SMALL_BUF_SZ);
@@ -512,6 +516,7 @@ void test_file_syscall()
     return;
 }
 int main(void) {
+    /* assert( sos_sys_open("hello", O_WRONLY) < 0); */
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;

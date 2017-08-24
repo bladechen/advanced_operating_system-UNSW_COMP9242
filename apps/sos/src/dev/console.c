@@ -73,10 +73,25 @@ static char comsume_one_char()
     return ret;
 }
 
+/* static dump_to_screen= 0; */
 static void handle_serial_input(struct  serial* handler, char in)
 {
-    printf ("handle_serial_input :%c\n", in);
-    // only one serial handler can be registered.
+    /* if (dump_to_screen == ) */
+    /* if (in == '#') */
+    /* { */
+    /*     dump_to_screen = 1; */
+    /*     printf ("handle_serial_input :"); */
+    /* } */
+    /* if (dump_to_screen == 1 && in != '\n') */
+    /* { */
+    /*     printf ("%c", in); */
+    /*     return; */
+    /* } */
+    /* if (in == '\n') */
+    /* { */
+    /*     printf ("\n"); */
+    /*     dump_to_screen = 0; */
+    /* } */
     assert(handler == _serial._serial_handler);
     if (produce_char(in))
     {

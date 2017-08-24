@@ -47,7 +47,7 @@ int sos_sys_open(const char *path, fmode_t mode)
     tty_debug_print("[app] sos_sys_open return: val %d, fd %d\n",ret.ret_val,  ret.file_id);
 
     /* assert(!"You need to implement this"); */
-    return (ret.ret_val == 0) ? ret.file_id: (ret.ret_val);
+    return (ret.ret_val == 0) ? ret.file_id: ( -ret.ret_val);
 }
 
 int sos_sys_read(int file, char *buf, size_t nbyte)
@@ -87,7 +87,13 @@ int sos_sys_read(int file, char *buf, size_t nbyte)
         }
         else
         {
-            return read_len;
+            if (read_len == 0)
+            {
+                assert(-ret.ret_val < 0);
+                return -ret.ret_val;
+            }
+            else
+                return read_len;
         }
     }
     return read_len;
@@ -113,6 +119,7 @@ int sos_sys_write(int file, const char *vData, size_t nbyte)
     }
     else
     {
+        assert(-err < 0);
         return -err;
     }
 }
@@ -253,6 +260,7 @@ int sos_write(const char *vData, size_t nbyte)
     }
     else
     {
+        assert(err > 0);
         return -err;
     }
 }

@@ -121,7 +121,7 @@ static int __init_kern_file(struct file** retval, struct vnode* v, struct fs* f,
 }
 static int __do_stdio_open(struct file** f, int fd)
 {
-    char con[10] = "console";
+    char con[10] = "console:";
     struct file* tmp;
     *f = NULL;
     int flags = (fd == 0? O_RDONLY: O_WRONLY);

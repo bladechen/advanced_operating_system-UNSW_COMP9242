@@ -184,7 +184,9 @@ static void init_context(struct coroutine* coro)
 #endif
     if (setjmp(coro->_ctx._jmp) != 0)
     {
+#ifdef DEBUG_CORO
         COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "starting %p\n", current_running_coro());
+#endif
 
         zero_context(&(current_running_coro()->_ctx));
         /* COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN,"starting %p, %p\n", current_running_coro(), coro); */

@@ -24,6 +24,7 @@
 // used to replace the long switch case in `handle_syscall`
 #define NUMBER_OF_SYSCALL   100
 
+// .will_block is not used actually
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_print_to_console, .will_block=false},
     {.syscall=&sos_syscall_read, .will_block=true},
@@ -49,15 +50,15 @@ void sos_syscall_read(void* argv)
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read, from pid: %d\n", proc->p_pid);
     /* COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE); */
-    ERROR_DEBUG("* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
     size_t read_len = 0;
     assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
     int ret = syscall_read(msg->file_id, (char*)get_ipc_buffer(proc), msg->offset, &read_len);
     struct ipc_buffer_ctrl_msg ctrl;
     if (ret == 0 )
     {
-        ctrl.ret_val = 0;
         ctrl.offset = read_len;
+        ctrl.ret_val = 0;
     }
     else
     {
@@ -137,9 +138,14 @@ void sos_syscall_print_to_console(void * argv)
 
     // bypass fs/vfs check, because it may not open "console:""
     int ret = serial_send(_serial._serial_handler, (char *)start_sos_addr, offset);
+    /* if (offset < APP_PROCESS_IPC_SHARED_BUFFER_SIZE) */
+    /*     ((char*)(start_sos_addr))[offset] = 0; */
+    /* else */
+    /*     ((char*)(start_sos_addr))[offset - 1]  = 0; */
 
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_YELLOW,
-        "[sos] serial send len: %d \n",ret);
+        "[sos] serial send len: %d\n",ret);
+    assert(ret > 0);
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.ret_val = 0;
     ctrl.offset = ret;
@@ -216,7 +222,7 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
     memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
 
     syscall_number = ctrl_msg->syscall_number;
-    dprintf(0, "syscall_number: %d, offset: %d, start_addr: 0x%x\n",
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "syscall_number: %d, offset: %d, start_addr: 0x%x\n",
         syscall_number, ctrl_msg->offset, ctrl_msg->start_app_buffer_addr);
 
     assert(coro_status(app_process->p_coro) == COROUTINE_INIT);
@@ -236,12 +242,6 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
 
     /* Invoke corresponding syscall */
     restart_coro(app_process->p_coro, syscall_func_arr[syscall_number].syscall, app_process);
-    /* (*syscall_func_arr[syscall_number].syscall)(app_process); */
-
-    // If the syscall won't block we will process the reply_cap revoke here
-    /* if (syscall_func_arr[syscall_number].will_block == false) { */
-    /*     #<{(| destroy_reply_cap(&(app_process->p_reply_cap)); |)}># */
-    /* } */
 
 }
 

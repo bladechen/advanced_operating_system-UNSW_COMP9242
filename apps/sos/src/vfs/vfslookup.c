@@ -117,7 +117,7 @@ static
 int
 getdevice(char *path, char **subpath, struct vnode **startvn)
 {
-    // FIXME
+    // FIXME if provide open ('hello') it will vnode_check: vop_lookup: null vnode
 	int slash=-1, colon=-1, i;
 	struct vnode *vn;
 	int result;

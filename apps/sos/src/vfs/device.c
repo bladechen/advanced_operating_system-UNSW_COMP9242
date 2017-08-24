@@ -278,6 +278,7 @@ dev_lookup(struct vnode *dir,
 	 * Anything else is an error.
 	 * Increment the ref count of the vnode before returning it.
 	 */
+    printf ("in dev_lookup\n");
 	if (strlen(pathname)>0) {
 		return ENOENT;
 	}
@@ -335,6 +336,7 @@ dev_create_vnode(struct device *dev)
 	if (result != 0) {
 		ERROR_DEBUG("While creating vnode for device: vnode_init: %d\n",
 		      (result));
+        assert (0);
 	}
 
 	return v;
