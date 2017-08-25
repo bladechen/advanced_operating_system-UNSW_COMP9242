@@ -450,6 +450,11 @@ static inline seL4_CPtr badge_irq_ep(seL4_CPtr ep, seL4_Word badge) {
 /*
  * Main entry point - called by crt.
  */
+static void my_cb (struct serial * serial, char c)
+{
+    printf ("%c", c);
+}
+#include "assert.h"
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -465,6 +470,7 @@ int main(void) {
 
     serial_handler = serial_init();
 
+    assert(0 == serial_register_handler(serial_handler, my_cb));
     /* Start the user application */
     start_first_process(TTY_NAME, _sos_ipc_ep_cap);
 
