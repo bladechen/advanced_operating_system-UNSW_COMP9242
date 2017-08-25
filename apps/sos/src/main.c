@@ -325,6 +325,15 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
  */
 extern struct serial_console _serial;
 /* static char buf[6000] = {0}; */
+#ifndef SOS_NFS_DIR
+#  ifdef CONFIG_SOS_NFS_DIR
+#    define SOS_NFS_DIR CONFIG_SOS_NFS_DIR
+#  else
+#    define SOS_NFS_DIR ""
+#  endif
+#endif
+
+
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -369,7 +378,7 @@ int main(void) {
 
 
 
-    nfs_test(&mnt_point);
+    nfs_test(SOS_NFS_DIR);
 
     /* jmp_buf h; */
     /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
