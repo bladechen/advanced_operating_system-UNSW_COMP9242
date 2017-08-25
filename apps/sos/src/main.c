@@ -366,6 +366,11 @@ int main(void) {
     dprintf(0, "\nSOS entering syscall loop\n");
     dprintf(0, "\nsizeof void* %d\n", sizeof(void*));
     dprintf(0, "coro proc: %p\n", test_process->p_coro);
+
+
+
+    nfs_test(&mnt_point);
+
     /* jmp_buf h; */
     /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
     // init_test_coro();

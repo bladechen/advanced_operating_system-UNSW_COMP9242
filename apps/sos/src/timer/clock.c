@@ -2,6 +2,7 @@
 #include "timerlist.h"
 #include "mapping.h"
 #include <clock/clock.h>
+#include <nfs/nfs.h>
 
 #define verbose 5
 #include <sys/debug.h>
@@ -557,6 +558,9 @@ void handle_gpt_irq(void)
 {
 
     _update_timestamp();
+
+    nfs_timeout();
+
     /* color_print(ANSI_COLOR_GREEN, "in handle_gpt_irq: %llu\n", time_stamp()); */
     timer_interrupt();
 
