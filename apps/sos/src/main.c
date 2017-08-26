@@ -51,6 +51,13 @@
 uint32_t dbflags = 0xFFFFFFFF;
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
+#define NOBODY    65534
+#define NOGROUP   65534
+#define ERTOS_SRC  1105
+
+#define ACC_MODE   0100764
+#define USER       NOBODY
+#define GROUP      NOGROUP
 extern int test_coro();
 
 /* This is the index where a clients syscall enpoint will
@@ -132,9 +139,9 @@ void syscall_loop(seL4_CPtr ep)
         {
             /* Page fault */
             COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm fault at 0x%08x, pc = 0x%08x, %s\n",
-                    seL4_GetMR(1),
-                    seL4_GetMR(0),
-                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+                        seL4_GetMR(1),
+                        seL4_GetMR(0),
+                        seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
             if (seL4_GetMR(3) == 2063)
             {
                 // write to readonly page, simply kill the proc
@@ -202,11 +209,11 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"Type              Start      End\n");
     dprintf(1,"Empty             0x%08x 0x%08x\n", info->empty.start, info->empty.end);
     dprintf(1,"Shared frames     0x%08x 0x%08x\n", info->sharedFrames.start,
-                                                   info->sharedFrames.end);
+            info->sharedFrames.end);
     dprintf(1,"User image frames 0x%08x 0x%08x\n", info->userImageFrames.start,
-                                                   info->userImageFrames.end);
+            info->userImageFrames.end);
     dprintf(1,"User image PTs    0x%08x 0x%08x\n", info->userImagePTs.start,
-                                                   info->userImagePTs.end);
+            info->userImagePTs.end);
     dprintf(1,"Untypeds          0x%08x 0x%08x\n", info->untyped.start, info->untyped.end);
 
     /* Untyped details */
@@ -214,8 +221,8 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"Untyped Slot       Paddr      Bits\n");
     for (i = 0; i < info->untyped.end-info->untyped.start; i++) {
         dprintf(1,"%3d     0x%08x 0x%08x %d\n", i, info->untyped.start + i,
-                                                   info->untypedPaddrList[i],
-                                                   info->untypedSizeBitsList[i]);
+                info->untypedPaddrList[i],
+                info->untypedSizeBitsList[i]);
     }
 
     /* Device untyped details */
@@ -223,8 +230,8 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"Untyped Slot       Paddr      Bits\n");
     for (i = 0; i < info->deviceUntyped.end-info->deviceUntyped.start; i++) {
         dprintf(1,"%3d     0x%08x 0x%08x %d\n", i, info->deviceUntyped.start + i,
-                                                   info->untypedPaddrList[i + (info->untyped.end - info->untyped.start)],
-                                                   info->untypedSizeBitsList[i + (info->untyped.end-info->untyped.start)]);
+                info->untypedPaddrList[i + (info->untyped.end - info->untyped.start)],
+                info->untypedSizeBitsList[i + (info->untyped.end-info->untyped.start)]);
     }
 
     dprintf(1,"-----------------------------------------\n\n");
@@ -333,6 +340,42 @@ extern struct serial_console _serial;
 #  endif
 #endif
 
+struct my_create_arg {
+    int v;
+    fhandle_t *fh;
+    enum nfs_stat stat;
+    fattr_t *fattr;
+};
+
+static void
+my_create_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr){
+    struct my_create_arg *arg = (struct my_create_arg*)token;
+    (void)fh;
+    printf ("my_create_cb\n");
+    arg->stat = stat;
+    if(arg->fattr){
+        memcpy(arg->fattr, fattr, sizeof(*fattr));
+    }
+    if(arg->fh){
+        memcpy(arg->fh, fh, sizeof(*fh));
+    }
+    arg->v = 1;
+}
+
+static enum nfs_stat
+my_create(fhandle_t *pfh, char* name, sattr_t* sattr, fattr_t* fattr,
+          fhandle_t *fh){
+    struct my_create_arg arg;
+    arg.v = 0;
+    arg.stat = NFS_OK;
+    arg.fattr = fattr;
+    arg.fh = fh;
+    assert(!nfs_create(pfh, name, sattr, &my_create_cb, (uintptr_t)&arg));
+    /* wait(&arg.v); */
+    return arg.stat;
+}
+
+extern fhandle_t mnt_point;
 
 int main(void) {
 
@@ -378,7 +421,7 @@ int main(void) {
 
 
 
-    nfs_test(SOS_NFS_DIR);
+    /* nfs_test(SOS_NFS_DIR); */
 
     /* jmp_buf h; */
     /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
@@ -386,6 +429,26 @@ int main(void) {
     /* test_process->p_reply_cap = 0; */
     /* sos_syscall_sleep(test_process); */
     /* serial_send(_serial._serial_handler, buf, 6000); */
+    sattr_t sattr;
+    fhandle_t fh;
+    char* data;
+    int i;
+    int err = 0;
+    int heap_err;
+    /* PRINT_WELCOME(); */
+    /* heap_test_start(); */
+
+    /* create some files file */
+    sattr.mode = ACC_MODE;
+    sattr.uid = USER;
+    sattr.gid = GROUP;
+    sattr.size = 0;
+    sattr.atime.seconds = 12345000;
+    sattr.atime.useconds = 6665000;
+    sattr.mtime.seconds = 6780000;
+    sattr.mtime.seconds = 44430000;
+    assert(my_create(&mnt_point, "hello", &sattr, NULL, &fh) == NFS_OK);
+
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

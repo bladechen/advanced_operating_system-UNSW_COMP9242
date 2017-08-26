@@ -65,7 +65,7 @@ static struct net_irq {
 
 static seL4_CPtr _irq_ep;
 
-fhandle_t mnt_point = { { 0 } };
+extern fhandle_t mnt_point = { { 0 } };
 
 lwip_iface_t *lwip_iface;
 
