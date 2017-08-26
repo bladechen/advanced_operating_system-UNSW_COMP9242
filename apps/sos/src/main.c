@@ -151,6 +151,7 @@ void syscall_loop(seL4_CPtr ep)
                 /* ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1)); */
                 continue;
             }
+			printf("begin cspace_save_reply_cap\n");
             seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
             assert(reply_cap != CSPACE_NULL);
 
@@ -352,6 +353,11 @@ my_create_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr)
     struct my_create_arg *arg = (struct my_create_arg*)token;
     (void)fh;
     printf ("my_create_cb\n");
+	for (int i = 0; i < 32; i ++)
+	{
+		printf ("%02x", fh->data[i]);
+	}
+	printf ("\n");
     arg->stat = stat;
     if(arg->fattr){
         memcpy(arg->fattr, fattr, sizeof(*fattr));
@@ -360,19 +366,20 @@ my_create_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr)
         memcpy(arg->fh, fh, sizeof(*fh));
     }
     arg->v = 1;
+	printf("stat: %dout\n", arg->stat);
 }
 
 static enum nfs_stat
 my_create(fhandle_t *pfh, char* name, sattr_t* sattr, fattr_t* fattr,
           fhandle_t *fh){
-    struct my_create_arg arg;
-    arg.v = 0;
-    arg.stat = NFS_OK;
-    arg.fattr = fattr;
-    arg.fh = fh;
-    assert(!nfs_create(pfh, name, sattr, &my_create_cb, (uintptr_t)&arg));
+    struct my_create_arg *arg = malloc(sizeof(struct my_create_arg));
+    arg->v = 0;
+    arg->stat = NFS_OK;
+    arg->fattr = fattr;
+    arg->fh = fh;
+    assert(!nfs_create(pfh, name, sattr, &my_create_cb, (uintptr_t)arg));
     /* wait(&arg.v); */
-    return arg.stat;
+    return arg->stat;
 }
 
 extern fhandle_t mnt_point;
@@ -442,12 +449,14 @@ int main(void) {
     sattr.mode = ACC_MODE;
     sattr.uid = USER;
     sattr.gid = GROUP;
-    sattr.size = 0;
+    sattr.size = -1;
     sattr.atime.seconds = 12345000;
     sattr.atime.useconds = 6665000;
     sattr.mtime.seconds = 6780000;
     sattr.mtime.seconds = 44430000;
     assert(my_create(&mnt_point, "hello", &sattr, NULL, &fh) == NFS_OK);
+    assert(my_create(&mnt_point, "hello", &sattr, NULL, &fh) == NFS_OK);
+
 
     syscall_loop(_sos_ipc_ep_cap);
 

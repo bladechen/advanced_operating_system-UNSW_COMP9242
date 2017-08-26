@@ -232,6 +232,11 @@ my_lookup_cb(uintptr_t token, enum nfs_stat status, fhandle_t* fh,
     if(arg->fh != NULL){
         memcpy(arg->fh, fh, sizeof(*fh));
     }
+    for (int i = 0; i < 32; i ++)
+    {
+        printf ("%02x", fh->data[i]);
+    }
+    printf ("\n");
     arg->stat = status;
     arg->v = 1;
 }
@@ -243,6 +248,7 @@ my_lookup(fhandle_t *mnt, char* name, fhandle_t *fh, fattr_t *fattr){
     arg.fattr = fattr;
     arg.fh = fh;
     arg.stat = 0;
+    printf ("nam:%s\n", name);
     assert(!nfs_lookup(mnt, name, &my_lookup_cb, (uintptr_t)&arg));
     wait(&arg.v);
     return arg.stat;
@@ -302,6 +308,7 @@ my_remove(fhandle_t *mnt, char* name){
     struct my_remove_arg arg;
     arg.v = 0;
     arg.stat = NFS_OK;
+    printf ("remove name; %s\n", name);
     assert(!nfs_remove(mnt, name, &my_remove_cb, (uintptr_t)&arg));
     wait(&arg.v);
     return arg.stat;
@@ -690,6 +697,7 @@ test_file_creation(struct fhandle *mnt)
         assert(0);
         err++;
     }
+
     if(my_readdir(mnt, &nfiles, NULL) != NFS_OK){
         printf("readdir failed\n");
         err++;
@@ -739,6 +747,7 @@ test_file_creation(struct fhandle *mnt)
         printf("lookup could not file the new file\n");
         err++;
     }
+
 #if 0
  /* This will return NFS_OK. I presume that this test is only valid if we do
   * not have permission to write to the existing file.
@@ -933,6 +942,10 @@ nfs_test(char *mnt)
     /*     return -1; */
     /* } */
     /* Check file creation removal and attributes */
+    if(my_lookup(mnt_handle, FILE1, NULL, NULL) != NFS_OK){
+        printf("lookup could not file the new file\n");
+        err++;
+    }
     RUN(err += test_file_creation(mnt_handle));
     /* Check various file name length and combos */
     RUN(err += test_file_names(mnt_handle));

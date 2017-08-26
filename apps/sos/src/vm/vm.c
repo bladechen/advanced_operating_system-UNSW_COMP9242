@@ -21,6 +21,7 @@ int vm_fault(struct proc* cur_proc, vaddr_t vaddr)
      *  a new frame for its usage.
      */
 
+    printf ("begin handle vm_fault\n");
     assert (cur_proc != NULL);
     if (vaddr == 0) // dereference NULL pointer
     {
@@ -59,5 +60,6 @@ int vm_fault(struct proc* cur_proc, vaddr_t vaddr)
             return ret;
         }
     }
+    printf ("end handle vm_fault\n");
     return 0;
 }

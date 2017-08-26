@@ -640,7 +640,7 @@ int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out)
     {
         assert(IS_PAGE_ALIGNED(amount));
         int inc_pages =  (amount - heap_break)>> 12 ;
-        printf("heap start: 0x%x, inc: %d\n", heap_break, inc_pages);
+        /* printf("heap start: 0x%x, inc: %d\n", heap_break, inc_pages); */
         tmp->npages += inc_pages;
         *brk_out =  (tmp->region_vaddr + (tmp->npages << 12));
         /* int ret = build_pagetable_link(as->proc->p_pagetable, heap_break, inc_pages, as_region_vmattrs(tmp), as_region_caprights(tmp)); */
