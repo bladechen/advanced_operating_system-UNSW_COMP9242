@@ -81,6 +81,13 @@ void sos_syscall_open(void* argv)
         file_name[proc->p_ipc_ctrl.offset ] = ':';
         file_name[1 + proc->p_ipc_ctrl.offset] = 0;
     }
+    else
+    {
+        memcpy(file_name, "nfs:", 4);
+        memcpy(file_name + 4, get_ipc_buffer(proc), proc->p_ipc_ctrl.offset );
+        file_name[4 + proc->p_ipc_ctrl.offset] = 0;
+    }
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_open: [%s]\n", file_name);
 
     int fd = 0;
     int ret = syscall_open(file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode, &fd);

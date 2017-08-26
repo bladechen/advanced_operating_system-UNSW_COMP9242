@@ -282,6 +282,12 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
 
+    assert( open("hello_world", O_RDONLY ) < 0);
+    in = open("hello_world", O_RDONLY | O_CREAT  );
+    assert( open("hello_world", O_RDONLY ) > 0);
+    close(in);
+    close(in + 1);
+    while (1){}
     in = open("console", O_RDONLY);
     assert(in >= 0);
 

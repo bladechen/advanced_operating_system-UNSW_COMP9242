@@ -67,6 +67,8 @@ int timer_interrupt(void);
  */
 timestamp_t time_stamp(void);
 
+timestamp_t unix_time_stamp(void);
+
 /*
  * Stop clock driver operation.
  *

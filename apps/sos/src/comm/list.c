@@ -63,6 +63,9 @@ bool is_linked(struct list_head* link)
 
 void list_del(struct list_head *entry)
 {
+    if (entry->next ==  NULL && entry->prev == NULL)
+        return;
+
     list_del_init(entry);
 }
 struct list_head* list_front(struct list* l)

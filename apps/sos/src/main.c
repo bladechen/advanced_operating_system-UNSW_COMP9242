@@ -39,6 +39,7 @@
 
 #include "unittest/test.h"
 #include "dev/console.h"
+#include "dev/nfs.h"
 
 #include "vm/frametable.h"
 #include "vm/address_space.h"
@@ -323,8 +324,7 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
 /*
  * Main entry point - called by crt.
  */
-extern struct serial_console _serial;
-/* static char buf[6000] = {0}; */
+extern struct fhandle mnt_point;
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -351,6 +351,7 @@ int main(void) {
     vfs_bootstrap();
     init_kern_file_table();
     init_console();
+    init_nfs(&mnt_point);
     /* init_test_coro(); */
 
     /* Start the user application */
@@ -372,6 +373,8 @@ int main(void) {
     /* test_process->p_reply_cap = 0; */
     /* sos_syscall_sleep(test_process); */
     /* serial_send(_serial._serial_handler, buf, 6000); */
+
+
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

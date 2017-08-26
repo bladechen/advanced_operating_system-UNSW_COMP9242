@@ -2,11 +2,15 @@
 #include "timerlist.h"
 #include "mapping.h"
 #include <clock/clock.h>
+#include "nfs/nfs.h"
+#include "nfs/time.h"
 
 #define verbose 5
 #include <sys/debug.h>
 
 static struct TimerUnit* g_timer = NULL;
+
+static uint32_t _unix_timestamp = 0;
 
 
 // XXX why 65MHZ works?
@@ -426,6 +430,20 @@ int start_timer(seL4_CPtr interrupt_ep)
         _init_timedriver(interrupt_ep);
         g_timedriver_is_init = 1;
     }
+    struct ip_addr host;
+
+    assert(ipaddr_aton(CONFIG_SOS_GATEWAY, &host));
+    int try = 5;
+    while (try --)
+    {
+         _unix_timestamp = udp_time_get(&host);
+         if (_unix_timestamp != 0)
+         {
+             break;
+         }
+    }
+    _unix_timestamp -= 2208988800U;
+    COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_RED, "boot unix time [%u]\n", _unix_timestamp);
 
     g_timer = init_timer_unit(MAX_REGISTERED_TIMER_CLOCK);
     if (g_timer == NULL)
@@ -506,6 +524,11 @@ timestamp_t time_stamp(void)
 {
     /* update_timestamp(); */
     return g_cur_timestamp_us/1000;
+}
+
+timestamp_t unix_time_stamp(void)
+{
+    return time_stamp() / 1000 + _unix_timestamp;
 }
 
 // this is for timerlist.c api
