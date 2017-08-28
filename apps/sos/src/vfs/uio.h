@@ -139,4 +139,6 @@ void uio_kinit(struct iovec * io, struct uio *uio,
 	       void *kbuf, size_t len, off_t pos, enum uio_rw rw);
 
 
+// int uio_ptr(struct uio *uio);
+// int uio_ptr_size(struct uio *uio);
 #endif /* _UIO_H_ */

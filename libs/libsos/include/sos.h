@@ -35,6 +35,8 @@
 #define SOS_SYSCALL_TIME_STAMP          (5)
 #define SOS_SYSCALL_BRK                 (6)
 #define SOS_SYSCALL_CLOSE               (7)
+#define SOS_SYSCALL_STAT                (8)
+#define SOS_SYSCALL_GET_DIRENT          (9)
 
 
 /* Endpoint for talking to SOS */
@@ -101,8 +103,8 @@ typedef struct {
   st_type_t st_type;    /* file type */
   fmode_t   st_fmode;   /* access mode */
   unsigned  st_size;    /* file size in bytes */
-  long      st_ctime;   /* Unix file creation time (ms) */
-  long      st_atime;   /* Unix file last access (open) time (ms) */
+  long long      st_ctime;   /* Unix file creation time (ms) */
+  long long      st_atime;   /* Unix file last access (open) time (ms) */
 } sos_stat_t;
 
 typedef int pid_t;

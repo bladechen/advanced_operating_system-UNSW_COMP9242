@@ -154,51 +154,51 @@ static int con_io(struct device* dev, struct uio* uio)
 {
     assert((struct serial_console*)(dev->d_data) == &_serial);
 
-	int result;
-	char ch;
+    int result;
+    char ch;
 
-	(void)dev;  // unused
+    (void)dev;  // unused
 
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "start con_io[%d], res len: %d\n", uio->uio_rw, uio->uio_resid);
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "* current console read available chars: [%u]\n", _serial._read_buf_size);
 
-	while (uio->uio_resid > 0)
+    while (uio->uio_resid > 0)
     {
-		if (uio->uio_rw==UIO_READ)
+        if (uio->uio_rw==UIO_READ)
         {
-			ch = comsume_one_char();
-			if (ch=='\r')
+            ch = comsume_one_char();
+            if (ch=='\r')
             {
-				ch = '\n';
-			}
-			result = uiomove(&ch, 1, uio);
-			if (result) {
-				return result;
-			}
-			if (ch=='\n') {
-				break;
-			}
-		}
-		else
+                ch = '\n';
+            }
+            result = uiomove(&ch, 1, uio);
+            if (result) {
+                return result;
+            }
+            if (ch=='\n') {
+                break;
+            }
+        }
+        else
         {
             assert(uio->uio_resid <= MAXIMUM_SERIAL_WRITE_BUFFER);
             int sent_len = uio->uio_resid;
-			result = uiomove(_serial._write_buffer, MAXIMUM_SERIAL_WRITE_BUFFER, uio);
-			if (result)
+            result = uiomove(_serial._write_buffer, MAXIMUM_SERIAL_WRITE_BUFFER, uio);
+            if (result)
             {
                 ERROR_DEBUG("uiomove error: %d\n", result);
-				return result;
-			}
+                return result;
+            }
 
             int ret = do_serial_send(_serial._write_buffer, sent_len);
 
             COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "sos serial_send len [%u]\n", sent_len);
 
             assert(ret == sent_len);
-		}
-	}
+        }
+    }
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "* after con io, remaining read chars [%u]\n", _serial._read_buf_size);
-	return 0;
+    return 0;
 
 }
 
@@ -233,14 +233,14 @@ static const struct device_ops console_devops =
 
 static void attach_console_to_vfs()
 {
-     struct device *dev = malloc(sizeof(struct device));
-     console_dev = dev;
-     assert(dev != NULL);
-     dev->d_ops = &console_devops;
-     dev->d_blocks = 0;
-     dev->d_blocksize = 1;
-     dev->d_data = &_serial;
-     assert(0 == vfs_adddev("console", dev, 0));
+    struct device *dev = malloc(sizeof(struct device));
+    console_dev = dev;
+    assert(dev != NULL);
+    dev->d_ops = &console_devops;
+    dev->d_blocks = 0;
+    dev->d_blocksize = 1;
+    dev->d_data = &_serial;
+    assert(0 == vfs_adddev("console", dev, 0));
 }
 
 void init_console(void)

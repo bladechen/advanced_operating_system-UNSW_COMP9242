@@ -195,6 +195,7 @@ struct vnode_ops {
 	int (*vop_truncate)(struct vnode *file, off_t len);
 	int (*vop_namefile)(struct vnode *file, struct uio *uio);
 
+	int (*vop_stat_file)(struct vnode *object, char* path, struct stat *statbuf);
 
 	int (*vop_creat)(struct vnode *dir,
 			 const char *name, bool excl, mode_t mode,
@@ -238,6 +239,7 @@ struct vnode_ops {
 #define VOP_MMAP(vn /*add stuff */)     (__VOP(vn, mmap)(vn /*add stuff */))
 #define VOP_TRUNCATE(vn, pos)           (__VOP(vn, truncate)(vn, pos))
 #define VOP_NAMEFILE(vn, uio)           (__VOP(vn, namefile)(vn, uio))
+#define VOP_STAT_FILE(vn, path, ptr) 	        (__VOP(vn, stat_file)(vn, path, ptr))
 
 #define VOP_CREAT(vn,nm,excl,mode,res)  (__VOP(vn, creat)(vn,nm,excl,mode,res))
 #define VOP_SYMLINK(vn, name, content)  (__VOP(vn, symlink)(vn, name, content))

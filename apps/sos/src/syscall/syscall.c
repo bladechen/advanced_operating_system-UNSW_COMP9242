@@ -1,3 +1,4 @@
+// FIXME if syscall argv is invalid, simply return error without doing any syscall
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -33,7 +34,9 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_usleep, .will_block=true},
     {.syscall=&sos_syscall_time_stamp, .will_block=false},
     {.syscall=&sos_syscall_brk, .will_block=false},
-    {.syscall=&sos_syscall_close, .will_block=false}};
+    {.syscall=&sos_syscall_close, .will_block=false},
+    {.syscall=&sos_syscall_stat, .will_block=false},
+    {.syscall=&sos_syscall_get_dirent, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -42,6 +45,34 @@ extern struct serial_console _serial;
 /*
 *   In M4, assume read from/write to console device
 */
+
+bool path_transfer(char* in, size_t off)
+{
+    //FIXME
+
+    static char file_name [4096];
+    assert(off <= APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    memcpy(file_name, in, off);
+    file_name[off] = 0;
+    int out_len = 0;
+    printf ("%u %s\n", off, in);
+    if (strcmp(file_name, "console") == 0)
+    {
+        file_name[off] = ':';
+        out_len = off + 1;
+    }
+    else
+    {
+        memcpy(file_name, "nfs:", 4);
+        memcpy(file_name + 4, in ,  off );
+        out_len = off + 4;
+    }
+    file_name[out_len] = 0;
+    out_len += 1;
+    memcpy(in, file_name, out_len);
+    return true;
+
+}
 
 void sos_syscall_read(void* argv)
 {
@@ -73,26 +104,17 @@ void sos_syscall_open(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
-    static char file_name [1000];
-    memcpy(file_name, get_ipc_buffer(proc), proc->p_ipc_ctrl.offset);
-    file_name[proc->p_ipc_ctrl.offset] = 0;
-    if (strcmp(file_name, "console") == 0)
-    {
-        file_name[proc->p_ipc_ctrl.offset ] = ':';
-        file_name[1 + proc->p_ipc_ctrl.offset] = 0;
-    }
-    else
-    {
-        memcpy(file_name, "nfs:", 4);
-        memcpy(file_name + 4, get_ipc_buffer(proc), proc->p_ipc_ctrl.offset );
-        file_name[4 + proc->p_ipc_ctrl.offset] = 0;
-    }
+
+
+    char* file_name = (get_ipc_buffer(proc));
+    path_transfer(file_name, proc->p_ipc_ctrl.offset);
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_open: [%s]\n", file_name);
 
     int fd = 0;
     int ret = syscall_open(file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode, &fd);
+    printf ("syscall_open finish\n");
     struct ipc_buffer_ctrl_msg ctrl;
-        ctrl.offset = 0;
+    ctrl.offset = 0;
     if (ret == 0 )
     {
         ctrl.ret_val = 0;
@@ -181,6 +203,7 @@ void sos_syscall_write(void* argv)
         ctrl.ret_val = write_len;
         ctrl.offset = 0;
     }
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_write, return: %d, offset: %d\n",  ctrl.ret_val,  ctrl.offset);
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -192,6 +215,33 @@ void sos_syscall_usleep(void * argv)
     int msecond = *((int*)(get_ipc_buffer(proc)));
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", proc->p_pid, msecond);
     handle_block_sleep((void*)(msecond));
+}
+
+void sos_syscall_stat(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+    // FIXME
+    char* file_name = (get_ipc_buffer(proc));
+    path_transfer(file_name, proc->p_ipc_ctrl.offset);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_stat: [%s]\n", file_name);
+
+    struct stat buf;
+    int ret = syscall_stat(file_name, &buf);
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.ret_val = ret;
+    if (ctrl.ret_val == 0)
+    {
+        ctrl.offset = sizeof (sos_stat_t);
+        sos_stat_t* sos_stat = ( sos_stat_t* )( get_ipc_buffer(proc));
+        sos_stat->st_type =  buf.st_type;
+        sos_stat->st_fmode = buf.st_mode;
+        sos_stat->st_size = buf.st_size;
+        sos_stat->st_ctime = (long long)(buf.st_ctime) + buf.st_ctimensec;
+        sos_stat->st_atime = (long long)(buf.st_atime) + buf.st_atimensec;
+    }
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_stat, return: %d\n",  ctrl.ret_val);
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
 void sos_syscall_brk(void* argv)
@@ -218,6 +268,11 @@ void sos_syscall_brk(void* argv)
     }
 
     ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
+void sos_syscall_get_dirent(void* argv)
+{
+
 }
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)

@@ -282,9 +282,18 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
 
-    assert( open("hello_world", O_RDONLY ) < 0);
-    in = open("hello_world", O_RDONLY | O_CREAT  );
+    sos_stat_t stat;
+    assert(0 == sos_stat("hello_world", &stat));
+    tty_debug_print("%u %u %u %llu %llu\n", stat.st_size, stat.st_fmode, stat.st_type, stat.st_ctime, stat.st_atime);
+    /* assert( open("hello_world", O_RDONLY ) < 0); */
+    in = open("hello_world",  O_RDWR| O_CREAT  );
     assert( open("hello_world", O_RDONLY ) > 0);
+    int ret = read(in, buf, BUF_SIZ - 1);
+    assert(ret == BUF_SIZ - 1);
+    buf[ret] = 0;
+    tty_debug_print("sosh read len %d\n",  ret);
+    ret = write(in, buf, BUF_SIZ - 1);
+    assert(ret == BUF_SIZ - 1);
     close(in);
     close(in + 1);
     while (1){}

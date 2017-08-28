@@ -68,20 +68,10 @@ int syscall_write(int fd,  const char* buf, size_t nbytes, size_t* retval)
     *retval = result;
     return 0;
 }
-/* int syscall_lseek(int fd, off_t pos, int whence, off_t* retval) */
-/* { */
-/*     *retval = 0; */
-/*     off_t r = do_sys_lseek(fd, pos, whence); */
-/*     if (r < 0) */
-/*     { */
-/*         *retval = -r; */
-/*         return -1; */
-/*     } */
-/*     KASSERT(r >= 0); */
-/*     *retval = r; */
-/*     return 0; */
-/*  */
-/* } */
+int syscall_stat(char* path, struct stat *stat_buf)
+{
+    return kern_file_stat(path, stat_buf);
+}
 /* int syscall_dup2(int oldfd, int newfd, int* retval) */
 /* { */
 /*     *retval  = do_sys_dup2(oldfd, newfd); */

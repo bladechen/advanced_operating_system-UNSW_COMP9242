@@ -143,6 +143,7 @@ getdevice(char *path, char **subpath, struct vnode **startvn)
 			break;
 		}
 	}
+    /* printf ("%d %d\n", slash, colon); */
 
 	if (colon < 0 && slash != 0) {
 		/*
@@ -278,3 +279,37 @@ vfs_lookup(char *path, struct vnode **retval)
 	VOP_DECREF(startvn);
 	return result;
 }
+
+
+// support vfs looking up stat only with pathname other than vnode.
+int vfs_stat_file(char* path, struct stat* stat_buf)
+{
+    struct vnode *startvn;
+    int result;
+
+
+    printf ("vfs_stat_file: %s\n", path);
+	result = getdevice(path, &path, &startvn);
+    printf ("path: %s, ret: %d\n", path, result);
+	if (result) {
+		return result;
+	}
+
+
+	if (strlen(path)==0) {
+		/*
+		 * It does not make sense to use just a device name in
+		 * a context where "lookparent" is the desired
+		 * operation.
+		 */
+		result = EINVAL;
+	}
+	else {
+		result = VOP_STAT_FILE(startvn, path, stat_buf);
+	}
+
+	VOP_DECREF(startvn);
+
+	return result;
+}
+

@@ -46,6 +46,7 @@ struct uio;    /* kernel or userspace I/O buffer (uio.h) */
 struct device; /* abstract structure for a device (dev.h) */
 struct fs;     /* abstract structure for a filesystem (fs.h) */
 struct vnode;  /* abstract structure for an on-disk file (vnode.h) */
+struct stat;
 
 /*
  * VFS layer low-level operations.
@@ -114,6 +115,8 @@ int vfs_rename(char *oldpath, char *newpath);
 
 int vfs_chdir(char *path);
 int vfs_getcwd(struct uio *buf);
+
+int vfs_stat_file(char* path, struct stat* stat_buf);
 
 /*
  * Misc

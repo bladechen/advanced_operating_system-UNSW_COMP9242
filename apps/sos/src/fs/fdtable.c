@@ -442,3 +442,11 @@ void destroy_fd_table(struct proc* proc)
     free(proc->fs_struct);
     return;
 }
+
+
+
+
+/* int do_sys_stat(const char* path, struct stat *stat_buf) */
+/* { */
+/*     return 0; */
+/* } */

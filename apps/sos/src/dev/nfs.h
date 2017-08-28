@@ -16,6 +16,8 @@ struct nfs_cb_arg
     enum nfs_stat stat;
     struct semaphore* sem;
     fattr_t attr;
+
+    struct uio* uio;
 };
 
 struct nfs_vnode

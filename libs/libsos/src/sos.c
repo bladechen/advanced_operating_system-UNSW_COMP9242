@@ -175,8 +175,23 @@ int sos_sys_close(int file)
 
 int sos_stat(const char *path, sos_stat_t *buf)
 {
-    handle_no_implemented_syscall("sos_stat");
-    return 0;
+    tty_debug_print("[app] sos_stat: %s\n", path);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_STAT;
+
+    struct ipc_buffer_ctrl_msg ret;
+    ctrl_msg.offset = strlen(path);
+    assert (0 == ipc_call(&ctrl_msg, path, &ret));
+
+    if (ret.ret_val == 0)
+    {
+        assert(ret.offset == sizeof (sos_stat_t));
+        memcpy(buf, (void*)APP_PROCESS_IPC_SHARED_BUFFER, ret.offset);
+    }
+    tty_debug_print("[app] sos_stat return: %d\n",  ret.ret_val);
+
+    return ret.ret_val;
 }
 
 
@@ -200,6 +215,10 @@ int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data, struct ip
     seL4_MessageInfo_t rep_msginfo = seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
     assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
     unserialize_ipc_ctrl_msg(ret);
+    if (ret->ret_val != 0)
+    {
+        tty_debug_print("[sosh] syscall %d return %d, %s\n", ctrl->syscall_number, ret->ret_val, strerror(ret->ret_val));
+    }
     return 0;
 }
 

@@ -42,6 +42,7 @@
  * The file types are in kern/stattypes.h.
  */
 struct stat {
+    int st_type;
 	/* Essential fields */
 	off_t st_size;		/* file size in bytes */
 	mode_t st_mode;		/* file type and protection mode */

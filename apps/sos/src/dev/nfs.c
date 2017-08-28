@@ -1,6 +1,8 @@
 // The SOS file system features a flat directory structure.
 // one level directory!!!!
 #include "nfs.h"
+#include "vfs/stat.h"
+#include "vfs/uio.h"
 #include "clock/clock.h"
 
 
@@ -14,6 +16,12 @@ static
 int
 _nfs_close(const struct fhandle* handle);
 
+static int _nfs_waitdone(struct nfs_cb_arg* arg);
+
+
+static void
+_nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr);
+
 
 static inline void _dump_nfs_handler(const struct fhandle* a)
 {
@@ -25,7 +33,7 @@ static inline void _dump_nfs_handler(const struct fhandle* a)
 }
 
 static inline bool _is_same_handler(const struct fhandle* a,
-                             const struct fhandle* b)
+                                    const struct fhandle* b)
 {
 
     for (int i = 0; i < FHSIZE; ++ i)
@@ -38,7 +46,7 @@ static inline bool _is_same_handler(const struct fhandle* a,
     return true;
 }
 static inline void _copy_handler(struct fhandle* to,
-                          const struct fhandle* from)
+                                 const struct fhandle* from)
 {
 
     memcpy(to->data, from->data,  FHSIZE);
@@ -81,18 +89,18 @@ static
 int
 _nfs_eachopen(struct vnode *v, int openflags)
 {
-	/*
-	 * At this level we do not need to handle O_CREAT, O_EXCL,
-	 * O_TRUNC, or O_APPEND.
-	 *
-	 * Any of O_RDONLY, O_WRONLY, and O_RDWR are valid, so we don't need
-	 * to check that either.
-	 */
+    /*
+     * At this level we do not need to handle O_CREAT, O_EXCL,
+     * O_TRUNC, or O_APPEND.
+     *
+     * Any of O_RDONLY, O_WRONLY, and O_RDWR are valid, so we don't need
+     * to check that either.
+     */
 
-	(void)v;
-	(void)openflags;
+    (void)v;
+    (void)openflags;
 
-	return 0;
+    return 0;
 }
 
 /*
@@ -102,20 +110,20 @@ static
 int
 _nfs_eachopendir(struct vnode *v, int openflags)
 {
-	switch (openflags & O_ACCMODE) {
-	    case O_RDONLY:
-		break;
-	    case O_WRONLY:
-	    case O_RDWR:
-	    default:
-		return EISDIR;
-	}
-	if (openflags & O_APPEND) {
-		return EISDIR;
-	}
+    switch (openflags & O_ACCMODE) {
+        case O_RDONLY:
+            break;
+        case O_WRONLY:
+        case O_RDWR:
+        default:
+            return EISDIR;
+    }
+    if (openflags & O_APPEND) {
+        return EISDIR;
+    }
 
-	(void)v;
-	return 0;
+    (void)v;
+    return 0;
 }
 
 /*
@@ -127,34 +135,66 @@ static
 int
 _nfs_reclaim(struct vnode *v)
 {
-	struct nfs_vnode *ev = v->vn_data;
-	struct nfs_fs *ef = v->vn_fs->fs_data;
-	unsigned ix, i, num;
-	int result;
+    struct nfs_vnode *ev = v->vn_data;
+    struct nfs_fs *ef = v->vn_fs->fs_data;
+    unsigned ix, i, num;
+    int result;
 
-	/*
-	 * Need all of these locks, e_lock to protect the device,
-	 * vfs_biglock to protect the fs-related material, and
-	 * vn_countlock for the reference count.
-	 */
+    /*
+     * Need all of these locks, e_lock to protect the device,
+     * vfs_biglock to protect the fs-related material, and
+     * vn_countlock for the reference count.
+     */
 
-	if (ev->ev_v.vn_refcount > 1) {
-		/* consume the reference VOP_DECREF passed us */
-		ev->ev_v.vn_refcount--;
+    if (ev->ev_v.vn_refcount > 1) {
+        /* consume the reference VOP_DECREF passed us */
+        ev->ev_v.vn_refcount--;
 
-		return EBUSY;
-	}
-	assert(ev->ev_v.vn_refcount == 1);
+        return EBUSY;
+    }
+    assert(ev->ev_v.vn_refcount == 1);
 
-	result = _nfs_close(&ev->ev_handler);
-	if (result) {
-		return result;
-	}
+    result = _nfs_close(&ev->ev_handler);
+    if (result) {
+        return result;
+    }
     _destroy_nfs_vnode(ev);
 
-	return 0;
+    return 0;
 }
 
+static void _nfs_read_cb(uintptr_t token, enum nfs_stat status, fattr_t *fattr, int count, void* data)
+{
+    struct nfs_cb_arg* arg = (struct nfs_cb_arg*)(token);
+    arg->stat = status;
+    if (status == NFS_OK)
+    {
+        uiomove(data, count, arg->uio);
+    }
+    V(arg->sem);
+}
+
+static int _nfs_read_op(const struct fhandle* hd,
+                        struct uio* uio)
+{
+    struct nfs_cb_arg cb_argv;
+    cb_argv.sem = sem_create("nfs", 0, -1);
+    if (cb_argv.sem == NULL)
+    {
+        ERROR_DEBUG("sem_create error\n");
+        return ENOMEM;
+    }
+    cb_argv.uio = uio;
+    assert(0 == nfs_read(hd, uio->uio_offset, uio->uio_resid, &_nfs_read_cb, (uintptr_t)&cb_argv));
+
+    int result = _nfs_waitdone(&cb_argv);
+    sem_destroy(cb_argv.sem);
+    if (result)
+    {
+        return result;
+    }
+    return 0;
+}
 /*
  * VOP_READ
  */
@@ -162,33 +202,29 @@ static
 int
 _nfs_read(struct vnode *v, struct uio *uio)
 {
-	/* struct nfs_vnode *ev = v->vn_data; */
-	/* uint32_t amt; */
-	/* size_t oldresid; */
-	/* int result; */
+    struct nfs_vnode *ev = v->vn_data;
+    /* uint32_t amt; */
+    size_t oldresid;
+    /* int result; */
     /*  */
-	/* KASSERT(uio->uio_rw==UIO_READ); */
+    assert(uio->uio_rw==UIO_READ);
+    assert(uio->uio_resid <= seL4_PAGE_SIZE);
     /*  */
-	/* while (uio->uio_resid > 0) { */
-	/* 	amt = uio->uio_resid; */
-	/* 	if (amt > EMU_MAXIO) { */
-	/* 		amt = EMU_MAXIO; */
-	/* 	} */
-    /*  */
-	/* 	oldresid = uio->uio_resid; */
-    /*  */
-	/* 	result = emu_read(ev->ev_emu, ev->ev_handle, amt, uio); */
-	/* 	if (result) { */
-	/* 		return result; */
-	/* 	} */
-    /*  */
-	/* 	if (uio->uio_resid == oldresid) { */
-	/* 		#<{(| nothing read - EOF |)}># */
-	/* 		break; */
-	/* 	} */
-	/* } */
-
-	return 0;
+    while (uio->uio_resid > 0)
+    {
+        oldresid = uio->uio_resid;
+        int result = _nfs_read_op(&(ev->ev_handler), uio);
+        if (result)
+        {
+            return result;
+        }
+        if (uio->uio_resid == oldresid)
+        {
+            /* nothing read - EOF */
+            break;
+        }
+    }
+    return 0;
 }
 
 /*
@@ -198,19 +234,53 @@ static
 int
 _nfs_getdirentry(struct vnode *v, struct uio *uio)
 {
-	/* struct nfs_vnode *ev = v->vn_data; */
-	/* uint32_t amt; */
+    /* struct nfs_vnode *ev = v->vn_data; */
+    /* uint32_t amt; */
     /*  */
-	/* KASSERT(uio->uio_rw==UIO_READ); */
+    /* KASSERT(uio->uio_rw==UIO_READ); */
     /*  */
-	/* amt = uio->uio_resid; */
-	/* if (amt > EMU_MAXIO) { */
-	/* 	amt = EMU_MAXIO; */
-	/* } */
+    /* amt = uio->uio_resid; */
+    /* if (amt > EMU_MAXIO) { */
+    /* 	amt = EMU_MAXIO; */
+    /* } */
     /*  */
-	/* return emu_readdir(ev->ev_emu, ev->ev_handle, amt, uio); */
+    /* return emu_readdir(ev->ev_emu, ev->ev_handle, amt, uio); */
 }
 
+
+void _nfs_write_cb(uintptr_t token, enum nfs_stat status, fattr_t *fattr, int count)
+{
+    struct nfs_cb_arg* arg = (struct nfs_cb_arg*)(token);
+    arg->stat = status;
+    if (status == NFS_OK)
+    {
+        uiomove(NULL, count, arg->uio);
+    }
+    V(arg->sem);
+}
+
+static int _nfs_write_op(const struct fhandle* hd,
+                         struct uio* uio)
+{
+    struct nfs_cb_arg cb_argv;
+    cb_argv.sem = sem_create("nfs", 0, -1);
+    if (cb_argv.sem == NULL)
+    {
+        ERROR_DEBUG("sem_create error\n");
+        return ENOMEM;
+    }
+    cb_argv.uio = uio;
+
+    assert(0 == nfs_write(hd, uio->uio_offset, uio->uio_resid, uio->uio_iov->iov_base, &_nfs_write_cb, (uintptr_t)&cb_argv));
+
+    int result = _nfs_waitdone(&cb_argv);
+    sem_destroy(cb_argv.sem);
+    if (result)
+    {
+        return result;
+    }
+    return 0;
+}
 /*
  * VOP_WRITE
  */
@@ -218,33 +288,30 @@ static
 int
 _nfs_write(struct vnode *v, struct uio *uio)
 {
-	/* struct nfs_vnode *ev = v->vn_data; */
-	/* uint32_t amt; */
-	/* size_t oldresid; */
-	/* int result; */
+    struct nfs_vnode *ev = v->vn_data;
+    /* uint32_t amt; */
+    size_t oldresid;
+    int result;
     /*  */
-	/* KASSERT(uio->uio_rw==UIO_WRITE); */
-    /*  */
-	/* while (uio->uio_resid > 0) { */
-	/* 	amt = uio->uio_resid; */
-	/* 	if (amt > EMU_MAXIO) { */
-	/* 		amt = EMU_MAXIO; */
-	/* 	} */
-    /*  */
-	/* 	oldresid = uio->uio_resid; */
-    /*  */
-	/* 	result = emu_write(ev->ev_emu, ev->ev_handle, amt, uio); */
-	/* 	if (result) { */
-	/* 		return result; */
-	/* 	} */
-    /*  */
-	/* 	if (uio->uio_resid == oldresid) { */
-	/* 		#<{(| nothing written...? |)}># */
-	/* 		break; */
-	/* 	} */
-	/* } */
-    /*  */
-	return 0;
+    assert(uio->uio_rw==UIO_WRITE);
+    assert(uio->uio_resid <= seL4_PAGE_SIZE);
+    while (uio->uio_resid > 0)
+    {
+        oldresid = uio->uio_resid;
+        int result = _nfs_write_op(&(ev->ev_handler), uio);
+        if (result)
+        {
+            return result;
+        }
+        if (uio->uio_resid == oldresid)
+        {
+            /* nothing writen ? FIXME*/
+            assert(0);
+            break;
+        }
+    }
+    return 0;
+
 }
 
 /*
@@ -254,43 +321,56 @@ static
 int
 _nfs_ioctl(struct vnode *v, int op, const void* data)
 {
-	/*
-	 * No ioctls.
-	 */
+    /*
+     * No ioctls.
+     */
 
-	(void)v;
-	(void)op;
-	(void)data;
+    (void)v;
+    (void)op;
+    (void)data;
 
-	return EINVAL;
+    return EINVAL;
 }
 
 /*
  * VOP_STAT
+ *
  */
+
+static int _nfs_stat(struct vnode* v, struct stat* statbuf)
+{
+    return 0;
+}
 static
 int
-_nfs_stat(struct vnode *v, struct stat *statbuf)
+_nfs_stat_file(struct vnode *v, char* pathname, struct stat *statbuf)
 {
-	/* struct nfs_vnode *ev = v->vn_data; */
-	/* int result; */
-    /*  */
-	/* bzero(statbuf, sizeof(struct stat)); */
-    /*  */
-	/* result = emu_getsize(ev->ev_emu, ev->ev_handle, &statbuf->st_size); */
-	/* if (result) { */
-	/* 	return result; */
-	/* } */
-    /*  */
-	/* result = VOP_GETTYPE(v, &statbuf->st_mode); */
-	/* if (result) { */
-	/* 	return result; */
-	/* } */
-	/* statbuf->st_mode |= 0644; #<{(| possibly a lie |)}># */
-	/* statbuf->st_nlink = 1;    #<{(| might be a lie, but doesn't matter much |)}># */
-	/* statbuf->st_blocks = 0;   #<{(| almost certainly a lie |)}># */
+    struct nfs_vnode *ev = v->vn_data;
+    struct nfs_cb_arg cb_argv;
+    cb_argv.sem = sem_create("nfs", 0, -1);
+    if (cb_argv.sem == NULL)
+    {
+        ERROR_DEBUG("sem_create error\n");
+        return ENOMEM;
+    }
+    assert(0 == nfs_lookup(&(ev->ev_handler), pathname, &_nfs_creat_cb, (uintptr_t)&cb_argv));
 
-	return 0;
+    int result = _nfs_waitdone(&cb_argv);
+    sem_destroy(cb_argv.sem);
+    if (result)
+    {
+        return result;
+    }
+    statbuf->st_type = cb_argv.attr.type;
+    statbuf->st_mode = cb_argv.attr.mode;
+    statbuf->st_size = cb_argv.attr.size;
+    statbuf->st_atime = cb_argv.attr.atime.seconds;
+    statbuf->st_ctime = cb_argv.attr.ctime.seconds;
+
+    statbuf->st_atimensec = cb_argv.attr.atime.useconds * 1000;
+    statbuf->st_ctimensec = cb_argv.attr.ctime.useconds * 1000;
+
+    return 0;
 }
 
 /*
@@ -300,9 +380,9 @@ static
 int
 _nfs_file_gettype(struct vnode *v, uint32_t *result)
 {
-	(void)v;
-	/* *result = S_IFREG; */
-	return 0;
+    (void)v;
+    /* *result = S_IFREG; */
+    return 0;
 }
 
 /*
@@ -312,9 +392,9 @@ static
 int
 _nfs_dir_gettype(struct vnode *v, uint32_t *result)
 {
-	(void)v;
-	/* *result = S_IFDIR; */
-	return 0;
+    (void)v;
+    /* *result = S_IFDIR; */
+    return 0;
 }
 
 /*
@@ -324,8 +404,8 @@ static
 bool
 _nfs_isseekable(struct vnode *v)
 {
-	(void)v;
-	return true;
+    (void)v;
+    return true;
 }
 
 /*
@@ -335,8 +415,8 @@ static
 int
 _nfs_fsync(struct vnode *v)
 {
-	(void)v;
-	return 0;
+    (void)v;
+    return 0;
 }
 
 /*
@@ -346,8 +426,8 @@ static
 int
 _nfs_truncate(struct vnode *v, off_t len)
 {
-	/* struct nfs_vnode *ev = v->vn_data; */
-	/* return emu_trunc(ev->ev_emu, ev->ev_handle, len); */
+    /* struct nfs_vnode *ev = v->vn_data; */
+    /* return emu_trunc(ev->ev_emu, ev->ev_handle, len); */
 }
 
 
@@ -368,13 +448,16 @@ _nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr
     /*     memcpy(arg->fattr, fattr, sizeof(*fattr)); */
     /* } */
     if (arg->stat == 0)
+    {
+        memcpy(&arg->attr, fattr, sizeof (fattr_t));
         _copy_handler(&arg->handler, fh);
+    }
     V(arg->sem);
 }
 
 static int _nfs_waitdone(struct nfs_cb_arg* arg)
 {
-	P(arg->sem);
+    P(arg->sem);
     return arg->stat;
 }
 
@@ -390,44 +473,44 @@ _nfs_close(const struct fhandle* handle)
 {
     // nothing to do with nfs. XXX
     (void) handle;
-	/* int result; */
-	/* bool mine; */
-	/* int retries = 0; */
+    /* int result; */
+    /* bool mine; */
+    /* int retries = 0; */
 
 
-	/* while (1) { */
-	/* 	#<{(| Retry operation up to 10 times |)}># */
+    /* while (1) { */
+    /* 	#<{(| Retry operation up to 10 times |)}># */
     /*  */
-	/* 	emu_wreg(sc, REG_HANDLE, handle); */
-	/* 	emu_wreg(sc, REG_OPER, EMU_OP_CLOSE); */
-	/* 	result = emu_waitdone(sc); */
+    /* 	emu_wreg(sc, REG_HANDLE, handle); */
+    /* 	emu_wreg(sc, REG_OPER, EMU_OP_CLOSE); */
+    /* 	result = emu_waitdone(sc); */
     /*  */
-	/* 	if (result==EIO && retries < 10) { */
-	/* 		kprintf("emu%d: I/O error on close, retrying\n", */
-	/* 			sc->e_unit); */
-	/* 		retries++; */
-	/* 		continue; */
-	/* 	} */
-	/* 	break; */
-	/* } */
+    /* 	if (result==EIO && retries < 10) { */
+    /* 		kprintf("emu%d: I/O error on close, retrying\n", */
+    /* 			sc->e_unit); */
+    /* 		retries++; */
+    /* 		continue; */
+    /* 	} */
+    /* 	break; */
+    /* } */
 
-	/* return result; */
+    /* return result; */
 }
 
 static int
 _nfs_creat(struct vnode *dir, const char *name, bool excl, mode_t mode,
-	    struct vnode **ret)
+           struct vnode **ret)
 {
     (void) excl;
 
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"nfs going to creat: [%s], mode: %d\n", name, mode);
 
     if (strlen(name) + 1 > NFS_MAXIO) {
-		return ENAMETOOLONG;
-	}
-	struct nfs_vnode *ev = dir->vn_data;
-	struct nfs_fs *ef = dir->vn_fs->fs_data;
-	struct nfs_vnode *newguy;
+        return ENAMETOOLONG;
+    }
+    struct nfs_vnode *ev = dir->vn_data;
+    struct nfs_fs *ef = dir->vn_fs->fs_data;
+    struct nfs_vnode *newguy;
 
     struct nfs_cb_arg cb_argv;
     cb_argv.sem = sem_create("nfs", 0, -1);
@@ -449,22 +532,22 @@ _nfs_creat(struct vnode *dir, const char *name, bool excl, mode_t mode,
     assert(0 == nfs_create(&(ev->ev_handler), name, &sattr, &_nfs_creat_cb, (uintptr_t)&cb_argv));
 
 
-	int result = _nfs_waitdone(&cb_argv);
+    int result = _nfs_waitdone(&cb_argv);
     sem_destroy(cb_argv.sem);
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"creat fini, stat: %d\n", result);
-	if (result)
+    if (result)
     {
-		return result;
-	}
+        return result;
+    }
 
-	result = _nfs_loadvnode(ef, &(cb_argv.handler), 0, &newguy);
-	if (result)
+    result = _nfs_loadvnode(ef, &(cb_argv.handler), 0, &newguy);
+    if (result)
     {
-		_nfs_close(&(cb_argv.handler));
-		return result;
-	}
-	*ret = &newguy->ev_v;
-	return 0;
+        _nfs_close(&(cb_argv.handler));
+        return result;
+    }
+    *ret = &newguy->ev_v;
+    return 0;
 }
 
 /*
@@ -475,9 +558,9 @@ int
 _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
 {
     struct nfs_vnode *ev = dir->vn_data;
-	struct nfs_fs *ef = dir->vn_fs->fs_data;
-	struct nfs_vnode *newguy;
-	int isdir;
+    struct nfs_fs *ef = dir->vn_fs->fs_data;
+    struct nfs_vnode *newguy;
+    int isdir;
 
     struct nfs_cb_arg cb_argv;
     cb_argv.sem = sem_create("nfs", 0, -1);
@@ -488,27 +571,27 @@ _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
     }
     assert(0 == nfs_lookup(&(ev->ev_handler), pathname, &_nfs_creat_cb, (uintptr_t)&cb_argv));
 
-	int result = _nfs_waitdone(&cb_argv);
+    int result = _nfs_waitdone(&cb_argv);
     sem_destroy(cb_argv.sem);
-	if (result)
+    if (result)
     {
-		return result;
-	}
-	result = _nfs_loadvnode(ef, &(cb_argv.handler), 0, &newguy);
-	if (result)
+        return result;
+    }
+    result = _nfs_loadvnode(ef, &(cb_argv.handler), 0, &newguy);
+    if (result)
     {
-		_nfs_close(&(cb_argv.handler));
-		return result;
-	}
-	*ret = &newguy->ev_v;
-	return 0;
+        _nfs_close(&(cb_argv.handler));
+        return result;
+    }
+    *ret = &newguy->ev_v;
+    return 0;
 }
 
 // we only support flat dir.
 static
 int
 _nfs_lookparent(struct vnode *dir, char *pathname, struct vnode **ret,
-		 char *buf, size_t len)
+                char *buf, size_t len)
 {
     // FIXME maybe we should treat '/' as error?
     /* if (pathname) */
@@ -521,28 +604,28 @@ _nfs_lookparent(struct vnode *dir, char *pathname, struct vnode **ret,
     *ret = dir;
     VOP_INCREF(*ret);
     return 0;
-	/* char *s; */
+    /* char *s; */
     /*  */
-	/* s = strrchr(pathname, '/'); */
-	/* if (s==NULL) { */
-	/* 	#<{(| just a last component, no directory part |)}># */
-	/* 	if (strlen(pathname)+1 > len) { */
-	/* 		return ENAMETOOLONG; */
-	/* 	} */
-	/* 	VOP_INCREF(dir); */
-	/* 	*ret = dir; */
-	/* 	strcpy(buf, pathname); */
-	/* 	return 0; */
-	/* } */
+    /* s = strrchr(pathname, '/'); */
+    /* if (s==NULL) { */
+    /* 	#<{(| just a last component, no directory part |)}># */
+    /* 	if (strlen(pathname)+1 > len) { */
+    /* 		return ENAMETOOLONG; */
+    /* 	} */
+    /* 	VOP_INCREF(dir); */
+    /* 	*ret = dir; */
+    /* 	strcpy(buf, pathname); */
+    /* 	return 0; */
+    /* } */
     /*  */
-	/* *s = 0; */
-	/* s++; */
-	/* if (strlen(s)+1 > len) { */
-	/* 	return ENAMETOOLONG; */
-	/* } */
-	/* strcpy(buf, s); */
+    /* *s = 0; */
+    /* s++; */
+    /* if (strlen(s)+1 > len) { */
+    /* 	return ENAMETOOLONG; */
+    /* } */
+    /* strcpy(buf, s); */
     /*  */
-	/* return emufs_lookup(dir, pathname, ret); */
+    /* return emufs_lookup(dir, pathname, ret); */
 }
 
 /*
@@ -552,8 +635,8 @@ static
 int
 _nfs_mmap(struct vnode *v)
 {
-	(void)v;
-	return ENOSYS;
+    (void)v;
+    return ENOSYS;
 }
 
 //////////////////////////////
@@ -566,30 +649,30 @@ static
 int
 _nfs_symlink(struct vnode *v, const char *contents, const char *name)
 {
-	(void)v;
-	(void)contents;
-	(void)name;
-	return ENOSYS;
+    (void)v;
+    (void)contents;
+    (void)name;
+    return ENOSYS;
 }
 
 static
 int
 _nfs_mkdir(struct vnode *v, const char *name, mode_t mode)
 {
-	(void)v;
-	(void)name;
-	(void)mode;
-	return ENOSYS;
+    (void)v;
+    (void)name;
+    (void)mode;
+    return ENOSYS;
 }
 
 static
 int
 _nfs_link(struct vnode *v, const char *name, struct vnode *target)
 {
-	(void)v;
-	(void)name;
-	(void)target;
-	return ENOSYS;
+    (void)v;
+    (void)name;
+    (void)target;
+    return ENOSYS;
 }
 
 
@@ -598,21 +681,21 @@ static
 int
 _nfs_rmdir(struct vnode *v, const char *name)
 {
-	(void)v;
-	(void)name;
-	return ENOSYS;
+    (void)v;
+    (void)name;
+    return ENOSYS;
 }
 
 static
 int
 _nfs_rename(struct vnode *v1, const char *n1,
-	     struct vnode *v2, const char *n2)
+            struct vnode *v2, const char *n2)
 {
-	(void)v1;
-	(void)n1;
-	(void)v2;
-	(void)n2;
-	return ENOSYS;
+    (void)v1;
+    (void)n1;
+    (void)v2;
+    (void)n2;
+    return ENOSYS;
 }
 
 //////////////////////////////
@@ -634,122 +717,122 @@ static
 int
 _nfs_void_op_isdir(struct vnode *v)
 {
-	(void)v;
-	return EISDIR;
+    (void)v;
+    return EISDIR;
 }
 
 static
 int
 _nfs_uio_op_isdir(struct vnode *v, struct uio *uio)
 {
-	(void)v;
-	(void)uio;
-	return EISDIR;
+    (void)v;
+    (void)uio;
+    return EISDIR;
 }
 
 static
 int
 _nfs_uio_op_notdir(struct vnode *v, struct uio *uio)
 {
-	(void)v;
-	(void)uio;
-	return ENOTDIR;
+    (void)v;
+    (void)uio;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_name_op_notdir(struct vnode *v, const char *name)
 {
-	(void)v;
-	(void)name;
-	return ENOTDIR;
+    (void)v;
+    (void)name;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_readlink_notlink(struct vnode *v, struct uio *uio)
 {
-	(void)v;
-	(void)uio;
-	return EINVAL;
+    (void)v;
+    (void)uio;
+    return EINVAL;
 }
 
 static
 int
 _nfs_creat_notdir(struct vnode *v, const char *name, bool excl, mode_t mode,
-		   struct vnode **retval)
+                  struct vnode **retval)
 {
-	(void)v;
-	(void)name;
-	(void)excl;
-	(void)mode;
-	(void)retval;
-	return ENOTDIR;
+    (void)v;
+    (void)name;
+    (void)excl;
+    (void)mode;
+    (void)retval;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_symlink_notdir(struct vnode *v, const char *contents, const char *name)
 {
-	(void)v;
-	(void)contents;
-	(void)name;
-	return ENOTDIR;
+    (void)v;
+    (void)contents;
+    (void)name;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_mkdir_notdir(struct vnode *v, const char *name, mode_t mode)
 {
-	(void)v;
-	(void)name;
-	(void)mode;
-	return ENOTDIR;
+    (void)v;
+    (void)name;
+    (void)mode;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_link_notdir(struct vnode *v, const char *name, struct vnode *target)
 {
-	(void)v;
-	(void)name;
-	(void)target;
-	return ENOTDIR;
+    (void)v;
+    (void)name;
+    (void)target;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_rename_notdir(struct vnode *v1, const char *n1,
-		    struct vnode *v2, const char *n2)
+                   struct vnode *v2, const char *n2)
 {
-	(void)v1;
-	(void)n1;
-	(void)v2;
-	(void)n2;
-	return ENOTDIR;
+    (void)v1;
+    (void)n1;
+    (void)v2;
+    (void)n2;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_lookup_notdir(struct vnode *v, char *pathname, struct vnode **result)
 {
-	(void)v;
-	(void)pathname;
-	(void)result;
-	return ENOTDIR;
+    (void)v;
+    (void)pathname;
+    (void)result;
+    return ENOTDIR;
 }
 
 static
 int
 _nfs_lookparent_notdir(struct vnode *v, char *pathname, struct vnode **result,
-			char *buf, size_t len)
+                       char *buf, size_t len)
 {
-	(void)v;
-	(void)pathname;
-	(void)result;
-	(void)buf;
-	(void)len;
-	return ENOTDIR;
+    (void)v;
+    (void)pathname;
+    (void)result;
+    (void)buf;
+    (void)len;
+    return ENOTDIR;
 }
 
 
@@ -757,9 +840,9 @@ static
 int
 _nfs_truncate_isdir(struct vnode *v, off_t len)
 {
-	(void)v;
-	(void)len;
-	return ENOTDIR;
+    (void)v;
+    (void)len;
+    return ENOTDIR;
 }
 
 //////////////////////////////
@@ -768,40 +851,41 @@ _nfs_truncate_isdir(struct vnode *v, off_t len)
  * Function table for nfs files.
  */
 static const struct vnode_ops nfs_fileops = {
-	.vop_magic = VOP_MAGIC,	/* mark this a valid vnode ops table */
+    .vop_magic = VOP_MAGIC,	/* mark this a valid vnode ops table */
 
-	.vop_eachopen = _nfs_eachopen,
-	.vop_reclaim = _nfs_reclaim,
+    .vop_eachopen = _nfs_eachopen,
+    .vop_reclaim = _nfs_reclaim,
 
-	.vop_read = _nfs_read,
-	.vop_readlink = _nfs_readlink_notlink,
-	.vop_getdirentry = _nfs_uio_op_notdir,
-	.vop_write = _nfs_write,
-	.vop_stat = _nfs_stat,
-	.vop_gettype = _nfs_file_gettype,
+    .vop_read = _nfs_read,
+    .vop_readlink = _nfs_readlink_notlink,
+    .vop_getdirentry = _nfs_uio_op_notdir,
+    .vop_write = _nfs_write,
+    .vop_gettype = _nfs_file_gettype,
 
-	.vop_creat = _nfs_creat_notdir,
-	.vop_remove = _nfs_name_op_notdir,
+    .vop_stat = _nfs_stat,
+    .vop_creat = _nfs_creat_notdir,
+    .vop_remove = _nfs_name_op_notdir,
 
-	.vop_lookup = _nfs_lookup_notdir,
-	.vop_lookparent = _nfs_lookparent_notdir,
+    .vop_lookup = _nfs_lookup_notdir,
+    .vop_lookparent = _nfs_lookparent_notdir,
 };
 
 /*
  * Function table for _nfs directories.
  */
 static const struct vnode_ops nfs_dirops = {
-	.vop_magic = VOP_MAGIC,	/* mark this a valid vnode ops table */
+    .vop_magic = VOP_MAGIC,	/* mark this a valid vnode ops table */
 
-	.vop_eachopen = _nfs_eachopendir,
-	.vop_reclaim = _nfs_reclaim,
+    .vop_eachopen = _nfs_eachopendir,
+    .vop_reclaim = _nfs_reclaim,
+    .vop_stat_file = _nfs_stat_file,
 
-	.vop_read = _nfs_uio_op_isdir,
-	.vop_readlink = _nfs_uio_op_isdir,
-	.vop_getdirentry = _nfs_getdirentry,
-	.vop_lookup = _nfs_lookup,
+    .vop_read = _nfs_uio_op_isdir,
+    .vop_readlink = _nfs_uio_op_isdir,
+    .vop_getdirentry = _nfs_getdirentry,
+    .vop_lookup = _nfs_lookup,
     .vop_creat = _nfs_creat,
-	.vop_lookparent = _nfs_lookparent,
+    .vop_lookparent = _nfs_lookparent,
 };
 
 //
@@ -817,8 +901,8 @@ static
 int
 _nfs_sync(struct fs *fs)
 {
-	(void)fs;
-	return 0;
+    (void)fs;
+    return 0;
 }
 
 /*
@@ -828,9 +912,9 @@ static
 const char *
 _nfs_getvolname(struct fs *fs)
 {
-	/* We don't have a volume name beyond the device name */
-	(void)fs;
-	return NULL;
+    /* We don't have a volume name beyond the device name */
+    (void)fs;
+    return NULL;
 }
 
 /*
@@ -841,16 +925,16 @@ int
 _nfs_getroot(struct fs *fs, struct vnode **ret)
 {
 
-	assert(fs != NULL);
+    assert(fs != NULL);
 
-	struct nfs_fs* ef = fs->fs_data;
+    struct nfs_fs* ef = fs->fs_data;
 
-	assert(ef != NULL);
-	assert(ef->ef_root != NULL);
+    assert(ef != NULL);
+    assert(ef->ef_root != NULL);
 
-	VOP_INCREF(&ef->ef_root->ev_v);
-	*ret = &ef->ef_root->ev_v;
-	return 0;
+    VOP_INCREF(&ef->ef_root->ev_v);
+    *ret = &ef->ef_root->ev_v;
+    return 0;
 }
 
 /*
@@ -860,17 +944,17 @@ static
 int
 _nfs_unmount(struct fs *fs)
 {
-	/* Always prohibit unmount, as we're not really "mounted" */
-	(void)fs;
-	return EBUSY;
+    /* Always prohibit unmount, as we're not really "mounted" */
+    (void)fs;
+    return EBUSY;
 }
 
 static const struct fs_ops  nfs_ops= {
 
-	.fsop_sync = _nfs_sync,
-	.fsop_getvolname = _nfs_getvolname,
-	.fsop_getroot = _nfs_getroot,
-	.fsop_unmount = _nfs_unmount,
+    .fsop_sync = _nfs_sync,
+    .fsop_getvolname = _nfs_getvolname,
+    .fsop_getroot = _nfs_getroot,
+    .fsop_unmount = _nfs_unmount,
 };
 
 
@@ -879,53 +963,53 @@ static int _nfs_loadvnode(struct nfs_fs *ef,
                           int isdir,
                           struct  nfs_vnode **ret)
 {
-	/* struct vnode *v; */
-	struct nfs_vnode *ev;
-	unsigned i, num;
-	int result;
+    /* struct vnode *v; */
+    struct nfs_vnode *ev;
+    unsigned i, num;
+    int result;
 
 
-	/* num = vnodearray_num(ef->ef_vnodes); */
+    /* num = vnodearray_num(ef->ef_vnodes); */
     struct list_head *current = NULL;
     struct list_head *tmp_head = NULL;
     _dump_nfs_handler(fh);
     list_for_each_safe(current, tmp_head, &(ef->ef_vnode_list.head))
     {
-		ev = list_entry(current, struct nfs_vnode, ev_link);
+        ev = list_entry(current, struct nfs_vnode, ev_link);
 
         _dump_nfs_handler(&(ev->ev_handler));
-		if (_is_same_handler(&(ev->ev_handler) , fh) )
+        if (_is_same_handler(&(ev->ev_handler) , fh) )
         {
 
-			VOP_INCREF(&ev->ev_v);
-			*ret = ev;
-			return 0;
-		}
-	}
+            VOP_INCREF(&ev->ev_v);
+            *ret = ev;
+            return 0;
+        }
+    }
 
-	/* Didn't have one; create it */
+    /* Didn't have one; create it */
 
-	ev = _creat_nfs_vnode();
-	if (ev == NULL)
+    ev = _creat_nfs_vnode();
+    if (ev == NULL)
     {
         ERROR_DEBUG("create new vnode for nfs without enough mem\n");
-		return ENOMEM;
-	}
+        return ENOMEM;
+    }
 
-	_copy_handler(&ev->ev_handler, fh);
+    _copy_handler(&ev->ev_handler, fh);
     _dump_nfs_handler(&(ev->ev_handler));
 
-	result = vnode_init(&ev->ev_v, isdir ? &nfs_dirops : &nfs_fileops,
-			    &ef->ef_fs, ev);
-	if (result)
+    result = vnode_init(&ev->ev_v, isdir ? &nfs_dirops : &nfs_fileops,
+                        &ef->ef_fs, ev);
+    if (result)
     {
-		_destroy_nfs_vnode(ev);
-		return result;
-	}
+        _destroy_nfs_vnode(ev);
+        return result;
+    }
 
     list_add_tail( &(ev->ev_link), &(ef->ef_vnode_list.head));
-	*ret = ev;
-	return 0;
+    *ret = ev;
+    return 0;
 }
 
 // because network.c already init it, we simplify our code by faking mount(put mount_handler to ef_root), the nadd dev

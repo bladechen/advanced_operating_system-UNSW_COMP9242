@@ -36,9 +36,11 @@
  * See uio.h for a description.
  */
 
+
 int
 uiomove(void *ptr, size_t n, struct uio *uio)
 {
+    void* tmp_ptr = ptr;
 	struct iovec *iov;
 	size_t size;
 
@@ -85,6 +87,7 @@ uiomove(void *ptr, size_t n, struct uio *uio)
             memmove(iov->iov_base, ptr, size);
         }
         else {
+            if (tmp_ptr != NULL)
             memmove(ptr, iov->iov_base, size);
         }
         iov->iov_base = ((char *)iov->iov_base+size);

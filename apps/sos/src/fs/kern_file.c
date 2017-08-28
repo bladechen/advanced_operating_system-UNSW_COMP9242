@@ -166,7 +166,7 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
                  filename, flags, mode, ret);
         return -ret;
     }
-    /* ERROR_DEBUG("%p\n", v); */
+    ERROR_DEBUG("%p\n", v);
     assert(v != NULL);
     ret = __init_kern_file(&node, v, NULL, flags, mode);
     if (ret != 0)
@@ -176,6 +176,7 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
         vfs_close(v);
         return ret;
     }
+    ERROR_DEBUG("%p\n", v);
 
     ret = get_file_stat(node);
     if (ret != 0)
@@ -183,6 +184,7 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
         __destroy_kern_file(node);
         return ret ;
     }
+    ERROR_DEBUG("%p\n", v);
 
 
     list_add_tail(&(node->link_obj),&(g_ftb.list_obj.head));
@@ -336,4 +338,9 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * 
 
     return 0;
 
+}
+
+int kern_file_stat(char* path, struct stat* stat_buf)
+{
+    return vfs_stat_file(path, stat_buf);
 }

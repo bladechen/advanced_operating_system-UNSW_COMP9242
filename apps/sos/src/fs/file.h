@@ -51,5 +51,6 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * 
 void init_kern_file_table(void);
 void destroy_kern_file_table(void);
 
+int kern_file_stat(char* path, struct stat* stat_buf);
 
 #endif
