@@ -156,8 +156,6 @@ vfs_getroot(const char *devname, struct vnode **ret)
 		 * and DEVNAME names the device, return ENXIO.
 		 */
 
-        // TODO while doing M5
-        /* printf ("in get root [%s]\n"); */
 		if (kd->kd_fs != NULL && kd->kd_fs != SWAP_FS) {
 			const char *volname;
 			volname = FSOP_GETVOLNAME(kd->kd_fs);

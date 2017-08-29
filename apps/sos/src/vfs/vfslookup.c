@@ -117,7 +117,7 @@ static
 int
 getdevice(char *path, char **subpath, struct vnode **startvn)
 {
-    // FIXME if provide open ('hello') it will vnode_check: vop_lookup: null vnode
+    // TODO if provide open ('hello') it will vnode_check: vop_lookup: null vnode
 	int slash=-1, colon=-1, i;
 	struct vnode *vn;
 	int result;
@@ -316,7 +316,6 @@ int vfs_file_dirent(char* path, struct uio* uio)
     struct vnode *startvn;
     int result;
 
-    printf ("path: [%s]\n", path);
 	result = getdevice(path, &path, &startvn);
 	if (result)
     {

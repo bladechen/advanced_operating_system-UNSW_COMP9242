@@ -278,7 +278,6 @@ dev_lookup(struct vnode *dir,
 	 * Anything else is an error.
 	 * Increment the ref count of the vnode before returning it.
 	 */
-    printf ("in dev_lookup\n");
 	if (strlen(pathname)>0) {
 		return ENOENT;
 	}

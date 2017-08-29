@@ -1,6 +1,5 @@
 // The SOS file system features a flat directory structure.
 // one level directory!!!!
-// TODO nfs error, rpc error translate to UNIX ERROR
 #include "nfs.h"
 #include "vfs/vfs.h"
 #include "vfs/stat.h"
