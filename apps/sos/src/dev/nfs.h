@@ -5,6 +5,7 @@
 #include "nfs/nfs.h"
 #include "vfs/fs.h"
 #include "vfs/vnode.h"
+#define NFS_TIMEOUT (100)
 #define NFS_DEVICE_NAME "nfs"
 #define NFS_MAXIO 1000
 struct nfs_fs;
@@ -20,6 +21,8 @@ struct nfs_cb_arg
 
     nfscookie_t cookie; // need by nfs to iteratively communicate with it
     int remain_pos;
+
+    int total_files;
 };
 
 struct nfs_vnode
@@ -35,7 +38,7 @@ struct nfs_fs
 {
     struct fs ef_fs;
 
-    struct nfs_vnode* ef_root; //XXX maybe no use
+    struct nfs_vnode* ef_root;
     struct list ef_vnode_list;
 
 };

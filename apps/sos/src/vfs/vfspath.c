@@ -58,6 +58,7 @@ vfs_open(char *path, int openflags, mode_t mode, struct vnode **ret)
         default:
             return EINVAL;
     }
+    (void)canwrite;
 
     if (openflags & O_CREAT) {
         char name[NAME_MAX+1];
