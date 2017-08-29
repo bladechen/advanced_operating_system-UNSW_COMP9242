@@ -117,6 +117,7 @@ int vfs_chdir(char *path);
 int vfs_getcwd(struct uio *buf);
 
 int vfs_stat_file(char* path, struct stat* stat_buf);
+int vfs_file_dirent(char* path, struct uio* uio);
 
 /*
  * Misc

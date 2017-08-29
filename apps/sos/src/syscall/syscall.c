@@ -237,10 +237,42 @@ void sos_syscall_stat(void* argv)
         sos_stat->st_type =  buf.st_type;
         sos_stat->st_fmode = buf.st_mode;
         sos_stat->st_size = buf.st_size;
-        sos_stat->st_ctime = (long long)(buf.st_ctime) + buf.st_ctimensec;
-        sos_stat->st_atime = (long long)(buf.st_atime) + buf.st_atimensec;
+        sos_stat->st_ctime = (long long)(buf.st_ctime)* 1000000LL + buf.st_ctimensec;
+        sos_stat->st_atime = (long long)(buf.st_atime) * 1000000LL + buf.st_atimensec;
     }
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_stat, return: %d\n",  ctrl.ret_val);
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
+void sos_syscall_get_dirent(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+    struct ipc_buffer_ctrl_msg* in = &(proc->p_ipc_ctrl);
+
+    assert(in->offset == 2 * sizeof(int));
+    int pos = *(int*)(get_ipc_buffer(proc));
+    int file_name_len = *(int*)((size_t)(get_ipc_buffer(proc)) + 4);
+    char* name = (char*)(get_ipc_buffer(proc));
+    file_name_len = file_name_len > APP_PROCESS_IPC_SHARED_BUFFER_SIZE ? APP_PROCESS_IPC_SHARED_BUFFER_SIZE: file_name_len;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_get_dirent, pos: %d, given length %d for storing file name\n", pos, file_name_len);
+
+    // currently only support nfs.
+    char path[10] ;
+    memcpy(path, "nfs:", 4);
+    int ret = syscall_get_dirent(path, pos, name, file_name_len);
+    struct ipc_buffer_ctrl_msg ctrl;
+    if (ret != 0)
+    {
+        ctrl.ret_val = ret;
+        ctrl.offset = 0;
+    }
+    else
+    {
+        ctrl.ret_val = 0;
+        ctrl.offset = strlen(name);
+        assert(ctrl.offset <= APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    }
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -253,7 +285,6 @@ void sos_syscall_brk(void* argv)
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, newbrk: 0x%x\n", proc->p_pid, newbrk);
     /* frame_alloc(NULL); */
     /* COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "enter as_get_heap_brk\n"); */
-
 
     struct addrspace *as = proc->p_addrspace;
     seL4_Word retbrk = 0;
@@ -270,10 +301,6 @@ void sos_syscall_brk(void* argv)
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
-void sos_syscall_get_dirent(void* argv)
-{
-
-}
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {

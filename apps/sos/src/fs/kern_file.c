@@ -344,3 +344,13 @@ int kern_file_stat(char* path, struct stat* stat_buf)
 {
     return vfs_stat_file(path, stat_buf);
 }
+
+int kern_file_dirent(char* path, int pos, char* file_name, int file_name_len)
+{
+    struct iovec iov;
+    struct uio u;
+
+    uio_kinit(&iov, &u, (void *) file_name, file_name_len, pos, UIO_READ);
+
+    return vfs_file_dirent(path, &u);
+}

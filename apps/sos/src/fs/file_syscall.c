@@ -72,6 +72,11 @@ int syscall_stat(char* path, struct stat *stat_buf)
 {
     return kern_file_stat(path, stat_buf);
 }
+
+int syscall_get_dirent(char* path, int pos, char* file_name, int file_name_len)
+{
+    return kern_file_dirent(path, pos, file_name, file_name_len);
+}
 /* int syscall_dup2(int oldfd, int newfd, int* retval) */
 /* { */
 /*     *retval  = do_sys_dup2(oldfd, newfd); */

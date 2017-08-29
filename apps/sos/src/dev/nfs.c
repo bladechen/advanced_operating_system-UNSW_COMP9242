@@ -1,5 +1,6 @@
 // The SOS file system features a flat directory structure.
 // one level directory!!!!
+// TODO nfs error, rpc error translate to UNIX ERROR
 #include "nfs.h"
 #include "vfs/stat.h"
 #include "vfs/uio.h"
@@ -227,6 +228,41 @@ _nfs_read(struct vnode *v, struct uio *uio)
     return 0;
 }
 
+
+static void _nfs_readdir_cb(uintptr_t token,
+                            enum nfs_stat status,
+                            int num_files,
+                            char* file_names[],
+                            nfscookie_t nfscookie)
+{
+    struct nfs_cb_arg* arg = (struct nfs_cb_arg*)(token);
+    arg->stat = status;
+    if (arg->stat != NFS_OK)
+    {
+        V(arg->sem);
+        return;
+    }
+    arg->cookie = nfscookie;
+    if ( arg->cookie != 0) // some files in file_names, otherwise, there is no more files for the offset in uio
+    {
+        printf ("remain pos: %d, num_files: %d\n",
+                arg->remain_pos, num_files);
+        if (arg->remain_pos >= num_files)
+        {
+            arg->remain_pos -= num_files;
+        }
+        else
+        {
+            int file_pos = arg->remain_pos;
+            uiomove(file_names[file_pos], strlen(file_names[file_pos]), arg->uio);
+            arg->remain_pos = -1; // to signal finding the file
+        }
+
+    }
+    V(arg->sem);
+    return;
+}
+
 /*
  * VOP_READDIR
  */
@@ -234,17 +270,49 @@ static
 int
 _nfs_getdirentry(struct vnode *v, struct uio *uio)
 {
-    /* struct nfs_vnode *ev = v->vn_data; */
-    /* uint32_t amt; */
-    /*  */
-    /* KASSERT(uio->uio_rw==UIO_READ); */
-    /*  */
-    /* amt = uio->uio_resid; */
-    /* if (amt > EMU_MAXIO) { */
-    /* 	amt = EMU_MAXIO; */
-    /* } */
-    /*  */
-    /* return emu_readdir(ev->ev_emu, ev->ev_handle, amt, uio); */
+    assert(uio->uio_rw == UIO_READ);
+    struct nfs_vnode *ev = v->vn_data;
+    struct nfs_cb_arg cb_argv;
+    cb_argv.sem = sem_create("nfs", 0, -1);
+    cb_argv.uio = uio;
+    cb_argv.remain_pos = uio->uio_offset;
+    if (cb_argv.sem == NULL)
+    {
+        ERROR_DEBUG("sem_create error\n");
+        return ENOMEM;
+    }
+    printf ("_nfs_getdirentry, pos: %d\n", cb_argv.remain_pos);
+
+    // TODO need lock further to deal with nfs caching.
+    int ret = 0;
+    cb_argv.cookie = 0;
+    while (1)
+    {
+        printf ("nfs_readdir, cookie %d\n", cb_argv.cookie);
+        assert(0 == nfs_readdir(&(ev->ev_handler),cb_argv.cookie, &_nfs_readdir_cb, (uintptr_t)&cb_argv));
+        ret = _nfs_waitdone(&cb_argv);
+        if (ret != 0)
+        {
+            break;
+        }
+        if (cb_argv.stat != NFS_OK)
+        {
+            ret = cb_argv.stat;
+            break;
+        }
+        if (cb_argv.remain_pos == -1)
+        {
+            ret = 0;
+            break;
+        }
+        if (cb_argv.cookie == 0)
+        {
+            ret = ENOENT;
+            break;
+        }
+    }
+    sem_destroy(cb_argv.sem);
+    return ret;
 }
 
 

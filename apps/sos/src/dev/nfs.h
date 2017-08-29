@@ -16,8 +16,10 @@ struct nfs_cb_arg
     enum nfs_stat stat;
     struct semaphore* sem;
     fattr_t attr;
-
     struct uio* uio;
+
+    nfscookie_t cookie; // need by nfs to iteratively communicate with it
+    int remain_pos;
 };
 
 struct nfs_vnode

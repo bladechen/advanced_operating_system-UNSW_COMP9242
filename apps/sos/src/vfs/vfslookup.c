@@ -287,16 +287,13 @@ int vfs_stat_file(char* path, struct stat* stat_buf)
     struct vnode *startvn;
     int result;
 
-
-    printf ("vfs_stat_file: %s\n", path);
 	result = getdevice(path, &path, &startvn);
-    printf ("path: %s, ret: %d\n", path, result);
 	if (result) {
 		return result;
 	}
 
-
-	if (strlen(path)==0) {
+	if (strlen(path)==0)
+    {
 		/*
 		 * It does not make sense to use just a device name in
 		 * a context where "lookparent" is the desired
@@ -304,7 +301,8 @@ int vfs_stat_file(char* path, struct stat* stat_buf)
 		 */
 		result = EINVAL;
 	}
-	else {
+	else
+    {
 		result = VOP_STAT_FILE(startvn, path, stat_buf);
 	}
 
@@ -312,4 +310,21 @@ int vfs_stat_file(char* path, struct stat* stat_buf)
 
 	return result;
 }
+
+int vfs_file_dirent(char* path, struct uio* uio)
+{
+    struct vnode *startvn;
+    int result;
+
+    printf ("path: [%s]\n", path);
+	result = getdevice(path, &path, &startvn);
+	if (result)
+    {
+		return result;
+	}
+    result = VOP_GETDIRENTRY(startvn, uio);
+	VOP_DECREF(startvn);
+	return result;
+}
+
 

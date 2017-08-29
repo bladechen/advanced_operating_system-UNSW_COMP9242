@@ -197,8 +197,27 @@ int sos_stat(const char *path, sos_stat_t *buf)
 
 int sos_getdirent(int pos, char *name, size_t nbyte)
 {
-    handle_no_implemented_syscall("sos_getdirent");
-    return 0;
+    tty_debug_print("[app] sos_getdirent, pos: %d\n", pos);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_GET_DIRENT;
+
+    struct ipc_buffer_ctrl_msg ret;
+    ctrl_msg.offset = 2 * sizeof(int);
+    memcpy((void*)(APP_PROCESS_IPC_SHARED_BUFFER), &pos, 4);
+    int bytes = nbyte;
+    memcpy((void*)(APP_PROCESS_IPC_SHARED_BUFFER + 4), &bytes, 4);
+    assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
+
+    if (ret.ret_val != 0)
+    {
+        return -ret.ret_val; // negative int impose error
+    }
+    int ret_name_len = nbyte > ret.offset ? ret.offset: nbyte;
+    memcpy(name, (void*)APP_PROCESS_IPC_SHARED_BUFFER, ret_name_len);
+    tty_debug_print("[app] sos_getdirent return len: %d\n", ret_name_len);
+
+    return ret_name_len;
 }
 
 int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data, struct ipc_buffer_ctrl_msg* ret)
