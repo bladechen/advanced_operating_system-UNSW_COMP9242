@@ -42,7 +42,6 @@ int syscall_read(int fd, char* buf, size_t buflen, size_t* retval)
     int result = do_sys_read(fd, buf, buflen);
     if (result < 0)
     {
-        ERROR_DEBUG ("do sys read error\n");
         *retval = make_positive(result);
         return -1;
     }
@@ -77,14 +76,3 @@ int syscall_get_dirent(char* path, int pos, char* file_name, int file_name_len)
 {
     return kern_file_dirent(path, pos, file_name, file_name_len);
 }
-/* int syscall_dup2(int oldfd, int newfd, int* retval) */
-/* { */
-/*     *retval  = do_sys_dup2(oldfd, newfd); */
-/*     return (*retval == 0)? 0: -1; */
-/*  */
-/* } */
-/* int syscall_write(int fd_num, const_userptr_t* buf, size_t length) */
-/* { */
-/*     int written_length = 0; */
-/*     return written_length; */
-/* } */

@@ -52,7 +52,6 @@ void init_kern_file_table(void);
 void destroy_kern_file_table(void);
 
 int kern_file_stat(char* path, struct stat* stat_buf);
-// FIXME add file_len
 int kern_file_dirent(char* path, int pos, char* file_name, int file_name_len);
 
 #endif

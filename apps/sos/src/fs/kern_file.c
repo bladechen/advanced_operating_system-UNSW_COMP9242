@@ -1,4 +1,3 @@
-
 #include "comm/list.h"
 #include "comm/comm.h"
 #include "file.h"
@@ -10,7 +9,6 @@ static struct files_table g_ftb;
 
 void init_kern_file_table(void)
 {
-
     list_init(&g_ftb.list_obj);
     return;
 }
@@ -19,7 +17,6 @@ void destroy_kern_file_table(void)
     // the list should be empty, after all the process' fd table finishing cleaning
     assert(is_list_empty(&(g_ftb.list_obj)) == 1);
     destroy_list(&(g_ftb.list_obj));
-
     return;
 }
 
@@ -31,9 +28,9 @@ static int get_file_stat(struct file* node)
     result = VOP_STAT(node->v_ptr, &(node->f_stat));
     if ( result != 0)
     {
-        return -result;
+        return result;
     }
-    if (node->f_flags& O_APPEND)
+    if (node->f_flags & O_APPEND)
     {
         node->f_pos = node->f_stat.st_size;
     }
@@ -105,7 +102,7 @@ static int __init_kern_file(struct file** retval, struct vnode* v, struct fs* f,
     struct file *node = malloc(sizeof(struct file));
     if (node == NULL)
     {
-        return -ENOMEM;
+        return ENOMEM;
     }
 
     (void) mode;
@@ -132,7 +129,7 @@ static int __do_stdio_open(struct file** f, int fd)
     if (ret != 0)
     {
         ERROR_DEBUG("vfs_open: std[%d] failed\n", fd);
-        return -ret ;
+        return ret ;
     }
 
     ret = __init_kern_file(&tmp, v, NULL, flags, 0);
@@ -162,11 +159,10 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
     int ret = vfs_open(filename, flags, mode, &v);
     if (ret != 0)
     {
-        ERROR_DEBUG("vfs_open open file: [%s], flags: [%d], mode: [%d], failed: %d",
+        ERROR_DEBUG("vfs_open open file: [%s], flags: [%d], mode: [%d], failed: %d\n",
                  filename, flags, mode, ret);
-        return -ret;
+        return ret;
     }
-    ERROR_DEBUG("%p\n", v);
     assert(v != NULL);
     ret = __init_kern_file(&node, v, NULL, flags, mode);
     if (ret != 0)
@@ -176,7 +172,6 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
         vfs_close(v);
         return ret;
     }
-    ERROR_DEBUG("%p\n", v);
 
     ret = get_file_stat(node);
     if (ret != 0)
@@ -184,8 +179,6 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
         __destroy_kern_file(node);
         return ret ;
     }
-    ERROR_DEBUG("%p\n", v);
-
 
     list_add_tail(&(node->link_obj),&(g_ftb.list_obj.head));
 
@@ -194,7 +187,7 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
     return 0;
 }
 
-void inc_ref_file(struct file* f)
+inline void inc_ref_file(struct file* f)
 {
     ++ f->ref_count;
     /* mb_atomic_inc_int(&(f->ref_count)); */
@@ -221,7 +214,7 @@ void inc_ref_file(struct file* f)
 /*     assert(cur_pos >= 0); */
 /*     if (__is_seekable(f) == 0) */
 /*     { */
-/*         return -ESPIPE; */
+/*         return ESPIPE; */
 /*     } */
 /*  */
 /*     if (whence == SEEK_SET) */
@@ -285,7 +278,8 @@ int kern_file_read(struct file* f, char* buf, size_t buf_size, size_t* read_len)
 {
     if (((f->f_flags & 3) != O_RDONLY) && ((f->f_flags & 3) != O_RDWR))
     {
-        return -EBADF;
+        ERROR_DEBUG("no read permission\n");
+        return EBADF;
     }
     int ret = 0;
     struct iovec iov;
@@ -297,7 +291,7 @@ int kern_file_read(struct file* f, char* buf, size_t buf_size, size_t* read_len)
     if (ret != 0)
     {
 
-        return -ret;
+        return ret;
     }
     f->f_pos = u.uio_offset;
     *read_len = f->f_pos - old;
@@ -310,7 +304,8 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * 
 {
     if (((f->f_flags & 3) != O_WRONLY) && ((f->f_flags & 3) != O_RDWR))
     {
-        return -EBADF;
+        ERROR_DEBUG("no write permission\n");
+        return EBADF;
     }
     int ret = 0;
     struct iovec iov;
@@ -331,7 +326,7 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * 
     ret = VOP_WRITE(f->v_ptr, &u);
     if (ret != 0)
     {
-        return -ret;
+        return ret;
     }
     f->f_pos = u.uio_offset;
     *read_len = f->f_pos - old;

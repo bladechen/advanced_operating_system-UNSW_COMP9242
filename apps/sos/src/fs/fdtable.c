@@ -74,9 +74,7 @@ static void __set_open_fd(int fd,  struct fdtable *fdt)
 {
     __set_bit(fd, fdt->open_fds_bits);
 }
-/*
- * currently only support fixed count fd, TODO reallocate fd array if filled up
- */
+
 static int __alloc_fd(struct files_struct* files)
 {
     assert(files != NULL);
@@ -87,7 +85,7 @@ static int __alloc_fd(struct files_struct* files)
     if (fd < 0)
     {
 
-        return -EMFILE;
+        return EMFILE;
     }
     __set_open_fd(fd, fdt);
 
@@ -104,7 +102,7 @@ static int __close_fd(struct files_struct* files, int fd)
 {
     if (fd < 0)
     {
-        return -EBADF;
+        return EBADF;
     }
     struct fdtable *fdt;
     struct file *file;
@@ -113,12 +111,12 @@ static int __close_fd(struct files_struct* files, int fd)
     if (fd >=(int) fdt->max_fds)
     {
 
-        return -EBADF;
+        return EBADF;
     }
     file = __fd_check(files, fd);
     if (file == NULL)
     {
-        return -EBADF;
+        return EBADF;
     }
     /* file = fdt->fd_array[fd]; */
     assert(file != NULL);
@@ -159,7 +157,6 @@ int do_sys_open(int dfd,const char* filename, int flags, mode_t mode, struct fil
     {
         ERROR_DEBUG("do flip open error, while opening: %s, put back fd: %d\n", (char*)filename, fd);
         __put_unused_fd(fst, fd);
-        assert(ret < 0);
         return ret;
     }
     else
@@ -185,7 +182,7 @@ int do_sys_close(int fd)
 /*     if (tofree == NULL && __get_bit(newfd, fdt->open_fds_bits ) != 0) */
 /*     { */
 /*  */
-/*         return -EBUSY; */
+/*         return EBUSY; */
 /*     } */
 /*     #<{(| assert(tofree == NULL); |)}># */
 /*     #<{(| assert(__get_bit(newfd, fdt->open_fds_bits) == 0); |)}># */
@@ -205,20 +202,20 @@ int do_sys_close(int fd)
 /* { */
 /*     if (oldfd == newfd) */
 /*     { */
-/*         return -EINVAL; */
+/*         return EINVAL; */
 /*     } */
 /*     struct files_struct* fst = get_current_proc()->fs_struct; */
 /*     if (is_valid_fd(fst, oldfd) == 0 || */
 /*         is_valid_fd(fst, newfd) == 0) */
 /*     { */
-/*         return -EBADF; */
+/*         return EBADF; */
 /*     } */
 /*  */
 /*     struct file* f = __fd_check(fst, oldfd); */
 /*     if (f == NULL) */
 /*     { */
 /*  */
-/*         return -EBADF; */
+/*         return EBADF; */
 /*     } */
 /*  */
 /*     return  __dup2(fst, f, newfd); */
@@ -231,12 +228,12 @@ int do_sys_close(int fd)
 /*         && whence != SEEK_CUR */
 /*         && whence != SEEK_END) */
 /*     { */
-/*         return -EINVAL; */
+/*         return EINVAL; */
 /*     } */
 /*     struct files_struct* fst = get_current_proc()->fs_struct; */
 /*     if (is_valid_fd(fst,fd) == 0) */
 /*     { */
-/*         return -EBADF; */
+/*         return EBADF; */
 /*     } */
 /*  */
 /*  */
@@ -244,7 +241,7 @@ int do_sys_close(int fd)
 /*     if (f == NULL) */
 /*     { */
 /*  */
-/*         return -EBADF; */
+/*         return EBADF; */
 /*     } */
 /*  */
 /*     #<{(| a trick played here */
@@ -271,13 +268,15 @@ int do_sys_read(int fd, char* buf, size_t buf_len)
     struct files_struct* fst = get_current_proc()->fs_struct;
     if (is_valid_fd(fst, fd) == 0)
     {
-        return -EBADF;
+        ERROR_DEBUG("do_sys_read invalid fd: %d\n",fd);
+        return EBADF;
     }
 
     struct file* f = __fd_check(fst, fd);
     if (f == NULL)
     {
-        return -EBADF;
+        ERROR_DEBUG("do_sys_read invalid fd: %d\n",fd);
+        return EBADF;
     }
     inc_ref_file(f);
 
@@ -286,8 +285,8 @@ int do_sys_read(int fd, char* buf, size_t buf_len)
 
     if ( ret != 0)
     {
+        ERROR_DEBUG("kern_file_read error: %d\n", ret);
         close_kern_file(f);
-        assert(ret < 0);
         return ret;
     }
 
@@ -300,15 +299,16 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
     struct files_struct* fst = get_current_proc()->fs_struct;
     if (is_valid_fd(fst, fd) == 0)
     {
-        return -EBADF;
+        ERROR_DEBUG("do_sys_write invalid fd: %d\n",fd);
+        return EBADF;
     }
 
 
     struct file* f = __fd_check(fst, fd);
     if (f == NULL)
     {
-
-        return -EBADF;
+        ERROR_DEBUG("do_sys_write invalid fd: %d\n",fd);
+        return EBADF;
     }
     inc_ref_file(f);
 
@@ -317,8 +317,8 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
 
     if (ret != 0)
     {
+        ERROR_DEBUG("kern_file_write error: %d\n", ret);
         close_kern_file(f);
-        assert(ret < 0);
         return ret;
     }
 
@@ -369,6 +369,7 @@ static int __init_fdt(struct fdtable* fdt)
         fdt->open_fds_bits[i] = 0;
         fdt->fd_array[i] = NULL;
     }
+    // reserve 0/1/2.
     fdt->fd_array[0] = (void*)0x01;
     fdt->fd_array[1] = (void*)0x01;
     fdt->fd_array[2] = (void*)0x01;
