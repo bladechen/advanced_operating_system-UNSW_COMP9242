@@ -421,8 +421,18 @@ _nfs_getdirentry(struct vnode *v, struct uio *uio)
         }
         if (cb_argv.cookie == 0)
         {
-            COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_YELLOW, "%p readdir pos %d exceed the capability %d\n", ev, tmp, cb_argv.total_files);
-            ret = ENOENT;
+            if (cb_argv.total_files == tmp)
+            {
+                COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_YELLOW, "%p readdir pos is next free: %d\n", ev, tmp);
+                char z = 0;
+                uiomove(&z, 1, uio);
+                ret = 0;
+            }
+            else
+            {
+                COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_YELLOW, "%p readdir pos %d exceed the capability %d\n", ev, tmp, cb_argv.total_files);
+                ret = ENOENT;
+            }
             break;
         }
     }

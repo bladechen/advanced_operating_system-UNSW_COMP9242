@@ -294,7 +294,10 @@ int main(void) {
 
     r =  sos_getdirent(10, buf, 1000);
     assert(r < 0);
-    /* while(1){} */
+
+    r =  sos_getdirent(4, buf, 1000);
+    assert(r == 0);
+    while(1){}
     sos_stat_t stat;
     assert(0 == sos_stat("hello_world", &stat));
     // TODO check status
