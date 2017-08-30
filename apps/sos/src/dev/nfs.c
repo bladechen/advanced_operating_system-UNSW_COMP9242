@@ -583,6 +583,26 @@ _nfs_stat_file(struct vnode *v, char* pathname, struct stat *statbuf)
     return 0;
 }
 
+static void
+_remove_cb(uintptr_t token, enum nfs_stat status){
+    struct nfs_cb_arg *arg = (struct nfs_cb_arg*)token;
+    arg->stat = status;
+}
+/*
+*	VOP_REMOVE for files
+*/
+static
+int
+_nfs_remove(struct vnode *v, const char * filename) 
+{
+	struct nfs_cb_arg arg;
+	struct nfs_vnode *ev = v->vn_data;
+    arg.stat = NFS_OK;
+
+    assert(!nfs_remove(&(ev->ev_handler), filename, &_remove_cb, (uintptr_t)&arg));
+    return arg.stat;
+}
+
 /*
  * VOP_GETTYPE for files
  */
@@ -1071,6 +1091,7 @@ static const struct vnode_ops nfs_dirops = {
     .vop_lookup = _nfs_lookup,
     .vop_creat = _nfs_creat,
     .vop_lookparent = _nfs_lookparent,
+    .vop_remove = _nfs_remove,
 };
 
 //

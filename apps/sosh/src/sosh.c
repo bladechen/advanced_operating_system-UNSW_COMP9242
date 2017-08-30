@@ -204,6 +204,26 @@ static int dir(int argc, char **argv) {
     return 0;
 }
 
+static int rm(int argc, char **argv) {
+    int i = 0, r;
+
+    if (argc > 2) {
+        printf("usage: %s [file]\n", argv[0]);
+        return 1;
+    }
+
+    if (argc == 2) {
+        r = sos_sys_remove(argv[1]);
+        if (r < 0) {
+            printf("stat(%s) failed: %d\n", argv[1], r);
+        }
+        return 0;
+    }
+
+    return 0;
+}
+
+
 static int second_sleep(int argc,char *argv[]) {
     if (argc != 2) {
         printf("Usage %s seconds\n", argv[0]);
@@ -274,7 +294,7 @@ struct command {
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
     "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-               {"benchmark", benchmark}};
+               {"benchmark", benchmark}, {"rm", rm}};
 
 int main(void) {
     char buf[BUF_SIZ];
@@ -282,37 +302,53 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
 
-    r =  sos_getdirent(1, buf, 1000);
-    assert(r > 0);
-    buf[r] = 0;
-    tty_debug_print("get file : %s\n", buf);
+    // r =  sos_getdirent(1, buf, 1000);
+    // assert(r > 0);
+    // buf[r] = 0;
+    // tty_debug_print("get file : %s\n", buf);
 
-    r =  sos_getdirent(3, buf, 1000);
-    assert(r > 0);
-    buf[r] = 0;
-    tty_debug_print("get file : %s\n", buf);
+    // r =  sos_getdirent(3, buf, 1000);
+    // assert(r > 0);
+    // buf[r] = 0;
+    // tty_debug_print("get file : %s\n", buf);
 
-    r =  sos_getdirent(10, buf, 1000);
-    assert(r < 0);
+    // r =  sos_getdirent(10, buf, 1000);
+    // assert(r < 0);
 
-    r =  sos_getdirent(4, buf, 1000);
-    assert(r == 0);
-    while(1){}
-    sos_stat_t stat;
-    assert(0 == sos_stat("hello_world", &stat));
-    // TODO check status
-    tty_debug_print("%u %u %u %llu %llu\n", stat.st_size, stat.st_fmode, stat.st_type, stat.st_ctime, stat.st_atime);
+    // r =  sos_getdirent(4, buf, 1000);
+    // assert(r == 0);
+    // while(1){}
+    // sos_stat_t stat;
+    // assert(0 == sos_stat("hello_world", &stat));
+    // // TODO check status
+    // tty_debug_print("%u %u %u %llu %llu\n", stat.st_size, stat.st_fmode, stat.st_type, stat.st_ctime, stat.st_atime);
     /* assert( open("hello_world", O_RDONLY ) < 0); */
     in = open("hello_world",  O_RDWR| O_CREAT  );
-    assert( open("hello_world", O_RDONLY ) > 0);
-    int ret = read(in, buf, BUF_SIZ - 1);
-    assert(ret == BUF_SIZ - 1);
-    buf[ret] = 0;
+
+    for(int i=0; i<BUF_SIZ; i++) {
+        buf[i] = 'a';
+    }
+
+    int ret = write(in, buf, BUF_SIZ);
+    // assert(ret == BUF_SIZ);
+    tty_debug_print("sosh write to `hello_world` ret: %d\n",  ret);
+
+    memset(buf, 0, BUF_SIZ);
+    // assert( open("hello_world", O_RDONLY ) > 0);
+    ret = read(in, buf, BUF_SIZ - 1);
+    // tty_debug_print("read return value: %d\n", ret);
+    // assert(ret == BUF_SIZ - 1);
+    // buf[ret] = 0;
     tty_debug_print("sosh read len %d\n",  ret);
-    ret = write(in, buf, BUF_SIZ - 1);
-    assert(ret == BUF_SIZ - 1);
+    // ret = write(in, buf, BUF_SIZ - 1);
+    // assert(ret == BUF_SIZ - 1);
+    tty_debug_print("sosh read from `hello_world`: %s\n",  buf);
+
     close(in);
-    close(in + 1);
+    // close(in + 1);
+    
+    sos_sys_remove("hello_world");
+
     while (1){}
     in = open("console", O_RDONLY);
     assert(in >= 0);

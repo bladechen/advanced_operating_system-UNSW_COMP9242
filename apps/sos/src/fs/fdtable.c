@@ -170,6 +170,14 @@ int do_sys_close(int fd)
     return __close_fd(get_current_proc()->fs_struct, fd);
 }
 
+int do_sys_remove(char* filename)
+{
+    // TODO: need to check whether the file is open
+    
+    int ret = do_flip_remove(filename);
+    return ret;
+}
+
 
 /* static int __dup2(struct files_struct* fst, struct file* f, int newfd) */
 /* { */

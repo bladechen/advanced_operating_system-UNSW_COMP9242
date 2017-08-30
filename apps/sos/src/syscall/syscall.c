@@ -36,7 +36,8 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_brk, .will_block=false},
     {.syscall=&sos_syscall_close, .will_block=false},
     {.syscall=&sos_syscall_stat, .will_block=false},
-    {.syscall=&sos_syscall_get_dirent, .will_block=false}};
+    {.syscall=&sos_syscall_get_dirent, .will_block=false},
+    {.syscall=&sos_syscall_remove, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -98,6 +99,27 @@ void sos_syscall_read(void* argv)
     }
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "read finish pid: %d, ret: %d, len: %u\n", proc->p_pid, ret, read_len);
     ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
+// Remove files
+void sos_syscall_remove(void * argv) {
+    struct proc * proc = (struct proc *) argv;
+    assert(proc == get_current_proc());
+    struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
+
+    char* file_name = (get_ipc_buffer(proc));    
+    path_transfer(file_name, msg->offset);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_remove: [%s]\n", file_name);
+
+    int err = 0;
+    int ret = syscall_remove(file_name, &err);
+
+    conditional_panic(ret, "Fail to remove files from nfs\n");
+    // assert(ret == 0);
+    struct ipc_buffer_ctrl_msg reply_cmsg;
+    reply_cmsg.offset = 0;
+    reply_cmsg.ret_val = ret;
+    ipc_reply(&reply_cmsg, &(proc->p_reply_cap));
 }
 
 void sos_syscall_open(void* argv)
@@ -300,7 +322,6 @@ void sos_syscall_brk(void* argv)
 
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
-
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {
