@@ -23,6 +23,7 @@ int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
     int result = do_sys_open(-1, filename, flags, mode, get_current_proc()->fs_struct);
     if (result < 0)
     {
+        ERROR_DEBUG("syscall_open filename: %s error: %d\n", filename, result);
         *fd_num = make_positive(result);
         return -1;
     }
@@ -33,6 +34,10 @@ int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
 int syscall_close(int fd_num, int* retval)
 {
     *retval = make_positive(do_sys_close(fd_num));
+    if (*retval != 0)
+    {
+        ERROR_DEBUG("syscall_close fd: %d, error: %d\n", fd_num, *retval);
+    }
 
     return (*retval == 0 )? 0 : -1;
 }
