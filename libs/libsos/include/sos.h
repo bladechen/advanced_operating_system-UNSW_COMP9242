@@ -103,8 +103,9 @@ typedef struct {
   st_type_t st_type;    /* file type */
   fmode_t   st_fmode;   /* access mode */
   unsigned  st_size;    /* file size in bytes */
-  long long      st_ctime;   /* Unix file creation time (ms) */
-  long long      st_atime;   /* Unix file last access (open) time (ms) */
+
+  long st_ctime;   /* Unix file creation time (ms) */
+  long st_atime;   /* Unix file last access (open) time (ms) */
 } sos_stat_t;
 
 typedef int pid_t;

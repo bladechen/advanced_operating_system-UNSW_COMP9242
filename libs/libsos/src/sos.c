@@ -201,7 +201,7 @@ int sos_stat(const char *path, sos_stat_t *buf)
     }
     tty_debug_print("[app] sos_stat return: %d\n",  ret.ret_val);
 
-    return ret.ret_val;
+    return (ret.ret_val == 0) ? 0: -1;
 }
 
 
@@ -215,7 +215,7 @@ int sos_getdirent(int pos, char *name, size_t nbyte)
     struct ipc_buffer_ctrl_msg ret;
     ctrl_msg.offset = 2 * sizeof(int);
     memcpy((void*)(APP_PROCESS_IPC_SHARED_BUFFER), &pos, 4);
-    int bytes = nbyte;
+    int bytes = nbyte - 1;
     memcpy((void*)(APP_PROCESS_IPC_SHARED_BUFFER + 4), &bytes, 4);
     assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
 
@@ -224,7 +224,9 @@ int sos_getdirent(int pos, char *name, size_t nbyte)
         return -ret.ret_val; // negative int impose error
     }
     int ret_name_len = nbyte > ret.offset ? ret.offset: nbyte;
+    assert(ret_name_len < nbyte);
     memcpy(name, (void*)APP_PROCESS_IPC_SHARED_BUFFER, ret_name_len);
+    name [ret_name_len] = 0;
     tty_debug_print("[app] sos_getdirent return len: %d\n", ret_name_len);
 
     return ret_name_len;

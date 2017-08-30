@@ -708,12 +708,12 @@ _nfs_creat(struct vnode *dir, const char *name, bool excl, mode_t mode,
     sattr_t sattr;
 
     /* create some files file */
-    sattr.mode = 0b111111111;
+    sattr.mode = 0b111000000;
     sattr.uid = 1;
     sattr.gid = 1;
     sattr.size = (mode & O_TRUNC) ? 0 : -1;
-    sattr.atime.seconds = unix_time_stamp();
-    sattr.mtime.seconds = unix_time_stamp();
+    sattr.atime.seconds = time_stamp();
+    sattr.mtime.seconds = time_stamp();
     int rets = nfs_create(&(ev->ev_handler), name, &sattr, &_nfs_creat_cb, (uintptr_t)&cb_argv);
     if (rets != 0)
     {
@@ -773,6 +773,11 @@ _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
 
     rets = _nfs_waitdone(&cb_argv);
     sem_destroy(cb_argv.sem);
+    if (rets == NFSERR_NOENT) // according to spec, if file not there we create it!
+    {
+        return _nfs_creat(dir, pathname, 0, 0, ret);
+
+    }
     if (rets != 0)
     {
         ERROR_DEBUG("%p nfs_lookup, cb %d\n", ev, rets);
