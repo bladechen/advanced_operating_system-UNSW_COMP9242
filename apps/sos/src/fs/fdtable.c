@@ -110,7 +110,6 @@ static int __close_fd(struct files_struct* files, int fd)
     fdt = files->fdt;
     if (fd >=(int) fdt->max_fds)
     {
-
         return EBADF;
     }
     file = __fd_check(files, fd);
@@ -151,13 +150,13 @@ int do_sys_open(int dfd,const char* filename, int flags, mode_t mode, struct fil
         return fd;
     }
     struct file* fp = NULL;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "do_sys_open, dfd: %d, fileanme: %s, flags: %d\n", dfd, filename, flags);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "do_sys_open, dfd: %d, fileanme: %s, flags: %d, mode: %d\n", dfd, filename, flags, mode);
     int ret  = do_flip_open(&fp, dfd, (char*)filename, flags, mode);
     if ( ret != 0)
     {
         ERROR_DEBUG("do flip open error, while opening: %s, put back fd: %d\n", (char*)filename, fd);
         __put_unused_fd(fst, fd);
-        return ret;
+        return ret > 0 ? -ret: ret;
     }
     else
     {
@@ -277,14 +276,14 @@ int do_sys_read(int fd, char* buf, size_t buf_len)
     if (is_valid_fd(fst, fd) == 0)
     {
         ERROR_DEBUG("do_sys_read invalid fd: %d\n",fd);
-        return EBADF;
+        return -EBADF;
     }
 
     struct file* f = __fd_check(fst, fd);
     if (f == NULL)
     {
         ERROR_DEBUG("do_sys_read invalid fd: %d\n",fd);
-        return EBADF;
+        return -EBADF;
     }
     inc_ref_file(f);
 
@@ -293,9 +292,9 @@ int do_sys_read(int fd, char* buf, size_t buf_len)
 
     if ( ret != 0)
     {
-        ERROR_DEBUG("kern_file_read error: %d\n", ret);
+        ERROR_DEBUG("kern_file_read fd: %d error: %d\n", fd, ret);
         close_kern_file(f);
-        return ret;
+        return ret > 0 ? -ret:ret;
     }
 
     close_kern_file(f);
@@ -308,7 +307,7 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
     if (is_valid_fd(fst, fd) == 0)
     {
         ERROR_DEBUG("do_sys_write invalid fd: %d\n",fd);
-        return EBADF;
+        return -EBADF;
     }
 
 
@@ -316,7 +315,7 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
     if (f == NULL)
     {
         ERROR_DEBUG("do_sys_write invalid fd: %d\n",fd);
-        return EBADF;
+        return -EBADF;
     }
     inc_ref_file(f);
 
@@ -325,14 +324,12 @@ ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
 
     if (ret != 0)
     {
-        ERROR_DEBUG("kern_file_write error: %d\n", ret);
+        ERROR_DEBUG("kern_file_write fd: %d, error: %d\n", fd, ret);
         close_kern_file(f);
-        return ret;
+        return ret > 0 ? -ret: ret;
     }
-
     close_kern_file(f);
     return write_len;
-
 
 }
 

@@ -50,13 +50,15 @@ extern struct serial_console _serial;
 bool path_transfer(char* in, size_t off)
 {
     //FIXME
-
     static char file_name [4096];
-    assert(off <= APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    if (off >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE - 20)
+    {
+        return false;
+    }
+    /* assert(off <= APP_PROCESS_IPC_SHARED_BUFFER_SIZE); */
     memcpy(file_name, in, off);
     file_name[off] = 0;
     int out_len = 0;
-    printf ("%u %s\n", off, in);
     if (strcmp(file_name, "console") == 0)
     {
         file_name[off] = ':';
@@ -80,9 +82,9 @@ void sos_syscall_read(void* argv)
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_read, from pid: %d\n", proc->p_pid);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_read, from pid: %u\n", proc->p_pid);
     /* COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE); */
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d %d\n",msg->file_id, msg->offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, readlen: %d\n",msg->file_id, msg->offset);
     size_t read_len = 0;
     assert(msg->offset <=  APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
     int ret = syscall_read(msg->file_id, (char*)get_ipc_buffer(proc), msg->offset, &read_len);
@@ -91,13 +93,16 @@ void sos_syscall_read(void* argv)
     {
         ctrl.offset = read_len;
         ctrl.ret_val = 0;
+
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_read pid: %u, read len: %d\n", proc->p_pid,  ctrl.offset);
     }
     else
     {
         ctrl.offset = 0;
         ctrl.ret_val = read_len;
+
+        ERROR_DEBUG("end sos_syscall_write pid: %u, err: %d\n", proc->p_pid, read_len);
     }
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "read finish pid: %d, ret: %d, len: %u\n", proc->p_pid, ret, read_len);
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -129,21 +134,30 @@ void sos_syscall_open(void* argv)
 
 
     char* file_name = (get_ipc_buffer(proc));
-    path_transfer(file_name, proc->p_ipc_ctrl.offset);
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_open: [%s]\n", file_name);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_open proc: %u, file: [%s] flags: %d, mode: %d\n",proc->p_pid, file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode);
+    struct ipc_buffer_ctrl_msg ctrl;
+    if (path_transfer(file_name, proc->p_ipc_ctrl.offset) == false)
+    {
+        ctrl.ret_val = EINVAL;
+        ERROR_DEBUG("end sos_syscall_open proc: %u, file: [%s] err: %d\n",proc->p_pid, file_name, ctrl.ret_val);
+        ipc_reply(&ctrl, &(proc->p_reply_cap));
+        return;
+    }
 
     int fd = 0;
     int ret = syscall_open(file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode, &fd);
     printf ("syscall_open finish\n");
-    struct ipc_buffer_ctrl_msg ctrl;
     ctrl.offset = 0;
     if (ret == 0 )
     {
         ctrl.ret_val = 0;
         ctrl.file_id = fd;
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_open proc: %u, file: [%s] fd: %d\n",proc->p_pid, file_name, fd);
+
     }
     else
     {
+        ERROR_DEBUG("end sos_syscall_open proc: %u, file: [%s] err: %d\n",proc->p_pid, file_name, fd);
         ctrl.ret_val = fd;
     }
     ipc_reply(&ctrl, &(proc->p_reply_cap));
@@ -159,6 +173,14 @@ void sos_syscall_close(void* argv)
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.ret_val = err;
     ctrl.offset = 0;
+    if (ctrl.ret_val)
+    {
+        ERROR_DEBUG("sos_syscall_close proc: %u, fd: %d, err: %d\n", proc->p_pid, proc->p_ipc_ctrl.file_id, err);
+    }
+    else
+    {
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_close proc: %u, fd: %d success!\n", proc->p_pid, proc->p_ipc_ctrl.file_id);
+    }
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -207,8 +229,8 @@ void sos_syscall_write(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_write, from pid: %d\n", proc->p_pid);
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, writelen: %d %d\n", proc->p_ipc_ctrl.file_id, proc->p_ipc_ctrl.offset, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_write pid: %u\n", proc->p_pid);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "* fd: %d, writelen: %d\n", proc->p_ipc_ctrl.file_id, proc->p_ipc_ctrl.offset);
 
     size_t write_len = 0;
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
@@ -219,23 +241,23 @@ void sos_syscall_write(void* argv)
     {
         ctrl.ret_val = 0;
         ctrl.offset = write_len;
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_write pid: %u, write len: %d\n", proc->p_pid,  ctrl.offset);
     }
     else
     {
+        ERROR_DEBUG("end sos_syscall_write pid: %u, err: %d\n", proc->p_pid, write_len);
         ctrl.ret_val = write_len;
         ctrl.offset = 0;
     }
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_write, return: %d, offset: %d\n",  ctrl.ret_val,  ctrl.offset);
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
-
 
 void sos_syscall_usleep(void * argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
     int msecond = *((int*)(get_ipc_buffer(proc)));
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, get sleep %d\n", proc->p_pid, msecond);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %u, get sleep %dms\n", proc->p_pid, msecond);
     handle_block_sleep((void*)(msecond));
 }
 
@@ -245,12 +267,18 @@ void sos_syscall_stat(void* argv)
     assert(proc == get_current_proc());
     // FIXME
     char* file_name = (get_ipc_buffer(proc));
-    path_transfer(file_name, proc->p_ipc_ctrl.offset);
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_stat: [%s]\n", file_name);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_stat proc: %u, file: [%s]\n", proc->p_pid, file_name);
+    struct ipc_buffer_ctrl_msg ctrl;
+    if (path_transfer(file_name, proc->p_ipc_ctrl.offset) == false)
+    {
+        ctrl.ret_val = EINVAL;
+        ERROR_DEBUG("end sos_syscall_stat proc: %u, file: [%s] err: %d\n",proc->p_pid, file_name, ctrl.ret_val);
+        ipc_reply(&ctrl, &(proc->p_reply_cap));
+        return;
+    }
 
     struct stat buf;
     int ret = syscall_stat(file_name, &buf);
-    struct ipc_buffer_ctrl_msg ctrl;
     ctrl.ret_val = ret;
     if (ctrl.ret_val == 0)
     {
@@ -261,8 +289,13 @@ void sos_syscall_stat(void* argv)
         sos_stat->st_size = buf.st_size;
         sos_stat->st_ctime = (long long)(buf.st_ctime)* 1000000LL + buf.st_ctimensec;
         sos_stat->st_atime = (long long)(buf.st_atime) * 1000000LL + buf.st_atimensec;
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN,"end sos_syscall_stat proc: %u, file: \n", proc->p_pid, file_name);
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN,"* type: %d, mode: %d, size: %lld, ctime: %llu, atime: %llu\n", sos_stat->st_type, sos_stat->st_fmode, sos_stat->st_size, sos_stat->st_ctime, sos_stat->st_atime);
     }
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_stat, return: %d\n",  ctrl.ret_val);
+    else
+    {
+        ERROR_DEBUG("end sos_syscall_stat proc: %u, err: %d\n", proc->p_pid, ctrl.ret_val);
+    }
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
@@ -276,21 +309,24 @@ void sos_syscall_get_dirent(void* argv)
     int pos = *(int*)(get_ipc_buffer(proc));
     int file_name_len = *(int*)((size_t)(get_ipc_buffer(proc)) + 4);
     char* name = (char*)(get_ipc_buffer(proc));
-    file_name_len = file_name_len > APP_PROCESS_IPC_SHARED_BUFFER_SIZE ? APP_PROCESS_IPC_SHARED_BUFFER_SIZE: file_name_len;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_get_dirent, pos: %d, given length %d for storing file name\n", pos, file_name_len);
+    file_name_len = file_name_len > APP_PROCESS_IPC_SHARED_BUFFER_SIZE - 1 ? APP_PROCESS_IPC_SHARED_BUFFER_SIZE - 1: file_name_len;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_get_dirent, proc: %u, pos: %d, given length %d for storing file name\n", proc->p_pid, pos, file_name_len);
 
     // currently only support nfs.
     char path[10] ;
     memcpy(path, "nfs:", 4);
+    memset(name, 0, APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
     int ret = syscall_get_dirent(path, pos, name, file_name_len);
     struct ipc_buffer_ctrl_msg ctrl;
     if (ret != 0)
     {
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_RED, "end sos_syscall_get_dirent, proc: %u, pos: %d, ret: %d\n", proc->p_pid, pos, ret);
         ctrl.ret_val = ret;
         ctrl.offset = 0;
     }
     else
     {
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_RED, "end sos_syscall_get_dirent, proc: %u, file[%s]\n", proc->p_pid, name);
         ctrl.ret_val = 0;
         ctrl.offset = strlen(name);
         assert(ctrl.offset <= APP_PROCESS_IPC_SHARED_BUFFER_SIZE);
@@ -304,9 +340,7 @@ void sos_syscall_brk(void* argv)
     assert(proc == get_current_proc());
     seL4_Word newbrk = *((int*)(get_ipc_buffer(proc)));
 
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc %d, newbrk: 0x%x\n", proc->p_pid, newbrk);
-    /* frame_alloc(NULL); */
-    /* COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "enter as_get_heap_brk\n"); */
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_brk proc %u, newbrk: 0x%x\n", proc->p_pid, newbrk);
 
     struct addrspace *as = proc->p_addrspace;
     seL4_Word retbrk = 0;
@@ -319,6 +353,7 @@ void sos_syscall_brk(void* argv)
     {
         memcpy(get_ipc_buffer(proc), &retbrk, 4);
     }
+    COLOR_DEBUG(DB_SYSCALL, ret == 0 ? ANSI_COLOR_GREEN : ANSI_COLOR_RED, "end sos_syscall_brk proc %u, return brk: 0x%x, ret: %d\n", proc->p_pid,retbrk, ret);
 
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
@@ -332,8 +367,8 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
     memcpy(ctrl_msg, seL4_GetIPCBuffer()->msg, sizeof(ipc_buffer_ctrl_msg));
 
     syscall_number = ctrl_msg->syscall_number;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "syscall_number: %d, offset: %d, start_addr: 0x%x\n",
-        syscall_number, ctrl_msg->offset, ctrl_msg->start_app_buffer_addr);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "proc: %u, syscall_number: %d, msg_len: %d\n",
+        app_process->p_pid, syscall_number, ctrl_msg->offset);
 
     assert(coro_status(app_process->p_coro) == COROUTINE_INIT);
     /* Save the caller */
@@ -352,7 +387,6 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
 
     /* Invoke corresponding syscall */
     restart_coro(app_process->p_coro, syscall_func_arr[syscall_number].syscall, app_process);
-
 }
 
 

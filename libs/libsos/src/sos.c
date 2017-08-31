@@ -44,8 +44,9 @@ int sos_sys_open(const char *path, fmode_t mode)
     ctrl_msg.file_id = -1;
     struct ipc_buffer_ctrl_msg ret;
     assert (0 == ipc_call(&ctrl_msg, path, &ret));
-    tty_debug_print("[app] sos_sys_open return: val %d, fd %d\n",ret.ret_val,  ret.file_id);
+    tty_debug_print("[app] sos_sys_open return %d, fd %d\n", ret.ret_val, ret.file_id);
 
+    assert(ret.ret_val>=0);
     /* assert(!"You need to implement this"); */
     return (ret.ret_val == 0) ? ret.file_id: ( -ret.ret_val);
 }
@@ -88,18 +89,19 @@ int sos_sys_read(int file, char *buf, size_t nbyte)
     ctrl_msg.start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
 
     char* shared_buffer = (char *)(APP_PROCESS_IPC_SHARED_BUFFER);
+    tty_debug_print("[app] sos_sys_read fd: %d  with length: %d\n", file, nbyte);
     while (read_len < nbyte)
     {
         ctrl_msg.offset = (nbyte - read_len) > APP_PROCESS_IPC_SHARED_BUFFER_SIZE ? APP_PROCESS_IPC_SHARED_BUFFER_SIZE: nbyte - read_len;
         struct ipc_buffer_ctrl_msg ret;
         assert(0 == ipc_call(&ctrl_msg, NULL, &ret));
-        /* tty_debug_print("[sosh] read ret: %d, len: %d, total: %d\n", ret.ret_val, ret.offset, ret.offset + read_len); */
         if (ret.ret_val == 0)
         {
             size_t off = ret.offset;
             if (off < ctrl_msg.offset) // new line comes. return
             {
                 memcpy(buf + read_len, shared_buffer, off);
+                tty_debug_print("[app] sos_sys_read fd: %d  finish read length: %d\n", file, read_len + off);
                 return read_len + off;
             }
             else
@@ -116,9 +118,13 @@ int sos_sys_read(int file, char *buf, size_t nbyte)
                 return -ret.ret_val;
             }
             else
+            {
+                tty_debug_print("[app] sos_sys_read fd: %d  finish read length: %d\n", file, read_len );
                 return read_len;
+            }
         }
     }
+    tty_debug_print("[app] sos_sys_read fd: %d  finish read length: %d\n", file, read_len );
     return read_len;
 
 }
@@ -130,6 +136,7 @@ int sos_sys_write(int file, const char *vData, size_t nbyte)
     {
         return 0;
     }
+    tty_debug_print("[app] sos_sys_write fd: %d  with length: %d\n", file, nbyte);
     struct ipc_buffer_ctrl_msg  ctrl_msg;
     ctrl_msg.syscall_number = SOS_SYSCALL_WRITE;
     ctrl_msg.start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
@@ -138,10 +145,13 @@ int sos_sys_write(int file, const char *vData, size_t nbyte)
     size_t len = my_serial_send( vData, nbyte, & ctrl_msg, &err);
     if (err == 0)
     {
+
+        tty_debug_print("[app] sos_sys_write fd: %d finish with length: %d\n", file, len);
         return len;
     }
     else
     {
+        tty_debug_print("[app] sos_sys_write fd: %d err: %d\n", file, -err);
         assert(-err < 0);
         return -err;
     }
@@ -191,7 +201,7 @@ int sos_sys_close(int file)
     struct ipc_buffer_ctrl_msg ret;
     ctrl_msg.offset = 0;
     assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
-    tty_debug_print("[app] sos_sys_close return: %d\n",  ret.ret_val);
+    tty_debug_print("[app] sos_sys_close fd: %d return: %d\n", file,  ret.ret_val);
 
     return ret.ret_val;
 }
@@ -259,7 +269,7 @@ int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data, struct ip
     unserialize_ipc_ctrl_msg(ret);
     if (ret->ret_val != 0)
     {
-        tty_debug_print("[sosh] syscall %d return %d, %s\n", ctrl->syscall_number, ret->ret_val, strerror(ret->ret_val));
+        tty_debug_print("[app] syscall %d return %d, %s\n", ctrl->syscall_number, ret->ret_val, strerror(ret->ret_val));
     }
     return 0;
 }

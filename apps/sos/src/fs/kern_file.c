@@ -30,10 +30,10 @@ static int get_file_stat(struct file* node)
     {
         return result;
     }
-    if (node->f_flags & O_APPEND)
-    {
-        node->f_pos = node->f_stat.st_size;
-    }
+    /* if (node->f_flags & O_APPEND) */
+    /* { */
+    /*     node->f_pos = node->f_stat.st_size; */
+    /* } */
     return 0;
 }
 
@@ -74,7 +74,6 @@ int close_kern_file(struct file* fs)
     }
     else
     {
-
         /* struct files_table* ftb = fs->owner; */
         assert(fs->owner != NULL);
 
@@ -156,6 +155,7 @@ int do_flip_remove(char * filname) {
 
 int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mode )
 {
+    // XXX currently 0/1/2 is occupied but not in use.
     if (dfd == STDIN_FILENO || dfd == STDOUT_FILENO || dfd  == STDERR_FILENO)
     {
         return __do_stdio_open(fp, dfd);
@@ -181,10 +181,13 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
         return ret;
     }
 
+    // TODO maybe we need get nfs file stat while open.
     ret = get_file_stat(node);
     if (ret != 0)
     {
-        __destroy_kern_file(node);
+        assert(0);
+        close_kern_file(node);
+        /* __destroy_kern_file(node); */
         return ret ;
     }
 
@@ -298,17 +301,14 @@ int kern_file_read(struct file* f, char* buf, size_t buf_size, size_t* read_len)
     ret = VOP_READ(f->v_ptr, &u);
     if (ret != 0)
     {
-
         return ret;
     }
     f->f_pos = u.uio_offset;
     *read_len = f->f_pos - old;
-
-
     return 0;
 }
 
-int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * read_len)
+int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t *write_len)
 {
     if (((f->f_flags & 3) != O_WRONLY) && ((f->f_flags & 3) != O_RDWR))
     {
@@ -318,17 +318,18 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * 
     int ret = 0;
     struct iovec iov;
     struct uio u;
+    // XXX not support O_APPEND at this stage.
 
-    if (f->f_flags & O_APPEND)
-    {
-        ret = get_file_stat(f);
-        if ( ret != 0)
-        {
-
-            return ret;
-        }
-
-    }
+    /* if (f->f_flags & O_APPEND) */
+    /* { */
+    /*     ret = get_file_stat(f); */
+    /*     if ( ret != 0) */
+    /*     { */
+    /*  */
+    /*         return ret; */
+    /*     } */
+    /*  */
+    /* } */
     size_t old = f->f_pos;
     uio_kinit(&iov, &u,(void *) buf, buf_size, f->f_pos, UIO_WRITE);
     ret = VOP_WRITE(f->v_ptr, &u);
@@ -337,10 +338,8 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t * 
         return ret;
     }
     f->f_pos = u.uio_offset;
-    *read_len = f->f_pos - old;
-
+    *write_len = f->f_pos - old;
     return 0;
-
 }
 
 int kern_file_stat(char* path, struct stat* stat_buf)
