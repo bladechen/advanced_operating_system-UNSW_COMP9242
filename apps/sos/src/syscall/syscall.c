@@ -112,7 +112,6 @@ void sos_syscall_open(void* argv)
 
 
     char* file_name = (get_ipc_buffer(proc));
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_open proc: %u, file: [%s] flags: %d, mode: %d\n",proc->p_pid, file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode);
     struct ipc_buffer_ctrl_msg ctrl;
     if (path_transfer(file_name, proc->p_ipc_ctrl.offset) == false)
     {
@@ -121,10 +120,10 @@ void sos_syscall_open(void* argv)
         ipc_reply(&ctrl, &(proc->p_reply_cap));
         return;
     }
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_open proc: %u, file: [%s] flags: %d, mode: %d\n",proc->p_pid, file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode);
 
     int fd = 0;
     int ret = syscall_open(file_name, proc->p_ipc_ctrl.mode, proc->p_ipc_ctrl.mode, &fd);
-    printf ("syscall_open finish\n");
     ctrl.offset = 0;
     if (ret == 0 )
     {
@@ -268,6 +267,7 @@ void sos_syscall_stat(void* argv)
         sos_stat->st_size = buf.st_size;
         sos_stat->st_ctime = (long)(buf.st_ctime);
         sos_stat->st_atime = (long)(buf.st_atime) ;
+        /* sos_stat->st_mtime = (long)(buf.st_mtime) ; */
         COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN,"end sos_syscall_stat proc: %u, file: \n", proc->p_pid, file_name);
         COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN,"* type: %d, mode: %d, size: %d, ctime: %ld, atime: %ld\n", sos_stat->st_type, sos_stat->st_fmode, (int)(sos_stat->st_size), sos_stat->st_ctime, sos_stat->st_atime);
     }

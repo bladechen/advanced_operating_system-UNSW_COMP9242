@@ -105,7 +105,7 @@ int req_ipc_print_console(char* buf, size_t buflen)
     tty_debug_print("[tty] do sending buflen: %d\n", can_send_buflen);
     assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
     return seL4_GetMR(0);
-    
+
 }
 
 // static int total_send_len = 0;
@@ -118,7 +118,7 @@ int req_ipc_print_console(char* buf, size_t buflen)
 //     char *buf = (char * ) vData;
 //     tty_debug_print("[tty] begin sos_write len: %d\n", count);
 
-//     if (large_buffer_transfer == false) 
+//     if (large_buffer_transfer == false)
 //     {
 //         while (sent_len != count)
 //         {
@@ -136,7 +136,7 @@ int req_ipc_print_console(char* buf, size_t buflen)
 //         tty_debug_print("[tty] sos_write finish, tty totally sent till now: %d\n", total_send_len);
 //         return sent_len;
 
-//     } else 
+//     } else
 //     {
 //         tty_debug_print("[tty] send large buffer, in new syscall work flow, do sending...\n");
 //         // move it to syscall work flow to see if it works well
@@ -153,7 +153,7 @@ int req_ipc_print_console(char* buf, size_t buflen)
 
 //         // size_t buflen = count;
 //         // size_t sent = 0;
-//         // while (buflen > 0) 
+//         // while (buflen > 0)
 //         // {
 //         //     if (buflen > (0xA0006000 - 0xA0002000))
 //         //     {
@@ -177,8 +177,8 @@ int req_ipc_print_console(char* buf, size_t buflen)
 //         //         tty_debug_print("[tty] send large buffer, do sending buflen...\n");
 //         //         assert(0 == seL4_MessageInfo_get_label(rep_msginfo));
 //         //     }
-//         // }    
-//         // return sent;    
+//         // }
+//         // return sent;
 //     }
 // }
 

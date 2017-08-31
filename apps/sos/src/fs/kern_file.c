@@ -177,10 +177,14 @@ int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mo
     ret = get_file_stat(node);
     if (ret != 0)
     {
-        assert(0);
         close_kern_file(node);
         /* __destroy_kern_file(node); */
         return ret ;
+    }
+    if (node->f_stat.st_type == ST_SPECIAL)
+    {
+        close_kern_file(node);
+        return EISDIR;
     }
 
     list_add_tail(&(node->link_obj),&(g_ftb.list_obj.head));

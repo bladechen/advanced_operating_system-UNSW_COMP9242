@@ -61,6 +61,11 @@ static int cat(int argc, char **argv) {
 
     fd = open(argv[1], O_RDONLY);
     stdout_fd = open("console", O_WRONLY);
+    if (fd < 0)
+    {
+        printf ("error\n");
+        return 2;
+    }
 
     assert(fd >= 0);
 
@@ -94,6 +99,11 @@ static int cp(int argc, char **argv) {
     fd = open(file1, O_RDONLY);
     fd_out = open(file2, O_WRONLY);
 
+    if (fd < 0 || fd_out < 0)
+    {
+        printf ("something error\n");
+        return 2;
+    }
     assert(fd >= 0);
     assert(fd_out >= 0);
 
