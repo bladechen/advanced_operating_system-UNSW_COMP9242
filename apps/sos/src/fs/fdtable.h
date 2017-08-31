@@ -32,6 +32,7 @@ is_valid_fd(struct files_struct*f, int fd)
     return !(fd < 0 || fd >= (int)f->fdt->max_fds);
 }
 
+int do_sys_remove(char* filename);
 int do_sys_open(int dfd,  const char* filename, int flags, mode_t mode, struct files_struct*);
 int do_sys_close(int fd);
 // int do_sys_dup2(int oldfd, int newfd) ;

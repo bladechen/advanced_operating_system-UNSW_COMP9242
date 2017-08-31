@@ -145,6 +145,14 @@ static int __do_stdio_open(struct file** f, int fd)
     *f = tmp;
     return 0;
 }
+
+int do_flip_remove(char * filname) {
+    int ret = vfs_remove(filname);
+
+    return ret;
+}
+
+
 int do_flip_open(struct file ** fp, int dfd, char* filename,int flags, mode_t mode )
 {
     // XXX currently 0/1/2 is occupied but not in use.

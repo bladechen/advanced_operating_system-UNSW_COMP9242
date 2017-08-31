@@ -51,6 +51,29 @@ int sos_sys_open(const char *path, fmode_t mode)
     return (ret.ret_val == 0) ? ret.file_id: ( -ret.ret_val);
 }
 
+// Provide fd or path, both can used to remove files
+int sos_sys_remove(const char *path)
+{
+    tty_debug_print("[app] sos_sys_remove: %s\n", path);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_REMOVE;
+
+    ctrl_msg.offset = strlen(path);
+    if (ctrl_msg.offset >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE)
+    {
+        ctrl_msg.offset = APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
+    }
+
+    ctrl_msg.file_id = -1;
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, path, &ret));
+    tty_debug_print("[app] sos_sys_remove return: val %d\n",ret.ret_val);
+
+    /* assert(!"You need to implement this"); */
+    return ret.ret_val;
+}
+
 int sos_sys_read(int file, char *buf, size_t nbyte)
 {
     if (buf == NULL ||  nbyte == 0)

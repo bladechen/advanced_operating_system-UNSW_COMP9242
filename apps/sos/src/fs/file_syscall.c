@@ -31,6 +31,19 @@ int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
     return 0;
 }
 
+int syscall_remove(const char* filename, int * retval) 
+{
+    int result = do_sys_remove(filename);
+    if (result < 0)
+    {
+        ERROR_DEBUG ("do sys remove error\n");
+        *retval = make_positive(result);
+        return -1;
+    }
+    *retval = result;
+    return 0;
+}
+
 int syscall_close(int fd_num, int* retval)
 {
     *retval = make_positive(do_sys_close(fd_num));

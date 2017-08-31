@@ -27,6 +27,7 @@ void sos_syscall_brk(void * proc);
 void sos_syscall_close(void * proc);
 void sos_syscall_stat(void* argv);
 void sos_syscall_get_dirent(void* argv);
+void sos_syscall_remove(void* proc);
 
 
 #endif // SOS_SYSCALL_H

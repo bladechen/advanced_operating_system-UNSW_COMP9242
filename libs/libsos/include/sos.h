@@ -37,7 +37,7 @@
 #define SOS_SYSCALL_CLOSE               (7)
 #define SOS_SYSCALL_STAT                (8)
 #define SOS_SYSCALL_GET_DIRENT          (9)
-
+#define SOS_SYSCALL_REMOVE              (10) 
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)
@@ -73,9 +73,6 @@ typedef struct ipc_buffer_ctrl_msg {
     int         file_id;
 
     int mode;
-
-
-
 } ipc_buffer_ctrl_msg;
 
 extern void *memcpy(void* ptr_dst, const void* ptr_src, unsigned int n);
@@ -135,6 +132,10 @@ int sos_sys_open(const char *path, fmode_t mode);
 int sos_sys_close(int file);
 /* Closes an open file. Returns 0 if successful, -1 if not (invalid "file").
  */
+
+int sos_sys_remove(const char * path);
+/* Used to remove files from nfs, test purpose
+*/
 
 int sos_sys_read(int file, char *buf, size_t nbyte);
 /* Read from an open file, into "buf", max "nbyte" bytes.
