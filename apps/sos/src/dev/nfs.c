@@ -24,7 +24,13 @@ static int _nfs_loadvnode(struct nfs_fs *ef,
 static void
 _nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr);
 
-
+static void _dump_nfs_stat( fattr_t *fattr)
+{
+    COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "file size: %d, file mode: %d, file type: %d\natime: %d, ctime: %d, mtime: %d, uid/gid:(%d/%d)\n",
+            fattr->size, fattr->mode, fattr->type, fattr->atime.seconds, fattr->ctime.seconds, fattr->mtime.seconds
+            ,fattr->uid, fattr->gid);
+    return;
+}
 static inline int _rpc_stat2sos_err(enum rpc_stat stat)
 {
     if (stat == RPC_OK)
@@ -120,6 +126,22 @@ static inline int _nfs_stat2sos_err(enum nfs_stat stat)
     }
     assert(0);
     return -1;
+}
+
+static void _copy_stat(struct stat* dest, fattr_t* src)
+{
+    dest->st_type = src->type;
+    dest->st_mode = src->mode;
+    dest->st_size = src->size;
+    dest->st_atime = src->atime.seconds;
+    dest->st_mtime = src->mtime.seconds;
+    dest->st_ctime = src->ctime.seconds;
+
+    dest->st_atimensec = src->atime.useconds * 1000;
+    dest->st_mtimensec = src->mtime.useconds * 1000;
+    dest->st_ctimensec = src->ctime.useconds * 1000;
+
+
 }
 
 static int _nfs_waitdone(struct nfs_cb_arg* arg)
@@ -539,10 +561,48 @@ _nfs_write(struct vnode *v, struct uio *uio)
  *
  */
 
+static void _nfs_attr_cb(uintptr_t token, enum nfs_stat status, fattr_t *fattr)
+{
+
+    struct nfs_cb_arg *arg = (struct nfs_cb_arg*)token;
+    arg->stat = status;
+    if (arg->stat == 0)
+    {
+        memcpy(&arg->attr, fattr, sizeof (fattr_t));
+        _dump_nfs_stat(fattr);
+    }
+    V(arg->sem);
+}
+
 static int _nfs_stat(struct vnode* v, struct stat* statbuf)
 {
+    struct nfs_vnode *ev = v->vn_data;
+    struct nfs_cb_arg cb_argv;
+    cb_argv.sem = sem_create("nfs", 0, -1);
+    if (cb_argv.sem == NULL)
+    {
+        ERROR_DEBUG("sem_create error\n");
+        return ENOMEM;
+    }
+    int ret = nfs_getattr(&(ev->ev_handler), &_nfs_attr_cb, (uintptr_t)&cb_argv);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("%p nfs_getattr, rpc: %d\n", ev, ret);
+        sem_destroy(cb_argv.sem);
+        return _rpc_stat2sos_err(ret);
+    }
+
+    ret = _nfs_waitdone(&cb_argv);
+    sem_destroy(cb_argv.sem);
+    if (ret)
+    {
+        ERROR_DEBUG("%p nfs_getattr, cb: %d\n", ev, ret);
+        return _nfs_stat2sos_err(ret);
+    }
+    _copy_stat(statbuf, &cb_argv.attr);
     return 0;
 }
+
 static
 int
 _nfs_stat_file(struct vnode *v, char* pathname, struct stat *statbuf)
@@ -571,14 +631,8 @@ _nfs_stat_file(struct vnode *v, char* pathname, struct stat *statbuf)
         ERROR_DEBUG("%p nfs_lookup, cb: %d\n", ev, ret);
         return _nfs_stat2sos_err(ret);
     }
-    statbuf->st_type = cb_argv.attr.type;
-    statbuf->st_mode = cb_argv.attr.mode;
-    statbuf->st_size = cb_argv.attr.size;
-    statbuf->st_atime = cb_argv.attr.atime.seconds;
-    statbuf->st_ctime = cb_argv.attr.ctime.seconds;
 
-    statbuf->st_atimensec = cb_argv.attr.atime.useconds * 1000;
-    statbuf->st_ctimensec = cb_argv.attr.ctime.useconds * 1000;
+    _copy_stat(statbuf, &cb_argv.attr);
 
     return 0;
 }
@@ -671,6 +725,8 @@ _nfs_file_gettype(struct vnode *v, uint32_t *result)
  */
 
 
+
+
 static void
 _nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr){
     struct nfs_cb_arg *arg = (struct nfs_cb_arg*)token;
@@ -682,6 +738,7 @@ _nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr
     {
         memcpy(&arg->attr, fattr, sizeof (fattr_t));
         _copy_handler(&arg->handler, fh);
+        _dump_nfs_stat(fattr);
     }
     V(arg->sem);
 }
@@ -728,12 +785,18 @@ _nfs_creat(struct vnode *dir, const char *name, bool excl, mode_t mode,
     sattr_t sattr;
 
     /* create some files file */
-    sattr.mode = 0b111111111;
-    sattr.uid = 1;
-    sattr.gid = 1;
+    // by default all files created with rw/
+    sattr.mode = 0b110110110;
+    sattr.uid = 1000;
+    sattr.gid = 1000;
     sattr.size = (mode & O_TRUNC) ? 0 : -1;
-    sattr.atime.seconds = unix_time_stamp();
-    sattr.mtime.seconds = unix_time_stamp();
+    sattr.atime.seconds = time_stamp() / 1000;
+    sattr.atime.useconds = time_stamp() * 1000;
+    sattr.mtime.seconds = time_stamp() / 1000;
+    sattr.mtime.useconds = time_stamp() * 1000;
+    /* sattr.ctime.seconds = time_stamp() / 1000; */
+    /* sattr.ctime.useconds = time_stamp() * 1000; */
+
     int rets = nfs_create(&(ev->ev_handler), name, &sattr, &_nfs_creat_cb, (uintptr_t)&cb_argv);
     if (rets != 0)
     {
@@ -793,6 +856,10 @@ _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
 
     rets = _nfs_waitdone(&cb_argv);
     sem_destroy(cb_argv.sem);
+    if (rets == NFSERR_NOENT) // according to spec, if file not there we create it!
+    {
+        return _nfs_creat(dir, pathname, 0, 0, ret);
+    }
     if (rets != 0)
     {
         ERROR_DEBUG("%p nfs_lookup, cb %d\n", ev, rets);
@@ -1084,6 +1151,7 @@ static const struct vnode_ops nfs_dirops = {
     .vop_eachopen = _nfs_eachopendir,
     .vop_reclaim = _nfs_reclaim,
     .vop_stat_file = _nfs_stat_file,
+    .vop_stat = _nfs_stat,
 
     .vop_read = _nfs_uio_op_isdir,
     .vop_readlink = _nfs_uio_op_isdir,

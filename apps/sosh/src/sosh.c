@@ -36,12 +36,15 @@ static sos_stat_t sbuf;
 
 static void prstat(const char *name) {
     /* print out stat buf */
-    printf("%c%c%c%c 0x%06x 0x%lx 0x%06lx %s\n",
+    /* printf ("hello %c %c %c %c\n",   sbuf.st_type == ST_SPECIAL ? 's' : '-' , sbuf.st_fmode & FM_READ ? 'r' : '-', */
+            /* sbuf.st_fmode & FM_WRITE ? 'w' : '-', sbuf.st_fmode & FM_EXEC ? 'x' : '-'); */
+    printf("%c%c%c%c 0x%06x 0x%06lx 0x%06lx %s\n",
            sbuf.st_type == ST_SPECIAL ? 's' : '-',
            sbuf.st_fmode & FM_READ ? 'r' : '-',
            sbuf.st_fmode & FM_WRITE ? 'w' : '-',
            sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
            sbuf.st_atime, name);
+    /* printf ("world\n"); */
 }
 
 static int cat(int argc, char **argv) {
@@ -59,6 +62,11 @@ static int cat(int argc, char **argv) {
 
     fd = open(argv[1], O_RDONLY);
     stdout_fd = open("console", O_WRONLY);
+    if (fd < 0)
+    {
+        printf ("error\n");
+        return 2;
+    }
 
     assert(fd >= 0);
 
@@ -92,7 +100,13 @@ static int cp(int argc, char **argv) {
     fd = open(file1, O_RDONLY);
     fd_out = open(file2, O_WRONLY);
 
+    if (fd < 0 || fd_out < 0)
+    {
+        printf ("something error\n");
+        return 2;
+    }
     assert(fd >= 0);
+    assert(fd_out >= 0);
 
     while ((num_read = read(fd, buf, BUF_SIZ)) > 0)
         num_written = write(fd_out, buf, num_read);
@@ -187,6 +201,7 @@ static int dir(int argc, char **argv) {
     }
 
     while (1) {
+        tty_debug_print("start ls loop: %d\n",i);
         r = sos_getdirent(i, buf, BUF_SIZ);
         if (r < 0) {
             printf("dirent(%d) failed: %d\n", i, r);
@@ -199,6 +214,7 @@ static int dir(int argc, char **argv) {
             printf("stat(%s) failed: %d\n", buf, r);
             break;
         }
+        tty_debug_print("finish ls loop: %s %d\n", buf, i);
         prstat(buf);
         i++;
     }
@@ -297,7 +313,8 @@ struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
                {"benchmark", benchmark}, {"rm", rm}};
 
-int main(void) {
+void simple_file_test()
+{
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
@@ -349,16 +366,21 @@ int main(void) {
     // close(in + 1);
     
     sos_sys_remove("hello_world");
+    // close(in + 1);
+}
 
-    file_unittest();
-
-    while (1){}
+int main(void) {
+    char buf[BUF_SIZ];
+    char *argv[MAX_ARGS];
+    int i, r, done, found, new, argc;
+    char *bp, *p;
     in = open("console", O_RDONLY);
     assert(in >= 0);
-
     bp = buf;
     done = 0;
     new = 1;
+
+    file_unittest();
 
     printf("\n[SOS Starting]\n");
 
