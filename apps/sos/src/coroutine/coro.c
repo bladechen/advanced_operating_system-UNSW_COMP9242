@@ -4,7 +4,7 @@
 #include "vm/vmem_layout.h"
 #include "sys/debug.h"
 
-/* #define DEBUG_CORO 1 */
+#define DEBUG_CORO 1 
 static struct schedule schedule_obj;
 
 static void replace_esp(struct context* jbf, void* esp)

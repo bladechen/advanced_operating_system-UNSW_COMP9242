@@ -374,7 +374,9 @@ int main(void) {
     /* sos_syscall_sleep(test_process); */
     /* serial_send(_serial._serial_handler, buf, 6000); */
 
+    test_extreme_file_read_write();
 
+    printf("\nhereher\n");
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */
