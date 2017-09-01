@@ -24,6 +24,7 @@
 
 /* Your OS header file */
 #include <sos.h>
+#include "file-system-unit-test.h"
 
 #include "benchmark.h"
 
@@ -302,26 +303,26 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
 
-    r =  sos_getdirent(1, buf, 1000);
-    assert(r > 0);
-    buf[r] = 0;
-    tty_debug_print("get file : %s\n", buf);
+    // r =  sos_getdirent(1, buf, 1000);
+    // assert(r > 0);
+    // buf[r] = 0;
+    // tty_debug_print("get file : %s\n", buf);
 
-    r =  sos_getdirent(3, buf, 1000);
-    assert(r > 0);
-    buf[r] = 0;
-    tty_debug_print("get file : %s\n", buf);
+    // r =  sos_getdirent(3, buf, 1000);
+    // assert(r > 0);
+    // buf[r] = 0;
+    // tty_debug_print("get file : %s\n", buf);
 
-    r =  sos_getdirent(10, buf, 1000);
-    assert(r < 0);
+    // r =  sos_getdirent(10, buf, 1000);
+    // assert(r < 0);
 
-    r =  sos_getdirent(4, buf, 1000);
-    assert(r == 0);
-    /* while(1){} */
-    sos_stat_t stat;
-    assert(0 == sos_stat("hello_world", &stat));
-    // TODO check status
-    tty_debug_print("%u %u %u %llu %llu\n", stat.st_size, stat.st_fmode, stat.st_type, stat.st_ctime, stat.st_atime);
+    // r =  sos_getdirent(4, buf, 1000);
+    // assert(r == 0);
+    // /* while(1){} */
+    // sos_stat_t stat;
+    // assert(0 == sos_stat("hello_world", &stat));
+    // // TODO check status
+    // tty_debug_print("%u %u %u %llu %llu\n", stat.st_size, stat.st_fmode, stat.st_type, stat.st_ctime, stat.st_atime);
     /* assert( open("hello_world", O_RDONLY ) < 0); */
     in = open("hello_world",  O_RDWR| O_CREAT  );
 
@@ -348,6 +349,8 @@ int main(void) {
     // close(in + 1);
     
     sos_sys_remove("hello_world");
+
+    file_unittest();
 
     while (1){}
     in = open("console", O_RDONLY);
