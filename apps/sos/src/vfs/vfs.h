@@ -30,7 +30,7 @@
 #ifndef _VFS_H_
 #define _VFS_H_
 
-#define NAME_MAX 128
+#define NAME_MAX 1280
 // #include "uio.h"
 
 
