@@ -190,8 +190,8 @@ static struct nfs_vnode* _creat_nfs_vnode(void)
     memset(&v->ev_handler, 0, sizeof (FHSIZE));
     memset(&v->ev_v, 0, sizeof (struct vnode));
     return v;
-
 }
+
 static void _destroy_nfs_vnode(struct nfs_vnode* v)
 {
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "destroy_nfs_vnode: %p\n", v);

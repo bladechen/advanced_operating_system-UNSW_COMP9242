@@ -11,6 +11,7 @@
 #include <sos.h>
 #include "file-system-unit-test.h"
 
+#define mode_t uint32_t
 #define MAX_FDNUM_PER_PROCESS 128
 #define BUF_SIZE              1000000
 
@@ -82,6 +83,16 @@ static char buf[BUF_SIZE] = {0};
 #define BEGIN_FUNCTION {}
 #define END_FUNCTION return 0
 
+/*
+*   No lseek function, so we have to close and open agian to 
+*   refresh the pointer
+*/
+static int update_internal_file_ptr(int fd, const char * filename, mode_t mode) {
+    TASSERT(sos_sys_close(fd) == 0, 0);
+    int fd_new = sos_sys_open(filename, mode);
+    TASSERT(fd_new >= 0, fd_new);
+    return fd_new;
+}
 
 // static int random_generator()
 // {
@@ -109,9 +120,14 @@ static int test_readonly()
     TASSERT(fd >= 0, fd);
     ret = sos_sys_read(fd, buf, 100);
     TASSERT(ret == 0, ret);
+
+    fd = update_internal_file_ptr(fd, "tp_tr", O_RDONLY| O_CREAT);
+
     ret = sos_sys_write(fd, "w1", 2);
     TASSERT(ret < -1, ret);
     TASSERT(sos_sys_close(fd) == 0, 0);
+
+    TASSERT(sos_sys_remove("tp_tr") == 0, 0);
     return 0;
 }
 
@@ -122,9 +138,14 @@ static int test_writeonly()
     TASSERT(fd >= 0, fd);
     ret = sos_sys_write(fd, "test_writeonly", 14);
     TASSERT(ret == 14, 14);
+
+    fd = update_internal_file_ptr(fd, "tp_tw", O_WRONLY| O_CREAT);
+
     ret = sos_sys_read(fd, buf, 14);
     TASSERT(ret < 0, ret);
     TASSERT(sos_sys_close(fd) == 0, 0);
+
+    TASSERT(sos_sys_remove("tp_tw") == 0, 0);
     return 0;
 }
 
@@ -135,122 +156,99 @@ static int test_readandwrite(void)
     TASSERT(fd >= 0, fd);
     ret = sos_sys_write(fd, "test_readandwrite", 17);
     TASSERT(ret == 17, ret);
+
+    fd = update_internal_file_ptr(fd, "tp_raw", O_RDWR| O_CREAT);
+
     ret = sos_sys_read(fd, buf, 17);
     TASSERT(ret == 17, ret);
     TASSERT(sos_sys_close(fd) == 0, 0);
+    TASSERT(sos_sys_remove("tp_raw") == 0, 0);
     return 0;
 }
-
-// static int test_create_flag(void)
-// {
-//     char file_name[30] = {0};
-//     int len = snprintf(file_name, 29, "test_create_flag_%s", random_str_generator());
-//     file_name[len] = 0;
-//     printf ("create file: %s\n", file_name);
-//     int fd = open(file_name, 0);
-//     TASSERT(fd == -1, fd);
-//     TASSERT(errno == ENOENT, errno);
-//     fd = open(file_name, O_CREAT);
-//     TASSERT(fd > 0, fd);
-//     TASSERT(sos_sys_close(fd) == 0, 0);
-//     return 0;
-// // }
-
-// TODO: see what expect after send O_EXCL into it
-// static int test_excl_flag(void)
-// {
-//     BEGIN_FUNCTION;
-//     char file_name[30] = {0};
-//     int len = snprintf(file_name, 29, "test_excl_flag_%s", random_str_generator());
-//     file_name[len] = 0;
-//     printf ("file: %s\n", file_name);
-//     int fd = sos_sys_open(file_name, O_EXCL);
-//     TASSERT(fd == -1, fd);
-
-//     fd = open(file_name, O_EXCL|O_CREAT);
-//     TASSERT(fd >= 3, fd);
-//     sos_sys_close(fd);
-
-//     fd = open(file_name, O_EXCL|O_CREAT);
-//     TASSERT(fd == -1, fd);
-//     TASSERT(errno  == EEXIST, errno);
-
-//     fd = open(file_name, O_CREAT);
-//     TASSERT(fd >=3 , fd);
-//     sos_sys_close(fd);
-//     END_FUNCTION;
-// }
 
 static int test_invalid_sos_sys_close(void)
 {
     BEGIN_FUNCTION;
     int ret = sos_sys_close(339);
-    TASSERT(ret < 0, ret);
+    TASSERT(ret != 0, ret);
     ret = sos_sys_close(-1);
-    TASSERT(ret < 0, ret);
+    TASSERT(ret != 0, ret);
     END_FUNCTION;
 }
-
-// static int test_valid_sos_sys_close(void)
-// {
-//     BEGIN_FUNCTION;
-//     int ret = 0;
-//     ret = sos_sys_close(0);
-//     TASSERT(ret == 0,ret);
-//     ret = sos_sys_close(2);
-//     TASSERT(ret == 0, ret);
-
-//     ret = write(2, RED "should not seen!!\n" NONE, 20 + strlen(RED) + strlen(NONE));
-//     TASSERT(ret < 0, ret);
-
-//     int fd = open ("test_valid_sos_sys_close", O_CREAT);
-//     ret = sos_sys_close(fd);
-
-
-//     END_FUNCTION;
-// }
 
 static int test_limited_open_fd(void)
 {
     BEGIN_FUNCTION;
-    int ret = 0;
-    /*
-     * 128 is the upper limit
-     */
-    int fd = 0 ;
-    int upper_fd = 0;
-    for (int i = 0; i < MAX_FDNUM_PER_PROCESS; i ++)
-    {
-        char tmp[80] = {0};
-        sprintf(tmp, "test_limited_open_fd_%d", i);
-        fd = sos_sys_open(tmp, O_RDWR | O_CREAT);
-        if (fd >= 0)
-        {
 
-            TASSERT(fd == i, i);
-            upper_fd = i;
-        }
-        else
-        {
-            TASSERT(fd == -1, fd);
-            // TASSERT(errno, ENFILE);
-            // upper_fd = i;
-            break;
-        }
-    }
-    printf ("max fd num is: %d, the limited is %d\n", upper_fd, MAX_FDNUM_PER_PROCESS);
+    int loop_times = 2;
 
-    // fd = open("test_limited_open_fd", O_CREAT);
-    // TASSERT(fd == -1, fd);
-    /* TASSERT(errno == EMFILE, errno); */
-    for (int i = 0; i < upper_fd; i++)
+    int how_many_fd_generate_each_time[loop_times];
+    memset(how_many_fd_generate_each_time, 0, loop_times*sizeof(int) );
+
+    for (int a = 0; a < loop_times; a++) 
     {
-        ret = sos_sys_close(i);
-        TASSERT(ret == 0, ret);
+        int fd_generate_counter = 0;
+        int ret = 0;
+        /*
+         * 128 is the upper limit
+         */
+        int fd = 0 ;
+        int upper_fd = 0;
+        for (int i = 4; i < MAX_FDNUM_PER_PROCESS+1; i++)
+        {
+            char tmp[80] = {0};
+            sprintf(tmp, "test_limited_open_fd_%d", i);
+            fd = sos_sys_open(tmp, O_RDWR | O_CREAT);
+            // printf("in open file loop, fd: %d\n", fd);
+            if (fd >= 3)
+            {
+                // printf("in open file loop, fd: %d\n", fd);
+                TASSERT(fd == i, i);
+                upper_fd = i;
+                fd_generate_counter++;
+            }
+            else
+            {
+                TASSERT(fd == -24, fd);
+                // TASSERT(errno, ENFILE);
+                upper_fd = i;
+                break;
+            }
+        }
+
+        // fd = open("test_limited_open_fd", O_CREAT);
+        // TASSERT(fd == -1, fd);
+        /* TASSERT(errno == EMFILE, errno); */
+        for (int i = 4; i < upper_fd; i++)
+        {
+            ret = sos_sys_close(i);
+            TASSERT(ret == 0, ret);
+
+            char tmp[80] = {0};
+            sprintf(tmp, "test_limited_open_fd_%d", i);
+
+            ret = sos_sys_remove(tmp);
+            TASSERT(ret == 0, 0);
+        }
+
+        how_many_fd_generate_each_time[a] = fd_generate_counter;
     }
+
+    for (int i=1 ; i < loop_times; i++) 
+    {
+        // printf("i: %d, i-1: %d .\n", how_many_fd_generate_each_time[i -1] ,how_many_fd_generate_each_time[i]);
+        TASSERT(how_many_fd_generate_each_time[i -1] == how_many_fd_generate_each_time[i], how_many_fd_generate_each_time[i]);
+    }
+    
     END_FUNCTION;
 }
 
+static void test_extreme_case_of_open_and_close(void)
+{
+    FUNCTION_CALL(test_invalid_sos_sys_close);
+    FUNCTION_CALL(test_limited_open_fd);
+    return;
+}
 
 static void test_permission(void)
 {
@@ -258,52 +256,6 @@ static void test_permission(void)
     FUNCTION_CALL(test_writeonly);
     FUNCTION_CALL(test_readandwrite);
     return;
-}
-// static void test_other_open_flag()
-// {
-//     FUNCTION_CALL(test_create_flag);
-//     FUNCTION_CALL(test_excl_flag);
-//     return;
-// }
-
-// static void test_sos_sys_close()
-// {
-//     FUNCTION_CALL(test_iterative_sos_sys_close);
-//     FUNCTION_CALL(test_invalid_sos_sys_close);
-//     FUNCTION_CALL(test_valid_sos_sys_close);
-//     return;
-// }
-// static void test_dup2()
-// {
-//     FUNCTION_CALL(test_invalid_dup2);
-//     FUNCTION_CALL(test_dup2_to_stdio);
-//     FUNCTION_CALL(test_dup2_to_file);
-//     FUNCTION_CALL(test_iterative_dup2);
-//     /* FUNCTION_CALL(test_dup2_to_file); */
-
-//     return;
-// }
-
-
-// static void test_open(void)
-// {
-//     test_permission();
-//     test_other_open_flag();
-//     FUNCTION_CALL(test_limited_open_fd);
-//     return;
-
-
-// }
-
-/*
-*   No lseek function, so we have to close and open agian to 
-*   refresh the pointer
-*/
-static int update_internal_file_ptr(int fd, const char * filename) {
-    TASSERT(sos_sys_close(fd) == 0, 0);
-    int fd_new = sos_sys_open(filename, O_RDWR|O_CREAT);
-    TASSERT(fd_new >= 0, fd_new);
-    return fd_new;
 }
 
 static int test_write_multiple_consecutive_times(void)
@@ -314,7 +266,7 @@ static int test_write_multiple_consecutive_times(void)
     int ret = sos_sys_write(fd, "hello world", 11);
     TASSERT(ret == 11, ret);
 
-    fd = update_internal_file_ptr(fd, "test_write");
+    fd = update_internal_file_ptr(fd, "test_write", O_RDWR|O_CREAT);
 
     memset(buf, 0, BUF_SIZE);
 
@@ -322,7 +274,7 @@ static int test_write_multiple_consecutive_times(void)
     TASSERT(ret == 11, ret);
     TASSERT(strcmp(buf, "hello world") == 0, 0);
 
-    fd = update_internal_file_ptr(fd, "test_write");
+    fd = update_internal_file_ptr(fd, "test_write", O_RDWR|O_CREAT);
 
     int i = 0; 
     int loop_times = 5;
@@ -331,7 +283,7 @@ static int test_write_multiple_consecutive_times(void)
         TASSERT(ret == 11, ret);    
     }
     
-    fd = update_internal_file_ptr(fd, "test_write");
+    fd = update_internal_file_ptr(fd, "test_write", O_RDWR|O_CREAT);
 
     memset(buf, 0, BUF_SIZE);
     ret = sos_sys_read(fd, buf, 100);
@@ -339,11 +291,15 @@ static int test_write_multiple_consecutive_times(void)
     TASSERT(ret == 55, ret);
     buf[ret] = 0;
 
+    // printf("buf : %s \n", buf);
+
     for(i = 0; i < loop_times; i++) {
-        char tmp[11];
+        char tmp[12];
         memcpy(tmp, buf+i*11, 11);
-        ret = strcmp(tmp, "hello world" );
-        TASSERT( ret == 0, 0);
+        tmp[11] = 0;
+        ret = strcmp(tmp, "hello world");
+        // printf("ret : %d tmp: %s \n", ret, tmp);
+        TASSERT(ret == 0, 0);
     }
 
     ret = sos_sys_close(fd);
@@ -369,7 +325,7 @@ static int test_read_write_large_file(void)
     int ret = sos_sys_write(fd, tmp, BUF_SIZE - 1);
     TASSERT(ret == BUF_SIZE - 1, ret);    
 
-    fd = update_internal_file_ptr(fd, "test_read_write_large_file");
+    fd = update_internal_file_ptr(fd, "test_read_write_large_file", O_RDWR|O_CREAT);
 
     memset(buf, 0, BUF_SIZE);
     ret = sos_sys_read(fd, buf, BUF_SIZE - 1);
@@ -437,71 +393,63 @@ static int test_read_write_large_file(void)
 //     END_FUNCTION;
 
 // }
-static int test_sparse_file(void)
-{
-    BEGIN_FUNCTION;
-    int ret = 0;
-    int fd = open ("test_sparse_file", O_CREAT|O_RDWR|O_TRUNC);
-    TASSERT(fd>=3, fd);
-    TASSERT(lseek(fd, 10000, SEEK_SET) == 10000, 10000);
+// static int test_sparse_file(void)
+// {
+//     BEGIN_FUNCTION;
+//     int ret = 0;
+//     int fd = open ("test_sparse_file", O_CREAT|O_RDWR|O_TRUNC);
+//     TASSERT(fd>=3, fd);
+//     TASSERT(lseek(fd, 10000, SEEK_SET) == 10000, 10000);
 
-    ret = write(fd, "sparse1", 7);
-    TASSERT(ret == 7, ret);
-    TASSERT(lseek(fd, 0, SEEK_SET) == 0, 0);
+//     ret = write(fd, "sparse1", 7);
+//     TASSERT(ret == 7, ret);
+//     TASSERT(lseek(fd, 0, SEEK_SET) == 0, 0);
 
-    ret = read(fd, buf, sizeof(buf) - 1);
-    TASSERT(ret == (7 + 10000), ret);
-    TASSERT(buf[10001] == 'p', 'p');
-    sos_sys_close(fd);
+//     ret = read(fd, buf, sizeof(buf) - 1);
+//     TASSERT(ret == (7 + 10000), ret);
+//     TASSERT(buf[10001] == 'p', 'p');
+//     sos_sys_close(fd);
 
-    END_FUNCTION;
-}
+//     END_FUNCTION;
+// }
 
-static int test_iterative_write(void)
-{
-    BEGIN_FUNCTION;
-    int ret, fd;
-    fd = open("test_iterative_write", O_CREAT|O_RDWR|O_TRUNC);
-    for (int i = 0; i < 100; i ++)
-    {
-        ret = write(fd, "hello", 5);
-        TASSERT(ret == 5, ret);
-    }
-    lseek(fd, 0, SEEK_SET);
-    ret = read(fd, buf, 10000);
-    TASSERT(ret == 5 * 100, ret);
-    sos_sys_close(fd);
+// static int test_iterative_write(void)
+// {
+//     BEGIN_FUNCTION;
+//     int ret, fd;
+//     fd = open("test_iterative_write", O_CREAT|O_RDWR|O_TRUNC);
+//     for (int i = 0; i < 100; i ++)
+//     {
+//         ret = write(fd, "hello", 5);
+//         TASSERT(ret == 5, ret);
+//     }
+//     lseek(fd, 0, SEEK_SET);
+//     ret = read(fd, buf, 10000);
+//     TASSERT(ret == 5 * 100, ret);
+//     sos_sys_close(fd);
 
-    END_FUNCTION;
-}
+//     END_FUNCTION;
+// }
 
-static void test_read_write(void)
-{
-    FUNCTION_CALL(test_invalid_write);
-    FUNCTION_CALL(test_write);
-    FUNCTION_CALL(test_sparse_file);
-    FUNCTION_CALL(test_iterative_write);
+// static void test_read_write(void)
+// {
+//     FUNCTION_CALL(test_invalid_write);
+//     FUNCTION_CALL(test_write);
+//     FUNCTION_CALL(test_sparse_file);
+//     FUNCTION_CALL(test_iterative_write);
 
-    FUNCTION_CALL(test_invalid_read);
-    return;
-}
+//     FUNCTION_CALL(test_invalid_read);
+//     return;
+// }
 
 void file_unittest(void)
 {
     printf ("\n\n####### start file unitest ########\n");
-    // printf ("%s\n", random_str_generator());
 
-    // test_dup2();
-    // test_open();
-    //  test_open(); 
-
-    // test_lseek();
-    // test_read_write();
-
-    // test_sos_sys_close();
+    test_permission();
+    test_extreme_case_of_open_and_close();
     FUNCTION_CALL(test_write_multiple_consecutive_times);
     FUNCTION_CALL(test_read_write_large_file);
-
 
     printf ("\n####### end file unitest ########\n\n");
     printf ("############## Statistic: Ran %d Test Case, %d Passed, %d Failed\n\n", total_count, pass_count, fail_count);

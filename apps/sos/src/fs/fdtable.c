@@ -35,6 +35,7 @@ static int find_next_fd(struct fdtable *fdt)
             {
                 if ((1 << j) == bit)
                 {
+                    // ERROR_DEBUG("in find_next_fd j: %d\n", j);
                     return fd + j;
                 }
 
@@ -67,8 +68,16 @@ static void __set_bit(int nr, volatile void * addr)
 static void __clear_bit(int nr, volatile void * addr)
 {
     assert(nr >= 0);
-     int *m = ((int *) addr) + (nr >> 5);
-     *m &= ~(1 << (nr & 31));
+    // The input should lies between [4, 128], otherwise it won't
+    // step into this function.
+    // The bit map we're using now is composed of 4 Integer, the reason to right move
+    // 5 is to find out the offset.
+    /*
+    *   |-int0-|-int1-|-int2-|-int3-|, find out which range it falls into
+    */
+    int *m = ((int *) addr) + (nr >> 5);
+    // This step tries to find out the exam number, note 00011111 = 31.
+    *m &= ~(1 << (nr & 31));   
 }
 static void __set_open_fd(int fd,  struct fdtable *fdt)
 {
@@ -85,7 +94,7 @@ static int __alloc_fd(struct files_struct* files)
     if (fd < 0)
     {
 
-        return EMFILE;
+        return -EMFILE;
     }
     __set_open_fd(fd, fdt);
 

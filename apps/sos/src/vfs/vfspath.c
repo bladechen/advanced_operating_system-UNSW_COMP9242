@@ -40,25 +40,25 @@
 int
 vfs_open(char *path, int openflags, mode_t mode, struct vnode **ret)
 {
-    int how;
+    // int how;
     int result;
-    int canwrite;
+    // int canwrite;
     struct vnode *vn = NULL;
 
-    how = openflags & O_ACCMODE;
+    // how = openflags & O_ACCMODE;
 
-    switch (how) {
-        case O_RDONLY:
-            canwrite=0;
-            break;
-        case O_WRONLY:
-        case O_RDWR:
-            canwrite=1;
-            break;
-        default:
-            return EINVAL;
-    }
-    (void)canwrite;
+    // switch (how) {
+    //     case O_RDONLY:
+    //         canwrite=0;
+    //         break;
+    //     case O_WRONLY:
+    //     case O_RDWR:
+    //         canwrite=1;
+    //         break;
+    //     default:
+    //         return EINVAL;
+    // }
+    // (void)canwrite;
 
     if (openflags & O_CREAT) {
         char name[NAME_MAX+1];
