@@ -35,7 +35,6 @@ static int find_next_fd(struct fdtable *fdt)
             {
                 if ((1 << j) == bit)
                 {
-                    // ERROR_DEBUG("in find_next_fd j: %d\n", j);
                     return fd + j;
                 }
 
@@ -77,7 +76,7 @@ static void __clear_bit(int nr, volatile void * addr)
     */
     int *m = ((int *) addr) + (nr >> 5);
     // This step tries to find out the exam number, note 00011111 = 31.
-    *m &= ~(1 << (nr & 31));   
+    *m &= ~(1 << (nr & 31));
 }
 static void __set_open_fd(int fd,  struct fdtable *fdt)
 {
@@ -181,7 +180,7 @@ int do_sys_close(int fd)
 int do_sys_remove(char* filename)
 {
     // TODO: need to check whether the file is open
-    
+
     int ret = do_flip_remove(filename);
     return ret;
 }

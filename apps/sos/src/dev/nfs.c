@@ -27,8 +27,8 @@ _nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr
 static void _dump_nfs_stat( fattr_t *fattr)
 {
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "file size: %d, file mode: %d, file type: %d\natime: %d, ctime: %d, mtime: %d, uid/gid:(%d/%d)\n",
-            fattr->size, fattr->mode, fattr->type, fattr->atime.seconds, fattr->ctime.seconds, fattr->mtime.seconds
-            ,fattr->uid, fattr->gid);
+                fattr->size, fattr->mode, fattr->type, fattr->atime.seconds, fattr->ctime.seconds, fattr->mtime.seconds
+                ,fattr->uid, fattr->gid);
     return;
 }
 static inline int _rpc_stat2sos_err(enum rpc_stat stat)
@@ -64,12 +64,12 @@ static inline int _nfs_stat2sos_err(enum nfs_stat stat)
         return 0;
     }
     else if (stat == NFSERR_PERM
-        || stat == NFSERR_ACCES)
+             || stat == NFSERR_ACCES)
     {
         return EPERM;
     }
     else if (stat == NFSERR_NOENT
-             )
+            )
     {
         return ENOENT;
     }
@@ -643,17 +643,29 @@ _remove_cb(uintptr_t token, enum nfs_stat status){
     arg->stat = status;
 }
 /*
-*	VOP_REMOVE for files
-*/
+ *	VOP_REMOVE for files
+ */
 static
 int
-_nfs_remove(struct vnode *v, const char * filename) 
+_nfs_remove(struct vnode *v, const char * filename)
 {
-	struct nfs_cb_arg arg;
-	struct nfs_vnode *ev = v->vn_data;
-    arg.stat = NFS_OK;
+    struct nfs_cb_arg arg;
+    struct nfs_vnode *ev = v->vn_data;
+    arg.sem = sem_create("nfs", 0, -1);
+    if (arg.sem == NULL)
+    {
+        ERROR_DEBUG("sem_create error\n");
+        return ENOMEM;
+    }
 
-    assert(!nfs_remove(&(ev->ev_handler), filename, &_remove_cb, (uintptr_t)&arg));
+    if (nfs_remove(&(ev->ev_handler), filename, &_remove_cb, (uintptr_t)&arg) != 0);
+    {
+        sem_destroy(arg.sem);
+        return EINVAL;
+    }
+    _nfs_waitdone(&arg);
+    sem_destroy(arg.sem);
+
     return arg.stat;
 }
 
@@ -856,10 +868,10 @@ _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
 
     rets = _nfs_waitdone(&cb_argv);
     sem_destroy(cb_argv.sem);
-    if (rets == NFSERR_NOENT) // according to spec, if file not there we create it!
-    {
-        return _nfs_creat(dir, pathname, 0, 0, ret);
-    }
+    /* if (rets == NFSERR_NOENT) // according to spec, if file not there we create it! */
+    /* { */
+    /*     return _nfs_creat(dir, pathname, 0, 0, ret); */
+    /* } */
     if (rets != 0)
     {
         ERROR_DEBUG("%p nfs_lookup, cb %d\n", ev, rets);
@@ -1270,7 +1282,7 @@ static int _nfs_loadvnode(struct nfs_fs *ef,
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "\n");
 
     int result = vnode_init(&ev->ev_v, isdir ? &nfs_dirops : &nfs_fileops,
-                        &ef->ef_fs, ev);
+                            &ef->ef_fs, ev);
     if (result)
     {
         _destroy_nfs_vnode(ev);

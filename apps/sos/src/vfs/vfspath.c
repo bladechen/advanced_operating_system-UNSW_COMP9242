@@ -40,28 +40,35 @@
 int
 vfs_open(char *path, int openflags, mode_t mode, struct vnode **ret)
 {
-    // int how;
+    int how;
     int result;
-    // int canwrite;
+    int canwrite;
     struct vnode *vn = NULL;
 
-    // how = openflags & O_ACCMODE;
+    if (strlen(path) >= NAME_MAX)
+    {
+        return ENAMETOOLONG;
+    }
 
-    // switch (how) {
-    //     case O_RDONLY:
-    //         canwrite=0;
-    //         break;
-    //     case O_WRONLY:
-    //     case O_RDWR:
-    //         canwrite=1;
-    //         break;
-    //     default:
-    //         return EINVAL;
-    // }
-    // (void)canwrite;
+    how = openflags & O_ACCMODE;
 
-    if (openflags & O_CREAT) {
-        char name[NAME_MAX+1];
+    switch (how) {
+        case O_RDONLY:
+            canwrite=0;
+            break;
+        case O_WRONLY:
+        case O_RDWR:
+            canwrite=1;
+            break;
+        default:
+            return EINVAL;
+    }
+
+    char name[NAME_MAX+1];
+    strcpy(name, path);
+    result = vfs_lookup(name, &vn); // not find the file, we need creat it if write flag is set
+    if (result == ENOENT && ((openflags & O_CREAT) || canwrite) )
+    {
         struct vnode *dir;
         int excl = (openflags & O_EXCL)!=0;
         /* strcpy(name, path); */
@@ -74,10 +81,7 @@ vfs_open(char *path, int openflags, mode_t mode, struct vnode **ret)
         result = VOP_CREAT(dir, name, excl, mode, &vn);
 
         VOP_DECREF(dir);
-        /* return result; */
-    }
-    else {
-        result = vfs_lookup(path, &vn);
+
     }
 
     if (result) {

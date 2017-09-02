@@ -42,6 +42,7 @@ int
 vfs_getcurdir(struct vnode **ret)
 {
     ERROR_DEBUG("not vfs_getcurdir\n");
+    assert(0);
     return -1;
 }
 
