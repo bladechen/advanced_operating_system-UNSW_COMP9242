@@ -9,6 +9,6 @@
 
 void m1_test(void);
 void m2_test(void);
-void test_extreme_file_read_write(void);
+void test_randomly_file_read_write(void);
 
 #endif

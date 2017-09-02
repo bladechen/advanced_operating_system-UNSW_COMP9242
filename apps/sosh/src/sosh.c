@@ -381,7 +381,7 @@ int main(void) {
     new = 1;
 
     /* stress tests for file operations */
-    // file_unittest();
+    file_unittest();
 
     printf("\n[SOS Starting]\n");
 
