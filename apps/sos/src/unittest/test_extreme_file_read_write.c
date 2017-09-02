@@ -9,19 +9,15 @@
 #include "vfs/uio.h"
 #include "coroutine/coro.h"
 
-#define BUF_SIZE 100000
+#define BUF_SIZE 1000
 
 void static test_extreme(void * argv) 
 {
 	int ret;
 
-	printf("#############\n");
-
     struct vnode * test_vn = (struct vnode *)malloc(sizeof(struct vnode));
 
     ret = vfs_open("nfs:test.txt", O_RDWR| O_CREAT, O_RDWR| O_CREAT, &test_vn);
-
-    printf("!!!!!!!!!!\n");
 
     assert(ret == 0);
 
@@ -31,12 +27,14 @@ void static test_extreme(void * argv)
     	buf[i] = (char)(i%26+65);
     }
 
-
     struct iovec iov;
     struct uio u;
     // size_t old = f->f_pos;
     uio_kinit(&iov, &u, buf, BUF_SIZE, 0, UIO_WRITE);
     ret = VOP_WRITE(test_vn, &u);
+
+
+    
 
     assert(ret == 0);
 }
