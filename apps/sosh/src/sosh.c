@@ -64,6 +64,8 @@ static int cat(int argc, char **argv) {
     stdout_fd = open("console", O_WRONLY);
     if (fd < 0)
     {
+        close(fd);
+        close(stdout_fd);
         printf ("error\n");
         return 2;
     }
@@ -74,6 +76,9 @@ static int cat(int argc, char **argv) {
         num_written = write(stdout_fd, buf, num_read);
 
     close(stdout_fd);
+    close(fd);
+    close(stdout_fd);
+
 
     if (num_read == -1 || num_written == -1) {
         printf("error on write\n");
@@ -103,6 +108,8 @@ static int cp(int argc, char **argv) {
     if (fd < 0 || fd_out < 0)
     {
         printf ("something error\n");
+        close(fd);
+        close(fd_out);
         return 2;
     }
     assert(fd >= 0);
@@ -112,9 +119,16 @@ static int cp(int argc, char **argv) {
         num_written = write(fd_out, buf, num_read);
 
     if (num_read == -1 || num_written == -1) {
+        close(fd);
+        close(fd_out);
+
+
         printf("error on cp\n");
         return 1;
     }
+    close(fd);
+    close(fd_out);
+
 
     return 0;
 }
@@ -221,6 +235,13 @@ static int dir(int argc, char **argv) {
     return 0;
 }
 
+static int test_file_syscall(int argc, char **argv) {
+    (void) argc;
+    (void)argv;
+    file_unittest();
+    return 0;
+}
+
 static int rm(int argc, char **argv) {
     int i = 0, r;
 
@@ -311,7 +332,7 @@ struct command {
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
     "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-               {"benchmark", benchmark}, {"rm", rm}};
+               {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall}};
 
 void simple_file_test()
 {
@@ -364,7 +385,7 @@ void simple_file_test()
 
     close(in);
     // close(in + 1);
-    
+
     sos_sys_remove("hello_world");
     // close(in + 1);
 }
@@ -381,7 +402,7 @@ int main(void) {
     new = 1;
 
     /* stress tests for file operations */
-    file_unittest();
+    /* file_unittest(); */
 
     printf("\n[SOS Starting]\n");
 
