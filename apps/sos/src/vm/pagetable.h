@@ -5,9 +5,15 @@
 #include "comm/comm.h"
 #include "frametable.h"
 
+#define PAGE_CTRL_MASK (0xfff)
+#define PAGE_DIRTY_BIT (1 << 0)
+#define PAGE_SWAP_BIT  (1 << 1)
+// define more here if needed
+
+
 struct pagetable_entry
 {
-    uint32_t entity; // [12,31] is for frame_number, other bits reserved for further Milestones.
+    uint32_t entity; // [12,31] is for frame_number or the swap id, other bits reserved for further Milestones.
 };
 
 struct sel4_pagetable

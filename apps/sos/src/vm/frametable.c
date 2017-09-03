@@ -34,6 +34,11 @@ struct frame_table_head
 
     int free_pages;
     int total_pages;
+
+
+    int tick_index; // for second chance replacement algorithm
+    int tick_start;
+    int tick_end;
 };
 
 static struct frame_table_head _app_free_index = {-1, -1, 0, 0};

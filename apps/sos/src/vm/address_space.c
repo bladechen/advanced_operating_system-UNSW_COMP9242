@@ -242,6 +242,7 @@ int as_define_ipc_shared_buffer(struct addrspace * as)
     }
     struct as_region_metadata* r = as_get_region_by_type(as, IPC_SHARED_BUFFER);
     assert(r != NULL);
+    // TODO pin IPC buffer
     return build_pagetable_link(as_get_page_table(as),
         APP_PROCESS_IPC_SHARED_BUFFER, APP_PROCESS_IPC_SHARED_BUFFER_SIZE >> 12, as_region_vmattrs(r), as_region_caprights(r));
 }
