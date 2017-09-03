@@ -4,7 +4,9 @@
 #include <sel4/sel4.h>
 #include "vm.h"
 
-// TODO we may reserve some critical frame for sos use only.
+#define DEFAULT_UMEM_BYTES (50 * 1024 * 1024)
+#define DEFAULT_KMEM_BYTES (20 * 1024 * 1024)
+
 /* Integer division, rounded up (rather than truncating) */
 
 // for sos memory only, not for application memory
@@ -16,28 +18,43 @@ typedef seL4_Word sos_vaddr_t;
 
 enum frame_entry_status
 {
-    FRAME_FREE = 0,
-    FRAME_SOS  = 1,
-    FRAME_APP  = 2,
+    FRAME_FREE_SOS = 0,
+    FRAME_FREE_APP = 1,
+
+    FRAME_SOS  = 2,
+    FRAME_APP  = 3,
+
+    FRAME_UNINIT = -1,
 };
+
 
 typedef struct frame_table_entry
 {
-    seL4_CPtr   sos_cap;
-    seL4_CPtr   app_cap;
+    enum frame_entry_status status;
+    seL4_CPtr   frame_cap;
+    seL4_CPtr   remap_cap;
     // index for the free frame.
-    int next_free;
+
+    int myself;
+    int next;
+    int prev;
 } frame_table_entry;
 
 typedef frame_table_entry *frame_table;
 
-void frametable_init(void);
-sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr);
-void frame_free(seL4_Word vaddr);
+void frametable_init(size_t umem, size_t kmem); // umem in bytes, which limited user mem, left mem is for sos itself, and for another type of mem. 0 stands for no limited
+sos_vaddr_t uframe_alloc();
+void uframe_free(sos_vaddr_t vaddr);
+
+
+
+// for sos it self only. which means it can not be swapped out!
+sos_vaddr_t kframe_alloc();
+void kframe_free(sos_vaddr_t vaddr);
+
 
 // int sos_frame_remap(sos_vaddr_t in_vaddr, sos_vaddr_t out_vaddr, int right);
 
-// sos_vaddr_t frame_alloc_readonly(sos_vaddr_t * vaddr_ptr);
 
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap);
 

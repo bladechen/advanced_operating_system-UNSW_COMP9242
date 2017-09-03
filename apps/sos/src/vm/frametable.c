@@ -9,7 +9,6 @@
 #include <ut_manager/ut.h>
 #include "vm/vmem_layout.h"
 
-#define verbose 5
 #include <sys/debug.h>
 #include <sys/panic.h>
 
@@ -23,10 +22,27 @@ static seL4_Word   _ut_hi = 0;
 static seL4_Word   _ut_lo = 0;
 
 // point to the frame which is free-ed, but not deleted and unmaped
-static int _free_frame_index = -1;
+/* static int _sos_free_index = -1; */
+
+struct frame_table_head
+{
+    int first;
+    int last;
+
+    size_t start_vaddr;
+    size_t end_vaddr;
+
+    int free_pages;
+    int total_pages;
+};
+
+static struct frame_table_head _app_free_index = {-1, -1, 0, 0};
+
+static struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
+
 
 // used for the pool limitation
-static int _free_frame_count = 0;
+/* static int _free_frame_count = 0; */
 
 static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size);
 
@@ -59,6 +75,7 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
         ERROR_DEBUG("_build_paddr_to_vaddr_frame:map_page  paddr: %p, vaddr: %p map_page ret: %d\n", paddr, vaddr, ret);
         return ESEL4API;
     }
+    assert(*cap > 0);
     return 0;
 
 }
@@ -95,11 +112,11 @@ static inline bool _is_valid_paddr(sos_paddr_t paddr)
     return true;
 }
 // return untyped address
-static sos_paddr_t frame_translate_vaddr_to_paddr(sos_vaddr_t vaddr)
-{
-    assert(_is_valid_vaddr(vaddr));
-    return (vaddr - WINDOW_START + _ut_lo);
-}
+/* static sos_paddr_t frame_translate_vaddr_to_paddr(sos_vaddr_t vaddr) */
+/* { */
+/*     assert(_is_valid_vaddr(vaddr)); */
+/*     return (vaddr - WINDOW_START + _ut_lo); */
+/* } */
 // return sos mapped virtual address
 static sos_vaddr_t frame_translate_paddr_to_vaddr(sos_paddr_t paddr)
 {
@@ -138,37 +155,139 @@ static frame_table_entry* _get_ft_entry(sos_vaddr_t vaddr)
 
 }
 
+static bool _is_empty_uframe()
+{
+    if (_app_free_index.last == -1)
+    {
+        assert(_app_free_index.first == -1);
+        assert(_app_free_index.free_pages == 0);
+        return true;
+    }
+    return false;
+}
+
+static bool _is_empty_kframe()
+{
+    if (_sos_free_index.last == -1)
+    {
+        assert(_sos_free_index.first == -1);
+        assert(_sos_free_index.free_pages == 0);
+        return true;
+    }
+    return false;
+}
+
+static bool _valid_uvaddr(sos_vaddr_t vaddr)
+{
+    return (vaddr >= _app_free_index.start_vaddr && vaddr <= _app_free_index.end_vaddr);
+
+}
+
+static bool _valid_kvaddr(sos_vaddr_t vaddr)
+{
+    return (vaddr >= _sos_free_index.start_vaddr && vaddr <= _sos_free_index.end_vaddr);
+}
+
 static int _frame_entry_status(frame_table_entry* e)
 {
-    if (e->sos_cap == 0)
+    /* printf ("next %d, prev %d, status: %d\n", e->next, e->prev, e->status); */
+    if (e->status == FRAME_UNINIT)
     {
-        assert(e->app_cap == 0);
-        assert(e->next_free == -1);
-        return FRAME_FREE;
+        return FRAME_UNINIT;
     }
-    else if (e->sos_cap != 0 && e->next_free != -1) // on the free list
+    if (e->status == FRAME_FREE_SOS || e->status == FRAME_FREE_APP)
     {
-        return FRAME_FREE;
+        assert(e->remap_cap == 0 && e->frame_cap != 0);
+        /* assert(!_is_empty_kframe()); */
+        /* assert(e->next != -1 || e->prev != -1); */
     }
-    else if (e->app_cap == 0)
+    /* else if (e->status == FRAME_APP) */
+    /* { */
+    /*     #<{(| assert(e->frame_cap != 0 && e->remap_cap); |)}># */
+    /* } */
+    /* else if(e->) */
+    return e->status;
+}
+
+static bool _alloc_ut_page(sos_vaddr_t* vaddr, seL4_Word* cap)
+{
+    sos_paddr_t paddr = ut_alloc(seL4_PageBits);
+    if (paddr == (sos_paddr_t)NULL)
     {
-        assert((e->sos_cap != 0) && (e->next_free == -1 ));
-        return FRAME_SOS;
+        return false;
     }
-    else if (e->app_cap != 0 && e->sos_cap != 0)
+    else
     {
-        assert(e->next_free == -1);
-        return FRAME_APP;
+        assert(_is_valid_paddr(paddr));
+        *vaddr = frame_translate_paddr_to_vaddr(paddr);
+
+        assert (0 == _build_paddr_to_vaddr_frame(paddr, *vaddr, cap));
+        assert(*cap > 0);
+
+        return true;
     }
-    // invalid status
-    ERROR_DEBUG("invalid frame status, %u, %u, %d\n", e->sos_cap, e->app_cap, e->next_free);
-    assert(0);
-    return -1;
 }
 
 
-void frametable_init(void)
+static int _pre_alloc_frames(size_t pages, struct frame_table_head* _free, enum frame_entry_status status)
 {
+
+    assert(pages >= 1);
+    sos_vaddr_t vaddr;
+    seL4_Word cap;
+    assert(_alloc_ut_page(&vaddr, &cap));
+    int index = frame_translate_vaddr_to_index(vaddr);
+    _free->first = index;
+    int prev_index = index;
+    _frame_table[index].prev = -1;
+    _frame_table[index].status = status;
+    _frame_table[index].frame_cap = cap;
+    _free->start_vaddr = vaddr;
+    _free->end_vaddr = vaddr;
+
+
+    for (size_t i = 1; i < pages; ++ i)
+    {
+        if (_alloc_ut_page(&vaddr, &cap))
+        {
+            if (vaddr <= _free->start_vaddr)
+            {
+                _free->start_vaddr = vaddr;
+            }
+            if (vaddr >= _free->end_vaddr)
+            {
+                _free->end_vaddr = vaddr;
+            }
+            index = frame_translate_vaddr_to_index(vaddr);
+            _frame_table[index].frame_cap = cap;
+            _frame_table[index].prev = prev_index;
+            _frame_table[prev_index].next = index;
+            _frame_table[index].status = status;
+            prev_index = index;
+        }
+        else
+        {
+            return -1;
+        }
+    }
+    _free->last = index;
+    _frame_table[index].next = -1;
+    _free->free_pages = pages;
+    _free->total_pages = pages;
+    return 0;
+}
+
+
+void frametable_init(size_t umem, size_t kmem)
+{
+    if (umem == 0)
+    {
+        umem = DEFAULT_UMEM_BYTES;
+    }
+    if (kmem == 0)
+    {
+        kmem = DEFAULT_KMEM_BYTES;
+    }
     int err;
     uint32_t frame_table_size;
     uint32_t frames_to_be_managed;
@@ -203,16 +322,39 @@ void frametable_init(void)
     _frame_table = (frame_table) frame_table_start_vaddr;
     for (int i = 0; i < _managed_frame_num; i ++)
     {
-        _frame_table[i].sos_cap = 0;
-        _frame_table[i].app_cap = 0;
-        _frame_table[i].next_free = -1;
+        _frame_table[i].frame_cap = 0;
+        _frame_table[i].remap_cap = 0;
+        _frame_table[i].next= -1;
+        _frame_table[i].prev= -1;
+        _frame_table[i].status = FRAME_UNINIT;
+        _frame_table[i].myself = i;
+    }
+    /* _app_free_index = -1; */
+    /* _sos_free_index = -1; */
+
+
+    size_t upages = DIVROUND(umem, seL4_PAGE_SIZE);
+
+    if (_pre_alloc_frames(upages, &_app_free_index, FRAME_FREE_APP) != 0)
+    {
+        ERROR_DEBUG("reserve %u bytes %d pages for user mem failed\n", umem, upages);
+        assert(0);
     }
 
-    _free_frame_index = -1;
-    _free_frame_count =  0;
+    size_t kpages = DIVROUND(kmem, seL4_PAGE_SIZE);
+    if (_pre_alloc_frames(kpages, &_sos_free_index, FRAME_FREE_SOS) != 0)
+    {
+        ERROR_DEBUG("reserve %u bytes %d pages for  kmem failed\n", kmem, kpages);
+        assert(0);
+    }
+
+    /* _free_frame_count =  0; */
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "Frame table init finish: ut_lo:0x%x ut_high:0x%x\n", _ut_lo, _ut_hi);
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* start vaddr of frame_table: 0x%x\n", _frame_table);
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* manage vaddr from 0x%x to 0x%x\n", WINDOW_START, WINDOW_START + seL4_PAGE_SIZE * _managed_frame_num);
+
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* umem start at [%d:0x%08x] to [%d:0x%08x]\n", _app_free_index.first, _app_free_index.start_vaddr, _app_free_index.last, _app_free_index.end_vaddr);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* kmem start at [%d:0x%08x] to [%d:0x%08x]\n", _sos_free_index.first, _sos_free_index.start_vaddr, _sos_free_index.last, _sos_free_index.end_vaddr);
 }
 
 /* allocate frame_table */
@@ -247,101 +389,232 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
     return 0;
 }
 
-/* allocate a frame */
-sos_vaddr_t frame_alloc(sos_vaddr_t * vaddr_ptr)
+
+static void _remove_from_frame_head(struct frame_table_entry* e, struct frame_table_head* head)
 {
-    conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
-    // some free frame already available, no need to ut_alloc
-    if (_free_frame_index != -1)
+    // entry in the middle, not affect head
+    if (e->next != -1 && e->prev != -1)
     {
-        sos_vaddr_t vaddr = 0;
+        _frame_table[e->next].prev = e->prev;
+        _frame_table[e->prev].next = e->next;
 
-        _free_frame_count --;
-        int index = _free_frame_index;
-        _free_frame_index = _frame_table[index].next_free;
-        _frame_table[index].next_free = -1;
-        assert(_frame_entry_status(_frame_table + index) == FRAME_SOS);
-        vaddr = frame_translate_index_to_vaddr(index);
-        if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
-        _zero_frame(vaddr);
-		/* frame_flush_icache(vaddr); */
-        return vaddr;
     }
-
-    sos_paddr_t paddr = ut_alloc(seL4_PageBits);
-    if (paddr == (sos_paddr_t)NULL)
+    // the last available entry
+    else if (head->first == e->myself && head->last == e->myself && e->next == -1 && e->prev == -1)
     {
-        if (vaddr_ptr != NULL) *vaddr_ptr = (sos_vaddr_t) NULL;
-        return (sos_vaddr_t) NULL;
+        head->first = head->last = -1;
+    }
+    // the first entry pointed by head->first
+    else if(head->first == e->myself && e->next != -1 && e->prev == -1)
+    {
+        head->first = e->next;
+        _frame_table[e->next].prev = -1;
+    }
+    else if (head->last == e->myself && e->prev != -1 && e->next == -1)
+    {
+        head->last = e->prev;
+        _frame_table[e->prev].next = -1;
     }
     else
     {
-        assert(_is_valid_paddr(paddr));
-        sos_vaddr_t vaddr = frame_translate_paddr_to_vaddr(paddr);
-
-        seL4_Word temp_cap;
-        assert (0 == _build_paddr_to_vaddr_frame(paddr, vaddr, &temp_cap));
-
-        int index = frame_translate_vaddr_to_index(vaddr);
-        assert(index >= 0);
-
-        assert(_frame_entry_status(_frame_table + index) == FRAME_FREE); // something error with ut_alloc ?
-        _frame_table[index].sos_cap = temp_cap;
-
-        if (vaddr_ptr != NULL) *vaddr_ptr = vaddr;
-        _zero_frame(vaddr);
-		/* frame_flush_icache(vaddr); */
-        return vaddr;
+        ERROR_DEBUG("strange frame status removed entry id %d [<-%d:%d->], head first: %d, last: %d\n",
+                    e->myself, e->prev, e->next, head->first, head->last);
+        assert(0);
     }
+
+    e->next = -1;
+    e->prev = -1;
+
 }
 
-void frame_free(sos_vaddr_t vaddr)
+// get frame from head
+static struct frame_table_entry* _grab_free_frame(struct frame_table_head* head)
+{
+    // nothing left
+    if (head->first == -1 && head->last== -1)
+    {
+        assert(head->free_pages == 0);
+        return NULL;
+    }
+    assert(head->first != -1 && head->last != -1);
+    struct frame_table_entry* e = _frame_table + head->first;
+    _remove_from_frame_head(e, head);
+    head->free_pages --;
+    return e;
+}
+
+//put frame at the tail!!!
+static void  _put_back_frame(struct frame_table_entry* e, struct  frame_table_head* head)
+{
+    assert(head->free_pages < head->total_pages);
+    assert(e->next == -1 && e->prev == -1);
+    e->prev = head->last;
+    if (head->last != -1)
+    {
+        _frame_table[head->last].next = e->myself;
+    }
+    head->last = e->myself;
+    if (head->first == -1) // empty head
+    {
+        head->first = e->myself;
+    }
+    head->free_pages ++;
+}
+
+sos_vaddr_t kframe_alloc()
+{
+    conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
+
+    struct frame_table_entry* e = _grab_free_frame(&_sos_free_index);
+    if (e == NULL)
+    {
+        assert(_is_empty_kframe());
+        return (sos_vaddr_t)(NULL);
+    }
+    assert(FRAME_FREE_SOS == _frame_entry_status(e));
+    e->status = FRAME_SOS;
+    sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
+    assert(_valid_kvaddr(vaddr));
+    _zero_frame(vaddr);
+    return vaddr;
+}
+
+
+/* allocate a frame */
+sos_vaddr_t uframe_alloc()
+{
+    conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
+
+    struct frame_table_entry* e = _grab_free_frame(&_app_free_index);
+    if (e == NULL)
+    {
+        // TODO swap
+        assert(_is_empty_uframe());
+        return (sos_vaddr_t)(NULL);
+    }
+    assert(FRAME_FREE_APP == _frame_entry_status(e));
+    e->status = FRAME_APP;
+    sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
+    assert(_valid_uvaddr(vaddr));
+    _zero_frame(vaddr);
+    return vaddr;
+    //
+    // some free frame already available, no need to ut_alloc
+    /* if (_free_frame_index != -1) */
+    /* { */
+    /*     sos_vaddr_t vaddr = 0; */
+    /*  */
+    /*     _free_frame_count --; */
+    /*     int index = _free_frame_index; */
+    /*     _free_frame_index = _frame_table[index].next_free; */
+    /*     _frame_table[index].next_free = -1; */
+    /*     assert(_frame_entry_status(_frame_table + index) == FRAME_SOS); */
+    /*     vaddr = frame_translate_index_to_vaddr(index); */
+    /*     if (vaddr_ptr != NULL) *vaddr_ptr = vaddr; */
+    /*     _zero_frame(vaddr); */
+	/* 	#<{(| frame_flush_icache(vaddr); |)}># */
+    /*     return vaddr; */
+    /* } */
+    /*  */
+    /* sos_paddr_t paddr = ut_alloc(seL4_PageBits); */
+    /* if (paddr == (sos_paddr_t)NULL) */
+    /* { */
+    /*     if (vaddr_ptr != NULL) *vaddr_ptr = (sos_vaddr_t) NULL; */
+    /*     return (sos_vaddr_t) NULL; */
+    /* } */
+    /* else */
+    /* { */
+    /*     assert(_is_valid_paddr(paddr)); */
+    /*     sos_vaddr_t vaddr = frame_translate_paddr_to_vaddr(paddr); */
+    /*  */
+    /*     seL4_Word temp_cap; */
+    /*     assert (0 == _build_paddr_to_vaddr_frame(paddr, vaddr, &temp_cap)); */
+    /*  */
+    /*     int index = frame_translate_vaddr_to_index(vaddr); */
+    /*     assert(index >= 0); */
+    /*  */
+    /*     assert(_frame_entry_status(_frame_table + index) == FRAME_FREE); // something error with ut_alloc ? */
+    /*     _frame_table[index].sos_cap = temp_cap; */
+    /*  */
+    /*     if (vaddr_ptr != NULL) *vaddr_ptr = vaddr; */
+    /*     _zero_frame(vaddr); */
+	/* 	#<{(| frame_flush_icache(vaddr); |)}># */
+    /*     return vaddr; */
+    /* } */
+}
+
+void kframe_free(sos_vaddr_t vaddr)
 {
     conditional_panic((_frame_table == NULL), "Frame table uninitialised");
 
-    if (vaddr == (sos_vaddr_t)NULL || _is_valid_vaddr(vaddr) == 0)
+    if (vaddr == (sos_vaddr_t)NULL || _is_valid_vaddr(vaddr) == 0 || _valid_kvaddr(vaddr) == false)
+    {
+        ERROR_DEBUG("invalid kvaddr to free: 0x%x\n", vaddr);
+        return;
+    }
+
+    int index = frame_translate_vaddr_to_index(vaddr);
+    if (index < 0 || _frame_entry_status(_frame_table + index) != FRAME_SOS)
+    {
+        ERROR_DEBUG("invalid user frame status 0x%x\n", vaddr);
+        return;
+    }
+
+    frame_table_entry* fte = _frame_table + index;
+    assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it
+    fte->status = FRAME_FREE_SOS;
+    _put_back_frame(fte, &_sos_free_index);
+}
+
+
+
+void uframe_free(sos_vaddr_t vaddr)
+{
+    conditional_panic((_frame_table == NULL), "Frame table uninitialised");
+
+    if (vaddr == (sos_vaddr_t)NULL || _is_valid_vaddr(vaddr) == 0 ||  _valid_uvaddr(vaddr) == false)
     {
         ERROR_DEBUG("invalid vaddr to free: 0x%x\n", vaddr);
         return;
     }
 
-    sos_paddr_t paddr = frame_translate_vaddr_to_paddr(vaddr);
     int index = frame_translate_vaddr_to_index(vaddr);
-    // the upper level pagetable should firstly free app_cap then try to free this frame
-    if (index < 0 || _frame_entry_status(_frame_table + index) != FRAME_SOS)
+    if (index < 0 || _frame_entry_status(_frame_table + index) != FRAME_APP)
     {
-        ERROR_DEBUG("invalid frame status 0x%x\n", vaddr);
+        ERROR_DEBUG("invalid user frame status 0x%x\n", vaddr);
         return;
     }
 
     frame_table_entry* fte = _frame_table + index;
+    fte->status = FRAME_FREE_APP;
+    assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it
+    _put_back_frame(fte, &_app_free_index);
 
-    if (_free_frame_count >= seL4_MAX_FREE_FRAME_POOL)
-    {
-        assert(_free_frame_count == seL4_MAX_FREE_FRAME_POOL);
-
-        // unmap from our window
-        int err = seL4_ARM_Page_Unmap(fte->sos_cap);
-        conditional_panic(err, "Failed to unmap page from SOS window\n");
-
-        // Delete SmallPageObject cap from SOS cspace
-        err = cspace_delete_cap(cur_cspace, fte->sos_cap);
-        conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n");
-
-        // return ut mem
-        ut_free(paddr, seL4_PageBits);
-
-        fte->sos_cap = 0;
-        // page table is responsible for free app_cap, then set it to 0
-        assert(fte->app_cap == 0 && fte->next_free == -1);
-    }
-    else
-    {
-        assert(fte->next_free == -1 && fte->app_cap == 0);
-        fte->next_free = _free_frame_index;
-        _free_frame_index = index;
-        _free_frame_count ++;
-    }
+    /* if (_free_frame_count >= seL4_MAX_FREE_FRAME_POOL) */
+    /* { */
+    /*     assert(_free_frame_count == seL4_MAX_FREE_FRAME_POOL); */
+    /*  */
+    /*     // unmap from our window */
+    /*     int err = seL4_ARM_Page_Unmap(fte->sos_cap); */
+    /*     conditional_panic(err, "Failed to unmap page from SOS window\n"); */
+    /*  */
+    /*     // Delete SmallPageObject cap from SOS cspace */
+    /*     err = cspace_delete_cap(cur_cspace, fte->sos_cap); */
+    /*     conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n"); */
+    /*  */
+    /*     // return ut mem */
+    /*     ut_free(paddr, seL4_PageBits); */
+    /*  */
+    /*     fte->sos_cap = 0; */
+    /*     // page table is responsible for free app_cap, then set it to 0 */
+    /*     assert(fte->app_cap == 0 && fte->next_free == -1); */
+    /* } */
+    /* else */
+    /* { */
+        /* assert(fte->next_free == -1 && fte->app_cap == 0); */
+        /* fte->next_free = _free_frame_index; */
+        /* _free_frame_index = index; */
+        /* _free_frame_count ++; */
 }
 
 // the caller should firstly frame_alloc, then try to remap the frame to app cap
@@ -354,23 +627,29 @@ int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
     }
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);
-    if (status == FRAME_SOS)
-    {
-        assert(cap != 0);
-        e->app_cap = cap;
-        return 0;
-
-    }
-    else if(status == FRAME_FREE)
+    if (status == FRAME_FREE_SOS || status == FRAME_FREE_APP)
     {
         assert(0);
 
     }
-    // we can not overlap app cap, otherwise, app cap maybe leek.
-    else if(status == FRAME_APP)
+    else if(status == FRAME_UNINIT)
     {
-        assert(cap == 0);
-        e->app_cap = cap;
+        assert(0);
+    }
+    // we can not overlap app cap, otherwise, app cap maybe leek.
+    else if(status == FRAME_SOS || status == FRAME_APP)
+    {
+        //FIXME add more status
+        if (cap == 0)
+        {
+            assert(e->remap_cap != 0);
+            e->remap_cap = 0;
+        }
+        else
+        {
+            assert(e->remap_cap == 0);
+            e->remap_cap = cap;
+        }
         return 0;
     }
     return -1;
@@ -386,7 +665,7 @@ uint32_t get_frame_app_cap(sos_vaddr_t vaddr)
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
-    return e->app_cap;
+    return e->remap_cap;
 }
 
 uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
@@ -398,9 +677,10 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
-    return e->sos_cap;
+    return e->frame_cap;
 }
 
+// for app code section(icache)
 void flush_sos_frame(seL4_Word vaddr)
 {
 	if (_is_valid_vaddr(vaddr) == false)
@@ -410,7 +690,7 @@ void flush_sos_frame(seL4_Word vaddr)
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
-	seL4_CPtr cap = e->sos_cap;
+	seL4_CPtr cap = e->frame_cap;
 	seL4_ARM_Page_Unify_Instruction(cap, 0, seL4_PAGE_SIZE);
 }
 

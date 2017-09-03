@@ -115,23 +115,7 @@ static bool init_stack(struct coroutine* coro)
     assert(coro->_stack_top == NULL);
     coro->_stack_sz = STACK_SIZE;
 
-    /* sos_vaddr_t vaddr = frame_alloc(NULL); */
-    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base, seL4_CanRead)); */
-    /*  */
-    /* vaddr = frame_alloc(NULL); */
-    /*  */
-    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base + STACK_GUARD_SIZE , seL4_CanRead | seL4_CanWrite)); */
-    /* vaddr = frame_alloc(NULL); */
-    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base + STACK_GUARD_SIZE * 2, seL4_CanRead | seL4_CanWrite)); */
-    /*  */
-    /* vaddr = frame_alloc(NULL); */
-    /* assert(0 == sos_frame_remap(vaddr, schedule_obj._stack_base + STACK_GUARD_SIZE + STACK_SIZE, seL4_CanRead)); */
-    /*  */
-    /* sos_paddr_t paddr = frame_phys_addr(frame_alloc(NULL)); */
-    /* uint32_t cap = 0; */
-    /* assert(0 == _build_paddr_to_vaddr_frame(paddr,schedule_obj._stack_base, &cap)); */
     coro->_stack_addr = (void*)(alloc_stack_mem());
-    /* coro->_stack_addr =  malloc(STACK_SIZE);; */
     if (coro->_stack_addr == 0)
     {
         return false;

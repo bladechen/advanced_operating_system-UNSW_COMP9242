@@ -29,7 +29,7 @@ struct pagetable* kcreate_pagetable(void)
     pt->page_dir = NULL;
     clear_sos_object(&pt->vroot);
 
-    pt->page_dir = (void*)frame_alloc(NULL);
+    pt->page_dir = (void*)kframe_alloc();
     if (pt->page_dir == NULL)
     {
         ERROR_DEBUG( "frame_alloc page_dir return NULL\n");
@@ -38,6 +38,8 @@ struct pagetable* kcreate_pagetable(void)
     }
     // i don't know the address. it doesn't matter.
     pt->vroot.cap = seL4_CapInitThreadPD;
+    pt->alloc_func = kframe_alloc;
+    pt->free_func = kframe_free;
     return pt;
 }
 
@@ -54,7 +56,7 @@ struct pagetable* create_pagetable(void)
     pt->page_dir = NULL;
     clear_sos_object(&pt->vroot);
 
-    pt->page_dir = (void*)frame_alloc(NULL);
+    pt->page_dir = (void*)kframe_alloc(NULL);
     if (pt->page_dir == NULL)
     {
         ERROR_DEBUG( "frame_alloc page_dir return NULL\n");
@@ -68,6 +70,8 @@ struct pagetable* create_pagetable(void)
         destroy_pagetable(pt);
         return NULL;
     }
+    pt->alloc_func = uframe_alloc;
+    pt->free_func = uframe_free;
     return pt;
 }
 
@@ -91,11 +95,11 @@ void destroy_pagetable(struct pagetable* pt )
                         free_page(pt, seL4_PAGE_MASK & (l1[j].entity));
                     }
                 }
-                frame_free((sos_vaddr_t)pt->page_dir[i]);
+                kframe_free((sos_vaddr_t)pt->page_dir[i]);
                 pt->page_dir[i] = NULL;
             }
         }
-        frame_free((sos_vaddr_t)pt->page_dir);
+        kframe_free((sos_vaddr_t)pt->page_dir);
         pt->page_dir = NULL;
     }
     if (pt->pt_list != NULL)
@@ -146,7 +150,7 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t 
     }
     if (pt->page_dir[l1_index] == NULL)
     {
-        pt->page_dir[l1_index] = (void*)frame_alloc(NULL);
+        pt->page_dir[l1_index] = (void*)kframe_alloc(NULL);
         if (pt->page_dir[l1_index]  == NULL)
         {
             return -2;
@@ -188,7 +192,7 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     assert(0 == cspace_delete_cap(cur_cspace, app_cap));
     set_frame_app_cap(paddr, 0);
     // then free the sos frame
-    frame_free(paddr);
+    pt->free_func(paddr);
 }
 
 int alloc_page(struct pagetable* pt,
@@ -202,7 +206,7 @@ int alloc_page(struct pagetable* pt,
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     assert(entity == 0);
 
-    paddr_t paddr = frame_alloc(NULL);
+    paddr_t paddr = pt->alloc_func(NULL);
     if (paddr == 0)
     {
         ERROR_DEBUG( "frame_alloc return NULL\n");
@@ -211,7 +215,7 @@ int alloc_page(struct pagetable* pt,
     int ret = _insert_pagetable_entry(pt, vaddr, paddr);
     if (ret != 0)
     {
-        frame_free(paddr);
+        pt->free_func(paddr);
         ERROR_DEBUG( "no enough mem for page table\n");
         return ENOMEM;
     }
@@ -219,14 +223,14 @@ int alloc_page(struct pagetable* pt,
     seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
     if (sos_cap == 0)
     {
-        frame_free(paddr);
+        pt->free_func(paddr);
         ERROR_DEBUG( "invalid frame table status!!!!!\n");
         return EINVAL;
     }
     seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
     if (app_cap == 0)
     {
-        frame_free(paddr);
+        pt->free_func(paddr);
         ERROR_DEBUG( "cspace_copy_cap error\n");
         return ESEL4API;
     }

@@ -3,6 +3,7 @@
 #include "vm.h"
 #include "vmem_layout.h"
 #include "comm/comm.h"
+#include "frametable.h"
 
 struct pagetable_entry
 {
@@ -15,12 +16,16 @@ struct sel4_pagetable
     struct sel4_pagetable* next;
 };
 
+typedef sos_vaddr_t (*alloc_frame_func)();
+typedef void (*free_frame_func)(sos_vaddr_t vaddr);
 struct pagetable
 {
     struct sos_object        vroot;
     struct pagetable_entry** page_dir;
 
     struct sel4_pagetable*   pt_list;
+    alloc_frame_func         alloc_func;
+    free_frame_func          free_func;
 };
 
 struct pagetable* kcreate_pagetable(void);

@@ -42,7 +42,7 @@ struct files_table
 void inc_ref_file(struct file* f);
 int close_kern_file(struct file* fs);
 
-int do_flip_remove(char* filename);
+int do_flip_remove(const char* filename);
 int do_flip_open(struct file ** fp, int dfd, char* filename, int flags, mode_t mode);
 // off_t kern_file_seek(struct file* f,  off_t pos, int whence);
 ssize_t kern_file_read(struct file* f, char* buf, size_t buf_size, size_t* read_len);

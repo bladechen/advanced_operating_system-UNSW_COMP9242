@@ -146,10 +146,9 @@ static int __do_stdio_open(struct file** f, int fd)
     return 0;
 }
 
-int do_flip_remove(char * filname) {
-    int ret = vfs_remove(filname);
-
-    return ret;
+int do_flip_remove(const char * filname)
+{
+    return  vfs_remove((char*)filname);
 }
 
 

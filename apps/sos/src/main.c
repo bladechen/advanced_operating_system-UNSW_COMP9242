@@ -161,6 +161,12 @@ void syscall_loop(seL4_CPtr ep)
                 seL4_SetMR(0, 0);
                 seL4_Send(reply_cap, reply);
             }
+            else if (ret == ENOMEM)
+            {
+                ERROR_DEBUG("OOM!!!\n");
+                // kill the mem violate process
+                proc_destroy(test_process);
+            }
             else
             {
                 ERROR_DEBUG("segment fault at 0x%x!\n", fault_addr);
@@ -344,7 +350,7 @@ int main(void) {
     m1_test();
     //
     dprintf(0, "initialise frametable...\n");
-    frametable_init();
+    frametable_init(0, 0);
     proc_bootstrap();
 
 
@@ -361,7 +367,7 @@ int main(void) {
     proc_activate(test_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
-    // m2_test();
+    m2_test();
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");

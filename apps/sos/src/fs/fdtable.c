@@ -177,7 +177,7 @@ int do_sys_close(int fd)
     return __close_fd(get_current_proc()->fs_struct, fd);
 }
 
-int do_sys_remove(char* filename)
+int do_sys_remove(const char* filename)
 {
     // TODO: need to check whether the file is open
 
