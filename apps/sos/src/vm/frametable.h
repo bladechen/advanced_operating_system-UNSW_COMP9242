@@ -28,6 +28,10 @@ enum frame_entry_status
 };
 
 
+// this bit is only valid when the status is FRAME_APP
+#define FRAME_CLOCK_TICK_BIT (1 << 0)
+#define FRAME_PIN_BIT (1 << 0)
+
 typedef struct frame_table_entry
 {
     enum frame_entry_status status;
@@ -38,6 +42,13 @@ typedef struct frame_table_entry
     int myself;
     int next;
     int prev;
+
+    int ctrl;
+
+    void* owner;
+
+    // bool clock_bit;
+
 } frame_table_entry;
 
 typedef frame_table_entry *frame_table;
