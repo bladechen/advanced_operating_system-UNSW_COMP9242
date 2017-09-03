@@ -49,8 +49,8 @@
 #include "syscall/syscall.h"
 #include <sos.h>
 
-uint32_t dbflags = 0xFFFFFFFF;
-/* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
+/* uint32_t dbflags = 0xFFFFFFFF; */
+uint32_t dbflags = 0 ;//0xFFFFFFFF;
 
 extern int test_coro();
 
@@ -136,44 +136,7 @@ void syscall_loop(seL4_CPtr ep)
                     seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            if (seL4_GetMR(3) == 2063)
-            {
-                // write to readonly page, simply kill the proc
-                ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1));
-                // kill the mem violate process
-                proc_destroy(test_process);
-                /* ERROR_DEBUG("write readonly page at 0x%x!\n", seL4_GetMR(1)); */
-                continue;
-            }
-            seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
-            assert(reply_cap != CSPACE_NULL);
-
-
-            seL4_Word fault_addr = seL4_GetMR(1);
-            // FIXME if doing multi proc.
-
-            int ret = vm_fault( test_process, fault_addr);
-
-            if (ret == 0)
-            {
-                // apply anything means success handle vm fault, then restart the thread .
-                seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
-                seL4_SetMR(0, 0);
-                seL4_Send(reply_cap, reply);
-            }
-            else if (ret == ENOMEM)
-            {
-                ERROR_DEBUG("OOM!!!\n");
-                // kill the mem violate process
-                proc_destroy(test_process);
-            }
-            else
-            {
-                ERROR_DEBUG("segment fault at 0x%x!\n", fault_addr);
-                // kill the mem violate process
-                proc_destroy(test_process);
-            }
-            cspace_free_slot(cur_cspace, reply_cap);
+            handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(2));
 
         }
         else if(label == seL4_NoFault)
@@ -189,7 +152,10 @@ void syscall_loop(seL4_CPtr ep)
         {
             ERROR_DEBUG("Rootserver got an unknown message\n");
         }
+        //coroutine schedule routine.
         schedule_loop();
+        // clear zombie process
+        recycle_process();
     }
 }
 
@@ -367,7 +333,7 @@ int main(void) {
     proc_activate(test_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
-    m2_test();
+    /* m2_test(); */
 
     /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");

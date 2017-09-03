@@ -112,7 +112,7 @@ void sos_syscall_remove(void * argv) {
     assert(proc == get_current_proc());
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_ipc_ctrl);
 
-    char* file_name = (get_ipc_buffer(proc));    
+    char* file_name = (get_ipc_buffer(proc));
     path_transfer(file_name, msg->offset);
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_remove: [%s]\n", file_name);
 
@@ -378,6 +378,7 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
 
     // in case the app process block, the reply_cap and message get flushed
     // we put these into `proc struct`
+    assert(app_process->p_reply_cap == 0);
     app_process->p_reply_cap = reply_cap;
 
     if (syscall_number < 0 || syscall_number > NUMBER_OF_SYSCALL) {

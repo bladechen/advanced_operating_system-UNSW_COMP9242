@@ -29,6 +29,7 @@ typedef uint32_t paddr_t;
 struct proc;
 void vm_bootstrap(void);
 void vm_shutdown(void);
-int vm_fault(struct proc* cur_proc, vaddr_t vaddr);
+// int vm_fault(struct proc* cur_proc, vaddr_t vaddr);
+void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code);
 
 #endif

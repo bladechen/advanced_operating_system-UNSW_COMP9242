@@ -24,6 +24,8 @@
 #include "vm/address_space.h"
 #include "vm/pagetable.h"
 
+#include "syscall/handle_syscall.h"
+
 struct proc kproc;
 
 // TODO, now we assume there is only one process, and the badge
@@ -44,6 +46,7 @@ static void clear_proc(struct proc* proc)
     proc->p_coro = NULL;
     proc->p_reply_cap = 0;
     proc->fs_struct = NULL;
+    proc->p_status = PROC_STATUS_RUNNING;
 }
 
 
@@ -196,6 +199,8 @@ void proc_activate(struct proc * process)
 int proc_destroy(struct proc * process)
 {
 
+    destroy_reply_cap(&process->p_reply_cap);
+
     if (process->p_addrspace != NULL)
     {
         as_destroy(process->p_addrspace);
@@ -231,4 +236,14 @@ int proc_destroy(struct proc * process)
     return 0;
 }
 
-
+extern struct proc * test_process;
+// FIXME in M7
+void recycle_process()
+{
+    if (test_process != NULL && test_process->p_status == PROC_STATUS_ZOMBIE)
+    {
+        assert(get_current_proc() != test_process);
+        proc_destroy(test_process);
+        test_process = NULL;
+    }
+}
