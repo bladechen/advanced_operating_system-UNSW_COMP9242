@@ -34,6 +34,8 @@ void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, 
     assert(proc->p_reply_cap == 0);
     proc->p_reply_cap = reply_cap;
     // FIXME if doing multi proc.
+    // currently, one proc one coroutine, after successfully executed 
+    // one corotine, will call reset_coro which set status to COROTINE_INIT
     assert(coro_status(proc->p_coro) == COROUTINE_INIT);
     // switch to coroutine, then main coroutine return immediately.
     restart_coro(proc->p_coro, vm_fault, (void*)(fault_addr));
