@@ -25,7 +25,7 @@
 /* Your OS header file */
 #include <sos.h>
 #include "file-system-unit-test.h"
-
+#include "thrash_test.h"
 #include "benchmark.h"
 
 #define BUF_SIZ    6144
@@ -324,6 +324,11 @@ static int benchmark(int argc, char *argv[]) {
     }
 }
 
+static int thrash() 
+{
+    thrash_test();
+}
+
 struct command {
     char *name;
     int (*command)(int argc, char **argv);
@@ -332,7 +337,8 @@ struct command {
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
     "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-               {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall}};
+               {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall}, 
+               {"thrash", thrash}};
 
 void simple_file_test()
 {
