@@ -105,6 +105,15 @@ static vaddr_t alloc_stack_mem()
     return stack_base;
 }
 
+static void free_stack_mem(vaddr_t vaddr)
+{
+    struct pagetable* pt = schedule_obj._daemon->_proc->p_pagetable;
+    free_page(pt, vaddr - seL4_PAGE_SIZE);
+    free_page(pt, vaddr );
+    free_page(pt, vaddr + seL4_PAGE_SIZE);
+    free_page(pt, vaddr + 2 * seL4_PAGE_SIZE);
+}
+
 static bool init_stack(struct coroutine* coro)
 {
     assert(coro != NULL);
@@ -224,11 +233,13 @@ void destroy_coro(struct coroutine* coro)
     {
         return;
     }
-    /* assert(coro->_status == COROUTINE_INIT || ); */
+    assert(coro->_status !=  COROUTINE_SUSPEND &&
+           coro->_status != COROUTINE_SUSPEND &&
+           coro->_status != COROUTINE_RUNNING);
     assert(list_empty(&(coro->_link)) == true);
     if (coro->_stack_addr != NULL)
     {
-        free(coro->_stack_addr);
+        free_stack_mem(coro->_stack_addr);
     }
     free(coro);
 }

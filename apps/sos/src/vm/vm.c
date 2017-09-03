@@ -34,7 +34,7 @@ void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, 
     assert(proc->p_reply_cap == 0);
     proc->p_reply_cap = reply_cap;
     // FIXME if doing multi proc.
-    // currently, one proc one coroutine, after successfully executed 
+    // currently, one proc one coroutine, after successfully executed
     // one corotine, will call reset_coro which set status to COROTINE_INIT
     assert(coro_status(proc->p_coro) == COROUTINE_INIT);
     // switch to coroutine, then main coroutine return immediately.
@@ -83,6 +83,7 @@ static void vm_fault(void* argv)
     {
         ERROR_DEBUG("[SEGMENT FAULT] proc %d dereference NULL\n", cur_proc->p_pid);
         proc_to_be_killed(cur_proc);
+        return ;
     }
     vaddr &= seL4_PAGE_MASK;
     struct  as_region_metadata *region = as_get_region(cur_proc->p_addrspace, vaddr);
@@ -90,6 +91,7 @@ static void vm_fault(void* argv)
     {
         ERROR_DEBUG( "[SEGMENT FAULT] proc %d can not find region via vaddr 0x%x\n", cur_proc->p_pid, vaddr);
         proc_to_be_killed(cur_proc);
+        return;
     }
     if (region->type == IPC || region->type == IPC_SHARED_BUFFER)
     {
