@@ -198,7 +198,6 @@ void proc_activate(struct proc * process)
 
 int proc_destroy(struct proc * process)
 {
-
     destroy_reply_cap(&process->p_reply_cap);
 
     if (process->p_addrspace != NULL)
@@ -231,6 +230,7 @@ int proc_destroy(struct proc * process)
 
     process->p_croot = NULL;
 
+    destroy_coro(process->p_coro);
     free(process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
     return 0;
