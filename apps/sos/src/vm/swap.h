@@ -1,4 +1,4 @@
-#ifndef _SWAP_H_
+    #ifndef _SWAP_H_
 #define _SWAP_H_
 
 #include <sel4/sel4.h>
@@ -45,22 +45,32 @@ typedef struct swap_table_entry
     int offset;
     swap_table_entry * next_empty;
 
+    // Leave it to 
     /*
     *   Throughout the whole process, only the app_vaddr won't change
-    *   It is also what we will get when vm_fault is triggered
+    *   It is also what we will get when vm_fault is triggered, may move this to some
+    *   data structure in frametable
     */
-    seL4_Word app_vaddr;
+    // seL4_Word app_vaddr;
 } swap_table_entry;
 
 typedef swap_table_entry * swap_table;
 
 
 /*
+*   @sos_vaddr, the address going to copy frame from
+*   @app_vaddr, the app_vaddr given by the app
+*
 *   @return return the swap_table offset or the pointer to the swap_table_entry, so that 
 *   we can retrieve infos we need when swap in.
 */
 int swap_out(seL4_Word sos_vaddr, frame_entry_status fes);
 
+/*
+*   @sos_vaddr, the address going to copy frame to
+*   @offset, used to find the corresponding swap_table_entry
+*/
+int swap_in(int offset, seL4_Word sos_vaddr);
 
 
 void init_swapping(void);
