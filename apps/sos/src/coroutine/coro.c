@@ -239,7 +239,7 @@ void destroy_coro(struct coroutine* coro)
     assert(list_empty(&(coro->_link)) == true);
     if (coro->_stack_addr != NULL)
     {
-        free_stack_mem(coro->_stack_addr);
+        free_stack_mem((vaddr_t) (coro->_stack_addr));
     }
     free(coro);
 }

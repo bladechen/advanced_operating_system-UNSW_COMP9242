@@ -229,7 +229,7 @@ int as_define_ipc(struct addrspace* as)
     return build_pagetable_link(as_get_page_table(as), APP_PROCESS_IPC_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
 }
 
-int as_define_ipc_shared_buffer(struct addrspace * as)
+int as_define_ipc_shared_buffer(struct proc* proc, struct addrspace * as)
 {
     int ret = as_define_region(as,
                                 APP_PROCESS_IPC_SHARED_BUFFER,
@@ -242,9 +242,14 @@ int as_define_ipc_shared_buffer(struct addrspace * as)
     }
     struct as_region_metadata* r = as_get_region_by_type(as, IPC_SHARED_BUFFER);
     assert(r != NULL);
-    // TODO pin IPC buffer
-    return build_pagetable_link(as_get_page_table(as),
+    ret = build_pagetable_link(as_get_page_table(as),
         APP_PROCESS_IPC_SHARED_BUFFER, APP_PROCESS_IPC_SHARED_BUFFER_SIZE >> 12, as_region_vmattrs(r), as_region_caprights(r));
+    if (ret == 0)
+    {
+        pin_frame(( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER)));
+    }
+
+    return ret;
 }
 
 int build_pagetable_link(struct pagetable* pt,
@@ -333,64 +338,6 @@ static seL4_CapRights as_region_caprights(struct as_region_metadata* region)
     return right;
 }
 
-/*
-*   It's an auxilary function for load file contents into memory when calling `elf_load`
-*   It's not used now, we can keep it for future usage.
-*/
-/* static int define_region_allocate_frame_and_page(unsigned long file_size, */
-/*     unsigned long segment_size, */
-/*     unsigned long vaddr, */
-/*     unsigned long offset, */
-/*     struct addrspace * dest_as, */
-/*     char * source_addr, */
-/*     enum region_type rt) */
-/* { */
-/*     // COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define CODE region\n"); */
-/*     // create and define data region */
-/*     int err = as_define_region(dest_as, */
-/*                     vaddr, */
-/*                     source_addr, */
-/*                     offset, */
-/*                     segment_size, */
-/*                     file_size, */
-/*                     1, 2, 4, */
-/*                     rt); */
-/*     conditional_panic(err != 0, "Fail to create and define Region\n"); */
-/*  */
-/*     if (rt == CODE) */
-/*     { */
-/*         // should not exceed CODE segment vaddress range */
-/*         assert(vaddr + segment_size < APP_CODE_DATA_END); */
-/*     } else if (rt == DATA) */
-/*     { */
-/*         // should not exceed DATA segment vaddress range */
-/*         // or APP_PROCESS_HEAP_END? I take the larger for safe currently */
-/*         assert(vaddr + segment_size < APP_PROCESS_MMAP_END); */
-/*     } */
-/*  */
-/*     // align the page */
-/*     vaddr_t start_address = IS_PAGE_ALIGNED(vaddr); */
-/*     // make it page align and last page may not fully filled */
-/*     int num_pages = DIVROUND(segment_size, seL4_PAGE_SIZE); */
-/*  */
-/*     struct as_region_metadata * r ; */
-/*     if (rt == CODE) */
-/*     { */
-/*         r = as_get_region_by_type(dest_as, CODE); */
-/*     } else if (rt == DATA) { */
-/*         r = as_get_region_by_type(dest_as, DATA); */
-/*     } */
-/*  */
-/*     // allocate frame and create page table mapping */
-/*     build_pagetable_link(as_get_page_table(dest_as), */
-/*                         start_address, */
-/*                         num_pages, */
-/*                         as_region_vmattrs(r), */
-/*                         as_region_caprights(r)); */
-/*  */
-/*     return 0; */
-/* } */
-/*  */
 /*
 *   Load elf info from .elf file, set up address space but does not load contents into memory.
 */

@@ -44,6 +44,9 @@ int               alloc_page(struct pagetable* pt,
                              seL4_ARM_VMAttributes vm_attr,
                              seL4_CapRights cap_right);
 
+
+uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame);
+
 // app_cap stored in frametable.
 seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr);
 

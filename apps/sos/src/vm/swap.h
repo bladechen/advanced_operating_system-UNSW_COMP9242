@@ -1,4 +1,4 @@
-    #ifndef _SWAP_H_
+#ifndef _SWAP_H_
 #define _SWAP_H_
 
 #include <sel4/sel4.h>
@@ -6,18 +6,18 @@
 #include "swaptable.h"
 
 /* it also the size of `pagefile`*/
-#define PAGEFILE_SIZE 1024*1024*1024
-#define SWAPTABLE_ENTRY_AMOUNT 1024*1024*1024 / seL4_PAGE_SIZE
+#define PAGEFILE_SIZE (1024*1024*1024)
+#define SWAPTABLE_ENTRY_AMOUNT (PAGEFILE_SIZE / seL4_PAGE_SIZE)
 
 
 /*
 *   @sos_vaddr, the address going to copy frame from
 *   @app_vaddr, the app_vaddr given by the app
 *
-*   @return return the swap_table offset or the pointer to the swap_table_entry, so that 
+*   @return return the swap_table offset or the pointer to the swap_table_entry, so that
 *   we can retrieve infos we need when swap in.
 */
-int swap_out(seL4_Word sos_vaddr, frame_entry_status fes);
+int swap_out(seL4_Word sos_vaddr);
 
 /*
 *   @sos_vaddr, the address going to copy frame to

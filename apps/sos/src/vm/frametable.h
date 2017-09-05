@@ -30,22 +30,20 @@ enum frame_entry_status
 
 // this bit is only valid when the status is FRAME_APP
 #define FRAME_CLOCK_TICK_BIT (1 << 0)
-#define FRAME_PIN_BIT (1 << 0)
+#define FRAME_PIN_BIT (1 << 1)
 
 typedef struct frame_table_entry
 {
-    enum frame_entry_status status;
     seL4_CPtr   frame_cap;
-    seL4_CPtr   remap_cap;
-    // index for the free frame.
-
     int myself;
-    int next;
-    int prev;
+    int next; // last = -1//
+    int prev; // prev = -1
+
 
     int ctrl;
-
-    void* owner;
+    seL4_CPtr   remap_cap;
+    enum frame_entry_status status;
+    void* owner; // the page entry belong to, only make sense when APP_FRAME
 
     // bool clock_bit;
 
@@ -75,5 +73,10 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
 
 
 void flush_sos_frame(sos_vaddr_t vaddr);// TODO why?
+
+void set_uframe_owner(sos_vaddr_t vaddr, void* owner);
+
+
+void pin_frame(sos_vaddr_t vaddr);
 
 #endif

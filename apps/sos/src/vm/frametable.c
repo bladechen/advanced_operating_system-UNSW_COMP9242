@@ -13,6 +13,7 @@
 #include <sys/panic.h>
 
 #include "frametable.h"
+#include "pagetable.h"
 #include "vm.h"
 
 static frame_table _frame_table = NULL;
@@ -48,6 +49,54 @@ static struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
 
 // used for the pool limitation
 /* static int _free_frame_count = 0; */
+
+static bool _is_empty_uframe();
+
+static void _pin_frame(struct frame_table_entry* e)
+{
+    e->ctrl |= FRAME_PIN_BIT;
+}
+
+static void _clock_set_frame(struct frame_table_entry* e)
+{
+    e->ctrl |= FRAME_CLOCK_TICK_BIT;
+
+}
+
+static struct frame_table_entry* _find_evict_uframe()
+{
+
+    assert(_is_empty_uframe());
+    struct frame_table_entry* ret = NULL;
+    int previous = _app_free_index.tick_index;
+    while (true)
+    {
+        struct frame_table_entry* tmp = &_frame_table[_app_free_index.tick_index];
+        assert(tmp->status == FRAME_APP);
+        if (tmp->ctrl & FRAME_PIN_BIT)
+        {
+            continue;
+        }
+
+        if ((tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
+        {
+            ret = tmp;
+        }
+        tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
+
+        _app_free_index.tick_index ++;
+        if (_app_free_index.tick_index == _app_free_index.last)
+        {
+            _app_free_index.tick_index = _app_free_index.first;
+        }
+        if (_app_free_index.tick_index == previous)
+        {
+            ERROR_DEBUG("no evict frame!!!!\n");
+            break;
+        }
+    }
+    return ret;
+}
 
 static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t frame_table_size);
 
@@ -333,6 +382,7 @@ void frametable_init(size_t umem, size_t kmem)
         _frame_table[i].prev= -1;
         _frame_table[i].status = FRAME_UNINIT;
         _frame_table[i].myself = i;
+        _frame_table[i].owner = NULL;
     }
     /* _app_free_index = -1; */
     /* _sos_free_index = -1; */
@@ -345,6 +395,10 @@ void frametable_init(size_t umem, size_t kmem)
         ERROR_DEBUG("reserve %u bytes %d pages for user mem failed\n", umem, upages);
         assert(0);
     }
+
+    _app_free_index.tick_index = 0;
+    _app_free_index.tick_start = _app_free_index.first;
+    _app_free_index.tick_end = _app_free_index.last;
 
     size_t kpages = DIVROUND(kmem, seL4_PAGE_SIZE);
     if (_pre_alloc_frames(kpages, &_sos_free_index, FRAME_FREE_SOS) != 0)
@@ -485,6 +539,14 @@ sos_vaddr_t kframe_alloc()
 }
 
 
+static void _clear_uframe(struct frame_table_entry* e)
+{
+    assert(e->remap_cap == 0);
+    e->status =  FRAME_FREE_APP;
+    e->ctrl = 0;
+    e->owner = NULL;
+    /* e-> */
+}
 /* allocate a frame */
 sos_vaddr_t uframe_alloc()
 {
@@ -493,12 +555,30 @@ sos_vaddr_t uframe_alloc()
     struct frame_table_entry* e = _grab_free_frame(&_app_free_index);
     if (e == NULL)
     {
-        // TODO swap
+        // FIXME
+        assert(0);
         assert(_is_empty_uframe());
-        return (sos_vaddr_t)(NULL);
+        // now try to evict a frame
+        e = _find_evict_uframe();
+        if (e == NULL)
+        {
+            return (sos_vaddr_t)(NULL); // OOM
+        }
+
+        assert(e->status == FRAME_APP);
+        assert(e->remap_cap != 0);
+        assert(e->owner != NULL);
+        _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
+        uint32_t swap_frame = 0; // TODO call swap api
+        uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), swap_frame);
+        assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+
+        _clear_uframe(e);
+        // now this frame is fresh new!!!
     }
     assert(FRAME_FREE_APP == _frame_entry_status(e));
     e->status = FRAME_APP;
+    _clock_set_frame(e);
     sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
     assert(_valid_uvaddr(vaddr));
     _zero_frame(vaddr);
@@ -572,7 +652,6 @@ void kframe_free(sos_vaddr_t vaddr)
 }
 
 
-
 void uframe_free(sos_vaddr_t vaddr)
 {
     conditional_panic((_frame_table == NULL), "Frame table uninitialised");
@@ -592,6 +671,8 @@ void uframe_free(sos_vaddr_t vaddr)
 
     frame_table_entry* fte = _frame_table + index;
     fte->status = FRAME_FREE_APP;
+    fte->owner = NULL;
+    fte->ctrl = 0;
     assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it
     _put_back_frame(fte, &_app_free_index);
 
@@ -699,6 +780,24 @@ void flush_sos_frame(seL4_Word vaddr)
 	seL4_ARM_Page_Unify_Instruction(cap, 0, seL4_PAGE_SIZE);
 }
 
+
+void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
+{
+    assert(_is_valid_vaddr(vaddr));
+
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    assert(e != NULL);
+    assert(e->status == FRAME_APP);
+    e->owner = owner;
+}
+
+void pin_frame(sos_vaddr_t vaddr)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+    struct frame_table_entry* e  = &(_frame_table[frame_translate_vaddr_to_index(vaddr)]);
+    assert(e->status == FRAME_APP);
+    _pin_frame(e);
+}
 
 /* int sos_frame_remap(sos_vaddr_t in_vaddr, sos_vaddr_t out_vaddr, int right) */
 /* { */

@@ -78,7 +78,7 @@ int               as_define_region(struct addrspace *as,
 int               as_define_stack(struct addrspace* as, vaddr_t* stack_pointer);
 int               as_define_heap (struct addrspace* as);
 int               as_define_ipc  (struct addrspace* as);
-int               as_define_ipc_shared_buffer(struct addrspace * as);
+int               as_define_ipc_shared_buffer(struct proc*, struct addrspace * as);
 int               as_define_mmap (struct addrspace* as); // TODO
 
 struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr);
