@@ -3,6 +3,7 @@
 #include "mapping.h"
 
 
+#include "swaptable.h"
 #include <sys/debug.h>
 
 
@@ -234,8 +235,6 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     }
     if (pt->free_func == uframe_free)
     {
-        // TODO dirty bit
-        // if in swap , free swap area
         if (_is_page_swap(entity))
         {
             assert(0 == do_free_swap_frame(paddr));
@@ -287,7 +286,8 @@ int alloc_page(struct pagetable* pt,
             pt->free_func(paddr);
             return ret;
         }
-        paddr &= (~PAGE_SWAP_BIT); // just for fun...
+        _reset_page_swap(&paddr);
+        /* paddr &= (~PAGE_SWAP_BIT); // just for fun... */
     }
 
     int ret = _insert_pagetable_entry(pt, vaddr, (paddr) );
@@ -336,6 +336,7 @@ int alloc_page(struct pagetable* pt,
     if (pt->alloc_func == uframe_alloc)
     {
         set_uframe_owner(paddr, _get_pt_entry_addr(pt, vaddr));
+        set_uframe_dirty(paddr, (cap_right & seL4_CanWrite)? 1: 0);
     }
     return 0;
 }

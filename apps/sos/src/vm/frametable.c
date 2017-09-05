@@ -577,7 +577,7 @@ sos_vaddr_t uframe_alloc()
         assert(e->owner != NULL);
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
-        int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), &swap_frame, e->swap_frame_version);
+        int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), &swap_frame, (e->ctrl & FRAME_DIRTY_BIT) ? e->swap_frame_version : 0);
         if (ret != 0)
         {
             ERROR_DEBUG("do_swapout_frame 0x%x, error: %d\n", frame_translate_index_to_vaddr(e->myself), ret);;
@@ -836,6 +836,22 @@ int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr)
     _unpin_frame(e);
     _clock_set_frame(e);
     return 0;
+}
+
+
+void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+    struct frame_table_entry* e  = &(_frame_table[frame_translate_vaddr_to_index(vaddr)]);
+    assert(e->status == FRAME_APP);
+    if (dirty)
+    {
+        e->ctrl |= FRAME_DIRTY_BIT;
+    }
+    else
+    {
+        e->ctrl &= ~FRAME_DIRTY_BIT;
+    }
 }
 
 /* int sos_frame_remap(sos_vaddr_t in_vaddr, sos_vaddr_t out_vaddr, int right) */

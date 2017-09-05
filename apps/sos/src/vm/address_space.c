@@ -484,7 +484,7 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         assert(0);
     }
 
-    int ret = as_handle_zerofilled_fault(pt, r, fault_addr);
+    int ret = as_handle_page_fault(pt, r, fault_addr, 0); // always make it readonly
     if (ret != 0)
     {
         return ret;
@@ -506,7 +506,7 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     return 0;
 }
 
-int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr)
+int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, bool dirty)
 {
 
     /* printf ("%x %x %x\n", fault_addr, region->region_vaddr, region->region_vaddr + (region->npages << 12)); */
@@ -517,10 +517,15 @@ int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata *
     }
     assert(pt != NULL && region != NULL);
     assert((fault_addr &(~seL4_PAGE_MASK)) == 0);
+    seL4_CapRights right = as_region_caprights(region);
+    if (dirty == 0 && (right & seL4_CanWrite))
+    {
+        right &= (~seL4_CanWrite) ; // make it readonly
+    }
     int ret = alloc_page(pt,
                          fault_addr,
                          as_region_vmattrs(region),
-                         as_region_caprights(region));
+                         right);
 
     return ret;
 }

@@ -105,7 +105,7 @@ seL4_CPtr as_get_ipc_cap(struct addrspace * as);
  *   Functions used in VM_Fault execution in main.c, which load or create corresponding frame
  *   when VM_Fault is triggered
  */
-int as_handle_zerofilled_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr);
+int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, bool dirty);
 
 int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr);
 
