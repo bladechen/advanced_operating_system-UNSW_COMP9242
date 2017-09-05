@@ -2,6 +2,8 @@
 #define _SWAP_TABLE_H_
 
 
+#include "vm.h"
+#include "frametable.h"
 /*
 *   frame table entry get its offset in frametable by the address get from ut_alloc
 *   page table entry get its offset in pagetable by the first 20 bits with itself
@@ -63,5 +65,7 @@ int do_swapin_frame(sos_vaddr_t vaddr,
                     uint32_t swap_frame_number,
                     uint32_t* swap_frame_version
                     );
+
+int do_free_swap_frame(uint32_t swap_frame_number);
 
 #endif

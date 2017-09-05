@@ -40,6 +40,8 @@ typedef struct frame_table_entry
     int prev; // prev = -1
 
 
+
+    uint32_t swap_frame_version;
     int ctrl;
     seL4_CPtr   remap_cap;
     enum frame_entry_status status;
@@ -78,5 +80,7 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner);
 
 
 void pin_frame(sos_vaddr_t vaddr);
+
+int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr);
 
 #endif
