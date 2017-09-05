@@ -3,6 +3,7 @@
 #include "mapping.h"
 
 
+#include "swaptable.h"
 #include <sys/debug.h>
 
 
@@ -192,7 +193,7 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t 
             return -2;
         }
     }
-    assert(pt->page_dir[l1_index][l2_index].entity == 0);
+    assert(pt->page_dir[l1_index][l2_index].entity == 0 || _is_page_swap(pt->page_dir[l1_index][l2_index].entity));
     pt->page_dir[l1_index][l2_index].entity = paddr;
     return 0;
 }
@@ -234,11 +235,9 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     }
     if (pt->free_func == uframe_free)
     {
-        // TODO dirty bit
-        // if in swap , free swap area
         if (_is_page_swap(entity))
         {
-            // TODO free swap
+            assert(0 == do_free_swap_frame(paddr));
         }
         else// otherwise free frame
         {
@@ -274,8 +273,24 @@ int alloc_page(struct pagetable* pt,
         ERROR_DEBUG( "frame_alloc return NULL\n");
         return ENOMEM;
     }
-    // TODO if _is_page_swap(entity), swap in page to paddr, then build the link in pagetable, then reset swap bit
-    int ret = _insert_pagetable_entry(pt, vaddr, paddr);
+
+    if (_is_page_swap(entity))
+    {
+        uint32_t swap_number = _get_page_frame(entity);
+        assert(swap_number != 0);
+
+        int ret = frame_swapin(swap_number, paddr);
+        if (ret != 0)
+        {
+            ERROR_DEBUG("frame_swapin error ret: %d, now free vaddr: 0x%x\n",ret, paddr);
+            pt->free_func(paddr);
+            return ret;
+        }
+        _reset_page_swap(&paddr);
+        /* paddr &= (~PAGE_SWAP_BIT); // just for fun... */
+    }
+
+    int ret = _insert_pagetable_entry(pt, vaddr, (paddr) );
     if (ret != 0)
     {
         pt->free_func(paddr);
@@ -321,6 +336,7 @@ int alloc_page(struct pagetable* pt,
     if (pt->alloc_func == uframe_alloc)
     {
         set_uframe_owner(paddr, _get_pt_entry_addr(pt, vaddr));
+        set_uframe_dirty(paddr, (cap_right & seL4_CanWrite)? 1: 0);
     }
     return 0;
 }

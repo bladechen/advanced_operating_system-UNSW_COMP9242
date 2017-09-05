@@ -31,6 +31,7 @@ enum frame_entry_status
 // this bit is only valid when the status is FRAME_APP
 #define FRAME_CLOCK_TICK_BIT (1 << 0)
 #define FRAME_PIN_BIT (1 << 1)
+#define FRAME_DIRTY_BIT (1 << 2)
 
 typedef struct frame_table_entry
 {
@@ -40,6 +41,8 @@ typedef struct frame_table_entry
     int prev; // prev = -1
 
 
+
+    uint32_t swap_frame_version;
     int ctrl;
     seL4_CPtr   remap_cap;
     enum frame_entry_status status;
@@ -78,5 +81,9 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner);
 
 
 void pin_frame(sos_vaddr_t vaddr);
+
+int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr);
+
+void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty);
 
 #endif

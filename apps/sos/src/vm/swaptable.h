@@ -9,6 +9,8 @@
 #define PAGEFILE_SIZE (1024*1024*1024)
 #define SWAPTABLE_ENTRY_AMOUNT (PAGEFILE_SIZE / seL4_PAGE_SIZE)
 
+#include "vm.h"
+#include "frametable.h"
 /*
 *   frame table entry get its offset in frametable by the address get from ut_alloc
 *   page table entry get its offset in pagetable by the first 20 bits with itself
@@ -83,17 +85,20 @@ typedef struct swap_table_entry
 typedef swap_table_entry * swap_table;
 
 
-int do_swapout_frame(sos_vaddr_t vaddr,  // frame vaddr
-                     uint32_t* swap_frame_number, // the swap id recorded in page table
-                     uint32_t swap_frame_version
-                     );
+inline int do_swapout_frame(sos_vaddr_t vaddr,  // frame vaddr
+                     uint32_t swap_frame_number_in, // the swap id recorded in page table
+                     uint32_t swap_frame_version,
+                     uint32_t *swap_frame_number_out // the swap id recorded in page table
+                     ){};
 
 
 // return error if swap_frame_number is invalid !
-int do_swapin_frame(sos_vaddr_t vaddr,
+inline int do_swapin_frame(sos_vaddr_t vaddr,
                     uint32_t swap_frame_number,
                     uint32_t* swap_frame_version
-                    );
+                    ){};
+
+inline int do_free_swap_frame(uint32_t swap_frame_number){};
 
 
 int init_swapping(void);

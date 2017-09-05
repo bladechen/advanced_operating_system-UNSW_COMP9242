@@ -43,6 +43,8 @@ struct proc
     ipc_buffer_ctrl_msg p_ipc_ctrl;
 
     char p_status; //
+
+    int vm_fault_code; // i am lazy...
 };
 
 

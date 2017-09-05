@@ -21,14 +21,15 @@ static void vm_fault(void* argv); // coroutine func
 // currently still in main coroutine.
 void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code)
 {
-    if (fault_code == 2063)
-    {
-        // write to readonly page, simply kill the proc
-        ERROR_DEBUG("write readonly page at 0x%x!\n", fault_addr);
-        // kill the mem violate process
-        proc_destroy(proc);
-        return;
-    }
+    /* if (fault_code == 2063) */
+    /* { */
+    /*     // write to readonly page, simply kill the proc */
+    /*     ERROR_DEBUG("write readonly page at 0x%x!\n", fault_addr); */
+    /*     // kill the mem violate process */
+    /*     proc_destroy(proc); */
+    /*     return; */
+    /* } */
+    proc->vm_fault_code = fault_code;
     seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
     assert(proc->p_reply_cap == 0);
@@ -98,16 +99,37 @@ static void vm_fault(void* argv)
         ERROR_DEBUG( "ipc region should be mapped 0x%x\n", vaddr);
         assert(0); // should not happend, because we map while start proc.
     }
-    // we simply alloc_page and zero them out.
     int ret = 0;
-    if (region->type == STACK || region->type == HEAP)
+    if (cur_proc->vm_fault_code == 2063)// vm fault on write on readonly page.
     {
-        ret = as_handle_zerofilled_fault(cur_proc->p_pagetable, region, vaddr);
+        if ((region->rwxflag & PF_W) == 0) // but you do not have write right. segmentfault
+        {
+            ERROR_DEBUG( "[SEGMENT FAULT] proc %d write on readonly region[%d] 0x%x\n", cur_proc->p_pid, region->type, vaddr);
+            proc_to_be_killed(cur_proc);
+
+            return;
+        }
+        else // we should make it dirty(writable) :)
+        {
+            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, 1);
+        }
     }
-    else // code, date
+    else
     {
-        assert (region->type == CODE || region->type == DATA);
-        ret = as_handle_elfload_fault(cur_proc->p_pagetable, region, vaddr);
+        // two case for coming here:
+        // 1. the page never mapped in
+        // 2. the page swapped out.
+        // we simply alloc_page and zero them out.
+        //
+        if (region->type == STACK || region->type == HEAP)
+        {
+            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, 0);
+        }
+        else // code, date
+        {
+            assert (region->type == CODE || region->type == DATA);
+            ret = as_handle_elfload_fault(cur_proc->p_pagetable, region, vaddr);
+        }
     }
 
     if (ret == ENOMEM)
