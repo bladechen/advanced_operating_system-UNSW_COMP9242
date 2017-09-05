@@ -1,6 +1,13 @@
 #ifndef _SWAP_TABLE_H_
 #define _SWAP_TABLE_H_
 
+#include <sel4/sel4.h>
+#include "vm.h"
+
+
+/* it also the size of `pagefile`*/
+#define PAGEFILE_SIZE (1024*1024*1024)
+#define SWAPTABLE_ENTRY_AMOUNT (PAGEFILE_SIZE / seL4_PAGE_SIZE)
 
 /*
 *   frame table entry get its offset in frametable by the address get from ut_alloc
@@ -18,11 +25,30 @@
 *   It is the offset of swap_table, which indicate the next empty, we should try to make it always
 *   point to the smallest offset.
 */
-int next_emtpy_swap_table_entry;
+// int next_emtpy_swap_table_entry;
 
-struct swap_table_entry;
 
-struct swap_table_entry
+// SWAP_IN_TO_MEM status does not exist, since if it swap into mem, this
+// entry should be free for use,
+enum swap_table_entry_status
+{
+    ENTRY_FREE = 0,
+    SWAP_OUT_TO_FILE = 1,
+    ENTRY_INVALID = 2
+};
+
+typedef struct swap_table_head
+{
+    int first;
+    int last;
+
+    int free_entries;
+    int total_entries;
+} swap_table_head;
+
+
+
+typedef struct swap_table_entry
 {
     /*
     *   after the frame swapped out, frame table won't contain the corresponding
@@ -33,11 +59,16 @@ struct swap_table_entry
     *   recorad that.
     */
     /*
-    *   The offset of file it writes to. Should read from that offset when swap in.
+    *   The offset/myself_index of file it writes to. Should read from that offset when swap in.
     *   This also indicate the offset of swaptable where current swap_table_entry located
     */
-    int offset;
-    struct swap_table_entry * next_empty;
+    int myself_index;
+    int next_index;
+    int prev_index;
+    // struct swap_table_entry * next_empty;
+    uint32_t version_number; // will be increased after swap_in or swap_out
+
+    enum swap_table_entry_status status;
 
     // Leave it to
     /*
@@ -46,10 +77,10 @@ struct swap_table_entry
     *   data structure in frametable
     */
     // seL4_Word app_vaddr;
-};
 
-typedef struct swap_table_entry * swap_table;
+} swap_table_entry;
 
+typedef swap_table_entry * swap_table;
 
 
 int do_swapout_frame(sos_vaddr_t vaddr,  // frame vaddr
@@ -63,5 +94,18 @@ int do_swapin_frame(sos_vaddr_t vaddr,
                     uint32_t swap_frame_number,
                     uint32_t* swap_frame_version
                     );
+
+
+int init_swapping(void);
+
+void init_swapping_vnode(void);
+
+/*
+*   @sos_vaddr: is the address returned by frame_alloc,
+*   which in turn is the physical addr for APPs.
+*   @offset: The offset of pagefile we're writing to
+*/
+bool write_to_pagefile(seL4_Word sos_vaddr, int offset);
+bool read_from_pagefile(seL4_Word sos_vaddr, int offset);
 
 #endif

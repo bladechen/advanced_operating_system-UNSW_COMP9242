@@ -1,4 +1,4 @@
-#include "swap.h"
+/*#include "swap.h"
 #include "vm/frametable.h"
 #include "vfs/vfs.h"
 #include "vfs/uio.h"
@@ -53,3 +53,4 @@ bool read_from_pagefile(seL4_Word sos_vaddr, int offset)
     return true;
 }
 
+*/
