@@ -110,11 +110,10 @@ bool read_from_pagefile(seL4_Word sos_vaddr, int offset)
 /*** Use doubly linked list as a queue ***/
 /* After swap into mem, make the entry usable again */
 // put the newly freed entry to tail
-static int enqueue(swap_table_head * queue, int index)
+static int enqueue(swap_table_head * queue, swap_table_entry * ste)
 {
     assert(queue->free_entries < queue->total_entries);
 
-    swap_table_entry * ste = _swap_table + index;
     assert(ste->next == -1 && ste->prev == -1 && ste->status == SWAP_OUT_TO_FILE);
 
     ste->prev_index = queue->last;
@@ -195,32 +194,75 @@ static void _remove_from_queue(swap_table_head * queue, swap_table_entry * ste)
 }
 
 
+/* Interface open the upper layer, actual operation functions */
 
-int do_swapout_frame(sos_vaddr_t vaddr,  // frame vaddr
-                     uint32_t* swap_frame_number, // the swap id recorded in page table
-                     uint32_t swap_frame_version)
+/* Swap from memory to file */
+int do_swapout_frame(sos_vaddr_t vaddr,  
+                     uint32_t swap_frame_number_in, 
+                     uint32_t swap_frame_version,
+                     uint32_t *swap_frame_number_out)
 {
-    if (*swap_frame_number == 0) 
+    assert(vaddr);
+    assert(swap_frame_number_in < SWAPTABLE_ENTRY_AMOUNT);
+    assert(_swap_table != NULL);
+
+    swap_table_entry * ste = NULL;
+    if (swap_frame_number_in == 0 || swap_frame_version == 0) 
     {
-        swap_table_entry * ste = dequeue(&QUEUE)
+        ste = dequeue(&QUEUE);
+        if (ste == NULL) 
+        {
+            return ENOMEM;
+        }
+        assert(ste->myself_index > 0);
+        assert(write_to_pagefile(vaddr, ste->myself_index * seL4_PAGE_SIZE) == true);
     } else 
     {
-
+        ste = _swap_table + swap_frame_number_in;
+        if (ste->version_number == swap_frame_version) 
+        {
+            // This condition indicates that this swapped data haven't been updated in the 
+            // pagefile since last swap in.
+            _remove_from_queue(&QUEUE, ste);
+        } else 
+        {
+            ste = dequeue(&QUEUE);
+            if (ste == NULL) 
+            {
+                return ENOMEM;
+            }
+            assert(ste->myself_index > 0);
+            assert(write_to_pagefile(vaddr, ste->myself_index * seL4_PAGE_SIZE) == true);
+        }
     }
+
+    *swap_frame_number_out = ste->myself_index;
 
     return 0;
 }
 
-
-// return error if swap_frame_number is invalid !
+/* Swap from file to memory */
 int do_swapin_frame(sos_vaddr_t vaddr,
                     uint32_t swap_frame_number,
                     uint32_t* swap_frame_version)
 {
 
+    assert(vaddr);
+    assert(swap_frame_number < SWAPTABLE_ENTRY_AMOUNT);
+    assert(_swap_table != NULL);
+
+    swap_table_entry * ste = _swap_table + swap_frame_number;
+
+    assert(read_from_pagefile(vaddr, ste->myself_index * seL4_PAGE_SIZE) == true);
+
+    ste->version_number++;
+
+    *swap_frame_version = ste->version_number;
+
+    enqueue(&QUEUE, ste);
+
+    return 0;
 }
-
-
 
 
 
