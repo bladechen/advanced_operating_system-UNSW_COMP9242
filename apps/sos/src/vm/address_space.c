@@ -281,6 +281,8 @@ static void as_destroy_region_pages(struct pagetable* pt,
                                     uint32_t npages)
 {
 
+    /* dump_region(region); */
+    /* printf ("as_destroy_region_pages %d\n", r); */
     assert(pt != NULL &&  region != NULL);
     vaddr_t start = region->region_vaddr;
     vaddr_t end = region->region_vaddr  + ((region->npages) << 12);

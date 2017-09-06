@@ -49,8 +49,8 @@
 #include "syscall/syscall.h"
 #include <sos.h>
 
-/* uint32_t dbflags = 0xFFFFFFFF; */
-uint32_t dbflags = 0 ;//0xFFFFFFFF;
+uint32_t dbflags = 0xFFFFFFFF;
+/* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
 extern int test_coro();
 
@@ -136,7 +136,7 @@ void syscall_loop(seL4_CPtr ep)
                     seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(2));
+            handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
 
         }
         else if(label == seL4_NoFault)
@@ -336,9 +336,6 @@ int main(void) {
     /* m2_test(); */
 
     /* Wait on synchronous endpoint for IPC */
-    dprintf(0, "\nSOS entering syscall loop\n");
-    dprintf(0, "\nsizeof void* %d\n", sizeof(void*));
-    dprintf(0, "coro proc: %p\n", test_process->p_coro);
     /* jmp_buf h; */
     /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
     // init_test_coro();
@@ -349,6 +346,7 @@ int main(void) {
     /* test_randomly_file_read_write(); */
 
     /* printf("\nhereher\n"); */
+    dprintf(0, "\nSOS entering syscall loop\n");
     syscall_loop(_sos_ipc_ep_cap);
 
     /* Not reached */

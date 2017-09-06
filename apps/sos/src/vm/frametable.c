@@ -552,6 +552,7 @@ static void _clear_uframe(struct frame_table_entry* e)
     e->ctrl = 0;
     e->owner = NULL;
     e->swap_frame_version = 0;
+    e->swap_frame_number = 0;
     /* e-> */
 }
 /* allocate a frame */
@@ -560,6 +561,7 @@ sos_vaddr_t uframe_alloc()
     conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
 
     struct frame_table_entry* e = _grab_free_frame(&_app_free_index);
+    printf ("frame cap: %d\n", e->frame_cap);
     if (e == NULL)
     {
         // FIXME
@@ -577,7 +579,8 @@ sos_vaddr_t uframe_alloc()
         assert(e->owner != NULL);
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
-        int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), &swap_frame, (e->ctrl & FRAME_DIRTY_BIT) ? e->swap_frame_version : 0);
+        int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), e->swap_frame_number,  (e->ctrl & FRAME_DIRTY_BIT) ? e->swap_frame_version : 0, &swap_frame);
+        // TODO see frame swap same
         if (ret != 0)
         {
             ERROR_DEBUG("do_swapout_frame 0x%x, error: %d\n", frame_translate_index_to_vaddr(e->myself), ret);;
@@ -674,7 +677,7 @@ void uframe_free(sos_vaddr_t vaddr)
 
     if (vaddr == (sos_vaddr_t)NULL || _is_valid_vaddr(vaddr) == 0 ||  _valid_uvaddr(vaddr) == false)
     {
-        ERROR_DEBUG("invalid vaddr to free: 0x%x\n", vaddr);
+        ERROR_DEBUG("invalid user vaddr to free: 0x%x\n", vaddr);
         return;
     }
 
@@ -723,10 +726,7 @@ void uframe_free(sos_vaddr_t vaddr)
 // the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
-    if (_is_valid_vaddr(vaddr) == false)
-    {
-        return EINVAL;
-    }
+    assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);
     if (status == FRAME_FREE_SOS || status == FRAME_FREE_APP)
@@ -760,11 +760,8 @@ int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 
 uint32_t get_frame_app_cap(sos_vaddr_t vaddr)
 {
-    if (_is_valid_vaddr(vaddr) == false)
-    {
-        return 0;
-    }
 
+    assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
     return e->remap_cap;
@@ -772,10 +769,10 @@ uint32_t get_frame_app_cap(sos_vaddr_t vaddr)
 
 uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
 {
-    if (_is_valid_vaddr(vaddr) == false)
-    {
-        return 0;
-    }
+    assert(_is_valid_vaddr(vaddr) );
+    /* { */
+    /*     return 0; */
+    /* } */
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
@@ -785,10 +782,11 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
 // for app code section(icache)
 void flush_sos_frame(seL4_Word vaddr)
 {
-	if (_is_valid_vaddr(vaddr) == false)
-    {
-		return;
-    }
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+	/* if (_is_valid_vaddr(vaddr) == false) */
+    /* { */
+	/* 	return; */
+    /* } */
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
@@ -799,7 +797,7 @@ void flush_sos_frame(seL4_Word vaddr)
 
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
 {
-    assert(_is_valid_vaddr(vaddr));
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
 
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
@@ -833,6 +831,7 @@ int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr)
     assert(version > 0);
     assert(e->swap_frame_version == 0);
     e->swap_frame_version = version;
+    e->swap_frame_number = swap_number;
     _unpin_frame(e);
     _clock_set_frame(e);
     return 0;
@@ -854,28 +853,3 @@ void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty)
     }
 }
 
-/* int sos_frame_remap(sos_vaddr_t in_vaddr, sos_vaddr_t out_vaddr, int right) */
-/* { */
-/*     frame_table_entry* e = _get_ft_entry(in_vaddr); */
-/*     assert(NULL != _frame_entry_status(e)); // just to verify status |)}># */
-/*     assert(e->sos_cap != 0); */
-/* 	assert(e->app_cap == 0); */
-/*  */
-/* 	e->app_cap = cspace_copy_cap(cur_cspace, cur_cspace, e->sos_cap, seL4_AllRights); */
-/*     (e->app_cap != 0); */
-/*  */
-/* 	#<{(| int err = seL4_ARM_Page_Unmap(e->sos_cap); |)}># */
-/*     #<{(| conditional_panic(err, "Failed to unmap page from SOS window\n"); |)}># */
-/*     int ret = map_page(e->app_cap, */
-/*                        seL4_CapInitThreadPD, */
-/*                        out_vaddr, */
-/*                        right, */
-/*                        #<{(| seL4_CanRead, |)}># */
-/*                        seL4_ARM_Default_VMAttributes); */
-/*     assert(ret == 0); */
-/*     if (ret != 0) */
-/*     { */
-/*         return ESEL4API; */
-/*     } */
-/*     return 0; */
-/* } */

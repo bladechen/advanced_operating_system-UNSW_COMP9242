@@ -7,18 +7,25 @@
 #include <sys/debug.h>
 
 
+
 static paddr_t entity_paddr(uint32_t entity)
 {
     return entity & seL4_PAGE_MASK;
 }
 static bool _valid_page_addr(uint32_t addr)
 {
-    return IS_PAGE_ALIGNED(addr);
+    /* return IS_PAGE_ALIGNED(addr); */
+    return ((addr & seL4_PAGE_MASK) != 0);
 }
 
 static bool _is_page_swap(uint32_t entity)
 {
     return (entity & PAGE_SWAP_BIT);
+}
+
+static bool _is_page_dirty(uint32_t entity)
+{
+    return (entity & PAGE_DIRTY_BIT);
 }
 
 static void _set_page_swap(uint32_t* entity)
@@ -193,7 +200,9 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, paddr_t 
             return -2;
         }
     }
-    assert(pt->page_dir[l1_index][l2_index].entity == 0 || _is_page_swap(pt->page_dir[l1_index][l2_index].entity));
+
+    assert(pt->page_dir[l1_index][l2_index].entity == 0 || _is_page_swap(pt->page_dir[l1_index][l2_index].entity) ||
+           (!_is_page_dirty(pt->page_dir[l1_index][l2_index].entity) && ( _is_page_dirty( paddr))) );
     pt->page_dir[l1_index][l2_index].entity = paddr;
     return 0;
 }
@@ -210,27 +219,33 @@ static void _insert_sel4_pt(struct pagetable* pt, struct sos_object* obj)
     return;
 }
 
-static void _unmap_page_frame(uint32_t entity)
+static void _unmap_page_frame( uint32_t entity)
 {
     assert(entity != 0 && (seL4_PAGE_MASK & entity ) != 0);
     paddr_t paddr = (entity & seL4_PAGE_MASK);
-    seL4_CPtr app_cap = get_frame_app_cap(paddr);
+    seL4_CPtr app_cap = get_frame_app_cap(entity_paddr(paddr));
     assert(app_cap != 0);
     // delete the app cap(memory)
     assert(0 == seL4_ARM_Page_Unmap(app_cap));
-    set_frame_app_cap(paddr, 0);
+    cspace_delete_cap(cur_cspace, app_cap); //TODO
+    set_frame_app_cap(entity_paddr(paddr), 0);
 }
 
 void free_page(struct pagetable* pt, vaddr_t vaddr)
 {
+    /* printf ("free_page: 0x%x\n", vaddr); */
     assert(pt != NULL);
     vaddr &= seL4_PAGE_MASK;
     struct pagetable_entry* e = _get_pt_entry_addr(pt, vaddr);
+    if (e == NULL)
+    {
+        return;
+    }
     uint32_t entity = e->entity;
     sos_vaddr_t paddr = _get_page_frame(entity);
+    /* printf ("free_page: 0x%x, entity: %x\n", vaddr, entity); */
     if (entity == 0)
     {
-        /* ERROR_DEBUG( "free_page vaddr 0x%x error\n", vaddr); */
         return;
     }
     if (pt->free_func == uframe_free)
@@ -241,7 +256,7 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
         }
         else// otherwise free frame
         {
-            _unmap_page_frame(entity);
+            _unmap_page_frame( entity);
             // then free the sos frame
             pt->free_func(paddr);
         }
@@ -265,17 +280,29 @@ int alloc_page(struct pagetable* pt,
 
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     /* assert(entity == 0); */
-    assert(entity == 0 || _is_page_swap(entity));
+    /* printf ("0x%x %d\n", entity, cap_right); */
+    assert(entity == 0 || _is_page_swap(entity) ||
+           (entity != 0 && !_is_page_dirty(entity) && (seL4_CanWrite &cap_right)) );
 
-    paddr_t paddr = pt->alloc_func(NULL);
-    if (paddr == 0)
+    paddr_t paddr = 0;
+    if (entity == 0 || _is_page_swap(entity))
     {
-        ERROR_DEBUG( "frame_alloc return NULL\n");
-        return ENOMEM;
+        paddr = pt->alloc_func(NULL);
+        printf ("0x%x\n", paddr);
+        if (paddr == 0)
+        {
+            ERROR_DEBUG( "frame_alloc return NULL\n");
+            return ENOMEM;
+        }
+    }
+    else
+    {
+        paddr = entity;
     }
 
     if (_is_page_swap(entity))
     {
+        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "we need swap in 0x%x\n", entity);
         uint32_t swap_number = _get_page_frame(entity);
         assert(swap_number != 0);
 
@@ -289,6 +316,15 @@ int alloc_page(struct pagetable* pt,
         _reset_page_swap(&paddr);
         /* paddr &= (~PAGE_SWAP_BIT); // just for fun... */
     }
+    else if (_get_page_frame(entity) != 0 && !_is_page_dirty(entity) && (seL4_CanWrite &cap_right))
+    {
+        printf ("intersting\n");
+        assert(cap_right & seL4_CanWrite);
+        _unmap_page_frame(entity); // readonly , first unmap, then map into writable
+        /* paddr |= PAGE_DIRTY_BIT; */
+        //TODO
+    }
+    paddr |= (cap_right & seL4_CanWrite) ? PAGE_DIRTY_BIT: 0;
 
     int ret = _insert_pagetable_entry(pt, vaddr, (paddr) );
     if (ret != 0)
@@ -298,11 +334,11 @@ int alloc_page(struct pagetable* pt,
         return ENOMEM;
     }
 
-    seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
+    seL4_CPtr sos_cap = get_frame_sos_cap(entity_paddr(paddr));
     if (sos_cap == 0)
     {
         pt->free_func(paddr);
-        ERROR_DEBUG( "invalid frame table status!!!!!\n");
+        ERROR_DEBUG( "0x%x invalid frame table status!!!!!\n", paddr);
         return EINVAL;
     }
     seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
@@ -331,12 +367,12 @@ int alloc_page(struct pagetable* pt,
         _insert_sel4_pt(pt, &sel4_pt);
     }
     assert(ret == 0);
-    assert(0 == set_frame_app_cap(paddr, app_cap));
+    assert(0 == set_frame_app_cap(entity_paddr(paddr), app_cap));
     // only user frame need this.
     if (pt->alloc_func == uframe_alloc)
     {
-        set_uframe_owner(paddr, _get_pt_entry_addr(pt, vaddr));
-        set_uframe_dirty(paddr, (cap_right & seL4_CanWrite)? 1: 0);
+        set_uframe_owner(entity_paddr(paddr), _get_pt_entry_addr(pt, vaddr));
+        set_uframe_dirty(entity_paddr(paddr), (cap_right & seL4_CanWrite)? 1: 0);
     }
     return 0;
 }
@@ -374,10 +410,11 @@ paddr_t page_phys_addr(struct pagetable* pt, vaddr_t vaddr)
 // the old frame number
 uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame)
 {
+    assert(0);
     uint32_t ret = _get_page_frame(page->entity) ;// make sure it mapped.
     assert(ret != 0);
     _set_page_swap(&(page->entity)); // mark page swappout
-    _unmap_page_frame(page->entity); // dettach page from that frame
+    _unmap_page_frame(page->entity); // dettach page from that frame, TODO
     _set_page_frame(&(page->entity), swap_frame); // record swap offset in page entry
     return ret;
 }

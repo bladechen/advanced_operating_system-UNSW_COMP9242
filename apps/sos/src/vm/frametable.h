@@ -43,6 +43,7 @@ typedef struct frame_table_entry
 
 
     uint32_t swap_frame_version;
+    uint32_t swap_frame_number;
     int ctrl;
     seL4_CPtr   remap_cap;
     enum frame_entry_status status;

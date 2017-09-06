@@ -6,7 +6,7 @@
 #include "frametable.h"
 
 #define PAGE_CTRL_MASK (0xfff)
-// #define PAGE_DIRTY_BIT (1 << 0)
+#define PAGE_DIRTY_BIT (1 << 0)
 #define PAGE_SWAP_BIT  (1 << 1)
 // define more here if needed
 
