@@ -198,18 +198,17 @@ void proc_activate(struct proc * process)
 
 int proc_destroy(struct proc * process)
 {
-    /* return; */
+    assert(process->p_status == PROC_STATUS_ZOMBIE ||
+           process->p_status == PROC_STATUS_DIE);
+    // TODO free fs, free pid in M7
     destroy_reply_cap(&process->p_reply_cap);
-    /* destroy_fd_table(process); */
+    /* destroy_fd_table(process); TODO */
 
-    /* COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "fuck!!!%x ok!\n", process); */
     if (process->p_addrspace != NULL)
     {
         as_destroy(process->p_addrspace);
         process->p_addrspace = NULL;
     }
-    /* COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "fuck!!!%x ok!\n", process); */
-    /* COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "fuck!!!%x ok!\n", process); */
 
     if (process->p_pagetable != NULL)
     {

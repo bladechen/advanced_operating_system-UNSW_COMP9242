@@ -223,6 +223,7 @@ static void _unmap_page_frame( paddr_t paddr)
     assert(app_cap != 0);
     assert(0 == seL4_ARM_Page_Unmap(app_cap));
     cspace_delete_cap(cur_cspace, app_cap); //TODO
+    printf ("free cap: %d\n", app_cap);
     set_frame_app_cap(paddr, 0);
 }
 
@@ -238,7 +239,6 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     }
     uint32_t entity = e->entity;
     sos_vaddr_t paddr = _get_page_frame(entity);
-    /* printf ("free_page: 0x%x, entity: %x\n", vaddr, entity); */
     if (entity == 0)
     {
         return;
@@ -337,6 +337,7 @@ int alloc_page(struct pagetable* pt,
     if (_is_page_swap(entity))
     {
         assert(pt->free_func == uframe_free);
+        cap_right &= (~seL4_CanWrite); // if swap in, mark it readonly
         assert(!(cap_right & seL4_CanWrite)); // the page swap in is always readonly
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "we need swap in 0x%x\n", entity);
         uint32_t swap_number = _get_page_frame(entity);

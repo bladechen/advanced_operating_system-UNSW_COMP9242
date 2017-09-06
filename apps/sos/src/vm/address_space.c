@@ -521,10 +521,10 @@ int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * regio
     assert((fault_addr &(~seL4_PAGE_MASK)) == 0);
     seL4_CapRights right = as_region_caprights(region);
     assert(!(dirty == 1 && !(right & seL4_CanWrite)));
-    if (dirty == 0 && (right & seL4_CanWrite))
-    {
-        right &= (~seL4_CanWrite) ; // make it readonly
-    }
+    /* if (dirty == 0 && (right & seL4_CanWrite)) */
+    /* { */
+    /*     right &= (~seL4_CanWrite) ; // make it readonly */
+    /* } */
     int ret = 0;
     if (dirty == 0)
     {

@@ -442,6 +442,7 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
             {
                 return ESEL4API;
             }
+            /* printf ("%d\n", temp_cap); */
             cur_vaddr += seL4_PAGE_SIZE;
         }
         else
@@ -561,7 +562,6 @@ sos_vaddr_t uframe_alloc()
     conditional_panic(_frame_table == NULL, "why _frame_table not init while calling frame_alloc.");
 
     struct frame_table_entry* e = _grab_free_frame(&_app_free_index);
-    printf ("frame cap: %d\n", e->frame_cap);
     if (e == NULL)
     {
         // FIXME
@@ -657,6 +657,7 @@ void uframe_free(sos_vaddr_t vaddr)
 // the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
+    printf ("set_frame_app_cap 0x:%x, cap: %d\n", vaddr, cap);
     assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);

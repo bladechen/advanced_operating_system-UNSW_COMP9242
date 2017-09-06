@@ -303,6 +303,7 @@ int main(void) {
     seL4_DebugNameThread(seL4_CapInitThreadTCB, "SOS:root");
 #endif
 
+
     dprintf(0, "\nSOS Starting...\n");
 
     _sos_init(&_sos_ipc_ep_cap, &_sos_interrupt_ep_cap);
