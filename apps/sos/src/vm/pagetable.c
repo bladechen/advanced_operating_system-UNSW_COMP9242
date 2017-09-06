@@ -337,6 +337,7 @@ int alloc_page(struct pagetable* pt,
     if (_is_page_swap(entity))
     {
         assert(pt->free_func == uframe_free);
+        assert(!(cap_right & seL4_CanWrite)); // the page swap in is always readonly
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "we need swap in 0x%x\n", entity);
         uint32_t swap_number = _get_page_frame(entity);
         assert(swap_number != 0);
@@ -351,8 +352,16 @@ int alloc_page(struct pagetable* pt,
     }
     _set_page_frame(&entity, paddr);
     /* assert((cap_right & seL4_CanWrite)); */
-    entity |= (cap_right & seL4_CanWrite) ? PAGE_DIRTY_BIT: 0;
+    /* entity |= (cap_right & seL4_CanWrite) ? PAGE_DIRTY_BIT: 0; */
 
+    if (cap_right & seL4_CanWrite)
+    {
+        entity |= PAGE_DIRTY_BIT;
+    }
+    else
+    {
+        entity &= (~PAGE_DIRTY_BIT);
+    }
     int ret = _insert_pagetable_entry(pt, vaddr, (entity) );
     if (ret != 0)
     {
