@@ -70,9 +70,11 @@ static void _clock_set_frame(struct frame_table_entry* e)
 
 }
 
+static sos_vaddr_t frame_translate_index_to_vaddr(int index);
 static void _dump_frame_table_entry(struct frame_table_entry* e)
 {
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame id: %d[%d:%d]\n", e->myself, e->prev, e->next);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* addr: 0x%08x status: %d, ctrl: %d\n", frame_translate_index_to_vaddr(e->myself), e->status, e->ctrl);
 
 }
 
@@ -82,26 +84,30 @@ static struct frame_table_entry* _find_evict_uframe()
     assert(_is_empty_uframe());
     struct frame_table_entry* ret = NULL;
     int previous = _app_free_index.tick_index;
+    bool next_run = false;
     while (true)
     {
         struct frame_table_entry* tmp = &_frame_table[_app_free_index.tick_index];
         _dump_frame_table_entry(tmp);
         assert(tmp->status == FRAME_APP);
-        if (tmp->ctrl & FRAME_PIN_BIT)
-        {
-            continue;
-        }
 
-        if ((tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
+        if (!(tmp->ctrl & FRAME_PIN_BIT) &&(tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
         {
             ret = tmp;
+            break;
         }
         tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
 
         _app_free_index.tick_index ++;
-        if (_app_free_index.tick_index == _app_free_index.last)
+        if (_app_free_index.tick_index == _app_free_index.tick_end)
         {
-            _app_free_index.tick_index = _app_free_index.first;
+            _app_free_index.tick_index = _app_free_index.tick_start;
+        }
+
+        if (_app_free_index.tick_index == previous && next_run == false)
+        {
+            next_run = true;
+            continue;
         }
         if (_app_free_index.tick_index == previous)
         {
@@ -410,9 +416,11 @@ void frametable_init(size_t umem, size_t kmem)
         assert(0);
     }
 
-    _app_free_index.tick_index = 0;
     _app_free_index.tick_start = _app_free_index.first;
+    _app_free_index.tick_index = _app_free_index.tick_start;
     _app_free_index.tick_end = _app_free_index.last;
+
+    printf ("start: %d, end: %d\n", _app_free_index.tick_start, _app_free_index.tick_end);
 
     size_t kpages = DIVROUND(kmem, seL4_PAGE_SIZE);
     if (_pre_alloc_frames(kpages, &_sos_free_index, FRAME_FREE_SOS) != 0)
@@ -587,6 +595,7 @@ sos_vaddr_t uframe_alloc()
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
         int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), e->swap_frame_number,  (e->ctrl & FRAME_DIRTY_BIT) ? e->swap_frame_version : 0, &swap_frame);
+        // TODO print something here
         // TODO see frame swap same
         if (ret != 0)
         {
@@ -608,6 +617,7 @@ sos_vaddr_t uframe_alloc()
     sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
     assert(_valid_uvaddr(vaddr));
     _zero_frame(vaddr);
+    _dump_frame_table_entry(e);
     return vaddr;
 }
 

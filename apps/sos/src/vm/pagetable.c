@@ -341,6 +341,7 @@ int alloc_page(struct pagetable* pt,
         assert(!(cap_right & seL4_CanWrite)); // the page swap in is always readonly
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "we need swap in 0x%x\n", entity);
         uint32_t swap_number = _get_page_frame(entity);
+        // FIXME
         assert(swap_number != 0);
         int ret = frame_swapin(swap_number, paddr);
         if (ret != 0)
@@ -415,11 +416,12 @@ paddr_t page_phys_addr(struct pagetable* pt, vaddr_t vaddr)
 // the old frame number
 uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame)
 {
-    assert(0 != _get_page_frame(page->entity)) ;// make sure it mapped.
+    uint32_t ret = _get_page_frame(page->entity) ;// make sure it mapped.
+    assert(ret & seL4_PAGE_MASK);
     _set_page_swap(&(page->entity)); // mark page swappout
     _unmap_page_frame(_get_page_frame(page->entity)); // dettach page from that frame, TODO
     _set_page_frame(&(page->entity), swap_frame); // record swap offset in page entry
-    return 0;
+    return ret;
 }
 
 

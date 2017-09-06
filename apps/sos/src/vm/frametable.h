@@ -5,8 +5,8 @@
 #include "vm.h"
 
 // #define DEFAULT_UMEM_BYTES (300 * 1024 * 1024)
-#define DEFAULT_UMEM_BYTES (10 * 1024 * 1024)
-#define DEFAULT_KMEM_BYTES (20 * 1024 * 1024)
+#define DEFAULT_UMEM_BYTES (1 * 1024 * 1024)
+#define DEFAULT_KMEM_BYTES (200 * 1024 * 1024)
 
 /* Integer division, rounded up (rather than truncating) */
 

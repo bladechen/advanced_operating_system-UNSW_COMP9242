@@ -45,9 +45,11 @@ int init_swapping()
 
     /* Init swap table */
     _swap_table = (swap_table_entry *)malloc(SWAPTABLE_ENTRY_AMOUNT * sizeof(swap_table_entry));
+    // TODO
 
     if (_swap_table == NULL)
     {
+        assert(0);
         return ENOMEM;
     }
 
