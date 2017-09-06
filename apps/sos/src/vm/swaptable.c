@@ -5,6 +5,7 @@
 #include "vm/pagetable.h"
 #include "swaptable.h"
 #include <sel4/sel4.h>
+#include <stdlib.h>
 
 
 static swap_table_head QUEUE = {-1, -1, 0, 0};
@@ -50,6 +51,7 @@ int init_swapping()
     if (_swap_table == NULL)
     {
         assert(0);
+        printf("swap table is NULL ~~~########\n");
         return ENOMEM;
     }
 
@@ -73,7 +75,6 @@ int init_swapping()
     QUEUE.last = SWAPTABLE_ENTRY_AMOUNT - 1;
     QUEUE.free_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
     QUEUE.total_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
-
 
     self_test();
     return 0;
@@ -296,6 +297,7 @@ int do_free_swap_frame(uint32_t swap_frame_number)
 
 static void self_test()
 {
+    printf("come into swap_table tests########\n");
     assert(QUEUE.free_entries == QUEUE.total_entries);
     assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1);
 
@@ -313,6 +315,45 @@ static void self_test()
 
     assert(QUEUE.free_entries == QUEUE.total_entries);
     assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1);
+
+
+    char string[4096];
+    for(int i = 0; i < 4096; i++)
+    {
+        string[i] = (char)(i%26 + 65);
+    }
+
+    srand(666);
+
+    for(int i = 0; i < 100; i++)
+    {
+        int offset = 4096 * (rand() % SWAPTABLE_ENTRY_AMOUNT);
+
+
+        struct iovec iov;
+        struct uio u;
+        uio_kinit(&iov, &u, (void*)string, seL4_PAGE_SIZE, offset, UIO_WRITE);
+        assert(u.uio_resid == seL4_PAGE_SIZE);
+        int ret = VOP_WRITE(pagefile_vn, &u);
+        assert(ret == 0 && u.uio_resid == 0);
+
+        char * temp = (char *)malloc(sizeof(char) * 4096);
+        uio_kinit(&iov, &u, (void*)temp, seL4_PAGE_SIZE, offset, UIO_READ);
+        assert(u.uio_resid == seL4_PAGE_SIZE);
+        ret = VOP_READ(pagefile_vn, &u);
+        assert(ret == 0 && u.uio_resid == 0);
+
+        if (strncmp(string, temp, 4096) != 0)
+        {
+            printf("%s \n",temp);
+            printf("i: %d, offset: %d\n", i, offset);
+        }
+
+        // printf("%s \n",temp);
+        // assert(strncmp(string, temp, 4096) == 0);
+        free(temp);
+    }
+
 }
 
 
