@@ -223,7 +223,7 @@ static void _unmap_page_frame( paddr_t paddr)
     assert(app_cap != 0);
     assert(0 == seL4_ARM_Page_Unmap(app_cap));
     cspace_delete_cap(cur_cspace, app_cap); //TODO
-    printf ("free cap: %d\n", app_cap);
+    /* printf ("free cap: %d\n", app_cap); */
     set_frame_app_cap(paddr, 0);
 }
 

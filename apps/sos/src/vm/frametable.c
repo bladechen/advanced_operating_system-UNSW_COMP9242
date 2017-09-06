@@ -17,6 +17,7 @@
 #include "swaptable.h"
 #include "vm.h"
 
+#define MAX_CAP_ID 1000000 // delete FIXME !!!
 static frame_table _frame_table = NULL;
 // total managed_frame memory is _managed_frame_num * PAGE_SIZE
 static seL4_Word   _managed_frame_num = 0;
@@ -442,7 +443,6 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
             {
                 return ESEL4API;
             }
-            /* printf ("%d\n", temp_cap); */
             cur_vaddr += seL4_PAGE_SIZE;
         }
         else
@@ -657,7 +657,8 @@ void uframe_free(sos_vaddr_t vaddr)
 // the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
-    printf ("set_frame_app_cap 0x:%x, cap: %d\n", vaddr, cap);
+    /* printf ("set_frame_app_cap 0x:%x, cap: %d\n", vaddr, cap); */
+    assert(cap <= MAX_CAP_ID);
     assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);
