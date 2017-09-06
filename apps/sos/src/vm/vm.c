@@ -8,7 +8,9 @@
 #include "sys/debug.h"
 void vm_bootstrap(void)
 {
-    // TODO, move frametable swap init here.
+    printf("initialise frametable...\n");
+    frametable_init(0, 0);
+    // TODO add swap here
 }
 void vm_shutdown(void)
 {

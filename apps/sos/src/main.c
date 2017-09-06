@@ -309,14 +309,11 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
-    // TODO, create console
 
     assert(0 == start_timer(_sos_interrupt_ep_cap));
 
     m1_test();
-    //
-    dprintf(0, "initialise frametable...\n");
-    frametable_init(0, 0);
+    vm_bootstrap();
     proc_bootstrap();
 
 
@@ -333,23 +330,10 @@ int main(void) {
     proc_activate(test_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
-    /* m2_test(); */
-
-    /* Wait on synchronous endpoint for IPC */
-    /* jmp_buf h; */
-    /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
-    // init_test_coro();
-    /* test_process->p_reply_cap = 0; */
-    /* sos_syscall_sleep(test_process); */
-    /* serial_send(_serial._serial_handler, buf, 6000); */
-
-    /* test_randomly_file_read_write(); */
-
-    /* printf("\nhereher\n"); */
     dprintf(0, "\nSOS entering syscall loop\n");
     syscall_loop(_sos_ipc_ep_cap);
+    dprintf(0, "\nSOS exits loop\n");
 
-    /* Not reached */
     return 0;
 }
 
