@@ -14,6 +14,7 @@ int len = 0;
 
 void thrash_test()
 {
+    len = 0;
     memset(hash, 0, sizeof(hash));
     int large_STACK_arr[LARGE_SIZE] ;
 

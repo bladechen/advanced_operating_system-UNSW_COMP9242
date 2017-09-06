@@ -58,15 +58,15 @@ inline int do_swapout_frame(sos_vaddr_t vaddr,  // frame vaddr
                      uint32_t swap_frame_number_in, // the swap id recorded in page table
                      uint32_t swap_frame_version,
                      uint32_t *swap_frame_number_out // the swap id recorded in page table
-                     ){};
+                     ){assert(0);};
 
 
 // return error if swap_frame_number is invalid !
 inline int do_swapin_frame(sos_vaddr_t vaddr,
                     uint32_t swap_frame_number,
                     uint32_t* swap_frame_version
-                    ){};
+                    ){assert(0);};
 
-inline int do_free_swap_frame(uint32_t swap_frame_number){};
+inline int do_free_swap_frame(uint32_t swap_frame_number){assert(0);};
 
 #endif

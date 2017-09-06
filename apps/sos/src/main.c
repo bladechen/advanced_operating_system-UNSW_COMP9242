@@ -49,8 +49,8 @@
 #include "syscall/syscall.h"
 #include <sos.h>
 
-uint32_t dbflags = 0xFFFFFFFF;
-/* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
+/* uint32_t dbflags = 0xFFFFFFFF; */
+uint32_t dbflags = 0 ;//0xFFFFFFFF;
 
 extern int test_coro();
 

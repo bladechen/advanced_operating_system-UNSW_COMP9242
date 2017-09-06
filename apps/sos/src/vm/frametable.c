@@ -602,49 +602,6 @@ sos_vaddr_t uframe_alloc()
     assert(_valid_uvaddr(vaddr));
     _zero_frame(vaddr);
     return vaddr;
-    //
-    // some free frame already available, no need to ut_alloc
-    /* if (_free_frame_index != -1) */
-    /* { */
-    /*     sos_vaddr_t vaddr = 0; */
-    /*  */
-    /*     _free_frame_count --; */
-    /*     int index = _free_frame_index; */
-    /*     _free_frame_index = _frame_table[index].next_free; */
-    /*     _frame_table[index].next_free = -1; */
-    /*     assert(_frame_entry_status(_frame_table + index) == FRAME_SOS); */
-    /*     vaddr = frame_translate_index_to_vaddr(index); */
-    /*     if (vaddr_ptr != NULL) *vaddr_ptr = vaddr; */
-    /*     _zero_frame(vaddr); */
-	/* 	#<{(| frame_flush_icache(vaddr); |)}># */
-    /*     return vaddr; */
-    /* } */
-    /*  */
-    /* sos_paddr_t paddr = ut_alloc(seL4_PageBits); */
-    /* if (paddr == (sos_paddr_t)NULL) */
-    /* { */
-    /*     if (vaddr_ptr != NULL) *vaddr_ptr = (sos_vaddr_t) NULL; */
-    /*     return (sos_vaddr_t) NULL; */
-    /* } */
-    /* else */
-    /* { */
-    /*     assert(_is_valid_paddr(paddr)); */
-    /*     sos_vaddr_t vaddr = frame_translate_paddr_to_vaddr(paddr); */
-    /*  */
-    /*     seL4_Word temp_cap; */
-    /*     assert (0 == _build_paddr_to_vaddr_frame(paddr, vaddr, &temp_cap)); */
-    /*  */
-    /*     int index = frame_translate_vaddr_to_index(vaddr); */
-    /*     assert(index >= 0); */
-    /*  */
-    /*     assert(_frame_entry_status(_frame_table + index) == FRAME_FREE); // something error with ut_alloc ? */
-    /*     _frame_table[index].sos_cap = temp_cap; */
-    /*  */
-    /*     if (vaddr_ptr != NULL) *vaddr_ptr = vaddr; */
-    /*     _zero_frame(vaddr); */
-	/* 	#<{(| frame_flush_icache(vaddr); |)}># */
-    /*     return vaddr; */
-    /* } */
 }
 
 void kframe_free(sos_vaddr_t vaddr)
@@ -694,32 +651,6 @@ void uframe_free(sos_vaddr_t vaddr)
     fte->ctrl = 0;
     assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it
     _put_back_frame(fte, &_app_free_index);
-
-    /* if (_free_frame_count >= seL4_MAX_FREE_FRAME_POOL) */
-    /* { */
-    /*     assert(_free_frame_count == seL4_MAX_FREE_FRAME_POOL); */
-    /*  */
-    /*     // unmap from our window */
-    /*     int err = seL4_ARM_Page_Unmap(fte->sos_cap); */
-    /*     conditional_panic(err, "Failed to unmap page from SOS window\n"); */
-    /*  */
-    /*     // Delete SmallPageObject cap from SOS cspace */
-    /*     err = cspace_delete_cap(cur_cspace, fte->sos_cap); */
-    /*     conditional_panic(err, "Failed to delete SmallPageObject cap from SOS cspace\n"); */
-    /*  */
-    /*     // return ut mem */
-    /*     ut_free(paddr, seL4_PageBits); */
-    /*  */
-    /*     fte->sos_cap = 0; */
-    /*     // page table is responsible for free app_cap, then set it to 0 */
-    /*     assert(fte->app_cap == 0 && fte->next_free == -1); */
-    /* } */
-    /* else */
-    /* { */
-        /* assert(fte->next_free == -1 && fte->app_cap == 0); */
-        /* fte->next_free = _free_frame_index; */
-        /* _free_frame_index = index; */
-        /* _free_frame_count ++; */
 }
 
 // the caller should firstly frame_alloc, then try to remap the frame to app cap
@@ -732,7 +663,6 @@ int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
     if (status == FRAME_FREE_SOS || status == FRAME_FREE_APP)
     {
         assert(0);
-
     }
     else if(status == FRAME_UNINIT)
     {
@@ -770,10 +700,6 @@ uint32_t get_frame_app_cap(sos_vaddr_t vaddr)
 uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
 {
     assert(_is_valid_vaddr(vaddr) );
-    /* { */
-    /*     return 0; */
-    /* } */
-
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
     return e->frame_cap;
@@ -783,11 +709,6 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
 void flush_sos_frame(seL4_Word vaddr)
 {
     assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
-	/* if (_is_valid_vaddr(vaddr) == false) */
-    /* { */
-	/* 	return; */
-    /* } */
-
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
 	seL4_CPtr cap = e->frame_cap;
@@ -819,6 +740,7 @@ int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr)
     assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
     struct frame_table_entry* e  = &(_frame_table[frame_translate_vaddr_to_index(vaddr)]);
     assert(e->status == FRAME_APP);
+    assert(e->remap_cap == 0);
     uint32_t version = 0;
     _pin_frame(e); // pin it. because current thread maybe kick out.
     int ret = do_swapin_frame(vaddr, swap_number, &version);

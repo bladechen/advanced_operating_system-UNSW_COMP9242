@@ -45,6 +45,14 @@ int               alloc_page(struct pagetable* pt,
                              seL4_CapRights cap_right);
 
 
+int               set_page_writable(struct pagetable* pt,
+                               vaddr_t vaddr,
+                               seL4_ARM_VMAttributes
+                               vm_attr,
+                               seL4_CapRights cap_right);
+
+
+// called by frame table, while swap out.
 uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame);
 
 // app_cap stored in frametable.
