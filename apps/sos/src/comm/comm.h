@@ -132,6 +132,13 @@ static inline seL4_CPtr enable_irq(int irq, seL4_CPtr aep)
     return cap;
 }
 
+static inline void print_current_cap()
+{
+    uint32_t cur = cspace_copy_cap(cur_cspace, cur_cspace, seL4_CapInitThreadTCB, seL4_AllRights);
+    printf("current cap id: %u\n", cur);
+    cspace_delete_cap(cur_cspace, cur);
+}
+
 // #undef verbose
 #ifdef comm_verbose
 #undef verbose

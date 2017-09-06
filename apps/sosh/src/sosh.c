@@ -324,7 +324,12 @@ static int benchmark(int argc, char *argv[]) {
     }
 }
 
-static int thrash() 
+static int die()
+{
+    *(int*)(0) =  1313;
+}
+
+static int thrash()
 {
     thrash_test();
 }
@@ -337,8 +342,8 @@ struct command {
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
     "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-               {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall}, 
-               {"thrash", thrash}};
+               {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall},
+               {"thrash", thrash}, {"die", die}};
 
 void simple_file_test()
 {

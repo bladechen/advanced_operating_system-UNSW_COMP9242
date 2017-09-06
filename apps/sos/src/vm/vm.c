@@ -4,12 +4,17 @@
 #include "vmem_layout.h"
 #include "pagetable.h"
 #include "syscall/handle_syscall.h"
-
+#include "swaptable.h"
 #include "sys/debug.h"
+
 void vm_bootstrap(void)
 {
-    // TODO, move frametable swap init here.
+    printf("initialise frametable...\n");
+    frametable_init(0, 0);
+    // TODO add swap here
+    init_swapping();
 }
+
 void vm_shutdown(void)
 {
 
@@ -17,18 +22,9 @@ void vm_shutdown(void)
 
 static void vm_fault(void* argv); // coroutine func
 
-
 // currently still in main coroutine.
 void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code)
 {
-    /* if (fault_code == 2063) */
-    /* { */
-    /*     // write to readonly page, simply kill the proc */
-    /*     ERROR_DEBUG("write readonly page at 0x%x!\n", fault_addr); */
-    /*     // kill the mem violate process */
-    /*     proc_destroy(proc); */
-    /*     return; */
-    /* } */
     proc->vm_fault_code = fault_code;
     seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
@@ -41,29 +37,6 @@ void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, 
     // switch to coroutine, then main coroutine return immediately.
     restart_coro(proc->p_coro, vm_fault, (void*)(fault_addr));
     return;
-    /* int ret = vm_fault(test_process, fault_addr); */
-    /* if (ret == 0) */
-    /* { */
-    /*     // apply anything means success handle vm fault, then restart the thread . */
-    /*     seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1); */
-    /*     seL4_SetMR(0, 0); */
-    /*     seL4_Send(reply_cap, reply); */
-    /* } */
-    /* else if (ret == ENOMEM) */
-    /* { */
-    /*     ERROR_DEBUG("OOM!!!\n"); */
-    /*     // kill the mem violate process */
-    /*     proc_destroy(test_process); */
-    /* } */
-    /* else */
-    /* { */
-    /*     ERROR_DEBUG("segment fault at 0x%x!\n", fault_addr); */
-    /*     // kill the mem violate process */
-    /*     proc_destroy(test_process); */
-    /* } */
-    /* cspace_free_slot(cur_cspace, reply_cap); */
-
-
 }
 
 // if segment fault or OOM, we can not destroy proc in this function, because we are still on its coroutine.

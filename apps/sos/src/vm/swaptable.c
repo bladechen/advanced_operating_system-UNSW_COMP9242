@@ -3,6 +3,7 @@
 #include "vfs/uio.h"
 #include "vfs/vnode.h"
 #include "vm/pagetable.h"
+#include "swaptable.h"
 #include <sel4/sel4.h>
 
 
@@ -17,14 +18,17 @@ static struct vnode * pagefile_vn = NULL;
 static char* FILE_PATH = "nfs:pagefile";
 
 
+// unit test for queue data structure
+static void self_test();
+
 static void init_swap_table_entry(int myself_index, int next_index,
     int prev_index, int version_number, enum swap_table_entry_status status) 
 {
-    *(_swap_table + myself_index).myself_index = myself_index;
-    *(_swap_table + myself_index).next_index = next_index;
-    *(_swap_table + myself_index).prev_index = prev_index;
-    *(_swap_table + myself_index).version_number = version_number;
-    *(_swap_table + myself_index).status = status;
+    (_swap_table + myself_index)->myself_index = myself_index;
+    (_swap_table + myself_index)->next_index = next_index;
+    (_swap_table + myself_index)->prev_index = prev_index;
+    (_swap_table + myself_index)->version_number = version_number;
+    (_swap_table + myself_index)->status = status;
 }
 
 void init_swapping_vnode()
@@ -67,6 +71,10 @@ int init_swapping()
     QUEUE.last = SWAPTABLE_ENTRY_AMOUNT - 1;
     QUEUE.free_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
     QUEUE.total_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
+
+
+    // self_test();
+    return 0;
 }
 
 
@@ -114,7 +122,7 @@ static int enqueue(swap_table_head * queue, swap_table_entry * ste)
 {
     assert(queue->free_entries < queue->total_entries);
 
-    assert(ste->next == -1 && ste->prev == -1 && ste->status == SWAP_OUT_TO_FILE);
+    assert(ste->next_index == -1 && ste->prev_index == -1 && ste->status == SWAP_OUT_TO_FILE);
 
     ste->prev_index = queue->last;
     if (queue->last != -1)
@@ -131,25 +139,8 @@ static int enqueue(swap_table_head * queue, swap_table_entry * ste)
     queue->free_entries++;
 
     ste->status = ENTRY_FREE;
-}
 
-/* Get emtpy(free) entry */
-static swap_table_entry * dequeue(swap_table_head * queue)
-{
-    assert(_swap_table != NULL);
-
-    // nothing left, run out of pagefile
-    if (queue->first == -1 && queue->last== -1)
-    {
-        assert(queue->free_entries == 0);
-        return NULL;
-    }
-    assert(queue->first != -1 && queue->last != -1);
-    swap_table_entry * ste = _swap_table + queue->first;
-    assert(ste->status ==  ENTRY_FREE);
-    _remove_from_queue(queue, ste);
-    queue->free_entries --;
-    return ste;
+    return 0;
 }
 
 static void _remove_from_queue(swap_table_head * queue, swap_table_entry * ste)
@@ -182,8 +173,8 @@ static void _remove_from_queue(swap_table_head * queue, swap_table_entry * ste)
     }
     else
     {
-        ERROR_DEBUG("strange entry status removed entry id %d [<-%d:%d->], que first: %d, last: %d\n",
-                    ste->myself_index, ste->prev_index, ste->next_index, queue->first, queu->last);
+        ERROR_DEBUG("strange entry status removed entry id %d [<-%d:%d->], queue first: %d, last: %d\n",
+                    ste->myself_index, ste->prev_index, ste->next_index, queue->first, queue->last);
         assert(0);
     }
 
@@ -193,8 +184,28 @@ static void _remove_from_queue(swap_table_head * queue, swap_table_entry * ste)
     ste->version_number++;
 }
 
+/* Get emtpy(free) entry */
+static swap_table_entry * dequeue(swap_table_head * queue)
+{
+    assert(_swap_table != NULL);
 
-/* Interface open the upper layer, actual operation functions */
+    // nothing left, run out of pagefile
+    if (queue->first == -1 && queue->last== -1)
+    {
+        assert(queue->free_entries == 0);
+        return NULL;
+    }
+    assert(queue->first != -1 && queue->last != -1);
+    swap_table_entry * ste = _swap_table + queue->first;
+    assert(ste->status ==  ENTRY_FREE);
+    _remove_from_queue(queue, ste);
+    queue->free_entries --;
+    return ste;
+}
+
+
+
+/* Interface open to the upper layer, actual operation functions */
 
 /* Swap from memory to file */
 int do_swapout_frame(sos_vaddr_t vaddr,  
@@ -236,6 +247,7 @@ int do_swapout_frame(sos_vaddr_t vaddr,
         }
     }
 
+    ste->version_number++;
     *swap_frame_number_out = ste->myself_index;
 
     return 0;
@@ -259,15 +271,47 @@ int do_swapin_frame(sos_vaddr_t vaddr,
 
     *swap_frame_version = ste->version_number;
 
-    enqueue(&QUEUE, ste);
+    assert(enqueue(&QUEUE, ste) == 0);
+
+    return 0;
+}
+
+/* Free corresponding swaptable entry directly */
+int do_free_swap_frame(uint32_t swap_frame_number)
+{
+    if (swap_frame_number > SWAPTABLE_ENTRY_AMOUNT || _swap_table == NULL) 
+    {
+        return EINVAL;
+    }
+
+    swap_table_entry * ste = _swap_table + swap_frame_number;
+
+    assert(enqueue(&QUEUE, ste) == 0);
 
     return 0;
 }
 
 
+static void self_test() 
+{
+    assert(QUEUE.free_entries == QUEUE.total_entries);
+    assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1);
 
+    swap_table_entry * test_arr[100];
 
+    for(int i=0; i< 100; i++) 
+    {
+        test_arr[i] = dequeue(&QUEUE);
+    }
 
+    for(int i=0; i<100; i++) 
+    {
+        enqueue(&QUEUE, test_arr[i]);
+    }
+
+    assert(QUEUE.free_entries == QUEUE.total_entries);
+    assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1);
+}
 
 
 

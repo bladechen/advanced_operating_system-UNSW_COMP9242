@@ -113,4 +113,6 @@ void init_swapping_vnode(void);
 bool write_to_pagefile(seL4_Word sos_vaddr, int offset);
 bool read_from_pagefile(seL4_Word sos_vaddr, int offset);
 
+int do_free_swap_frame(uint32_t swap_frame_number);
+
 #endif

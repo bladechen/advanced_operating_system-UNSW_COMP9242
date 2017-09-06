@@ -198,8 +198,11 @@ void proc_activate(struct proc * process)
 
 int proc_destroy(struct proc * process)
 {
+    assert(process->p_status == PROC_STATUS_ZOMBIE ||
+           process->p_status == PROC_STATUS_DIE);
+    // TODO free fs, free pid in M7
     destroy_reply_cap(&process->p_reply_cap);
-    destroy_fd_table(process);
+    /* destroy_fd_table(process); TODO */
 
     if (process->p_addrspace != NULL)
     {
@@ -243,6 +246,7 @@ void recycle_process()
 {
     if (test_process != NULL && test_process->p_status == PROC_STATUS_ZOMBIE)
     {
+        printf ("recycle_process\n");
         assert(get_current_proc() != test_process);
         proc_destroy(test_process);
         test_process = NULL;

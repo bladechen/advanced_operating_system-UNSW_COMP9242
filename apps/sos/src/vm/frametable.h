@@ -4,7 +4,8 @@
 #include <sel4/sel4.h>
 #include "vm.h"
 
-#define DEFAULT_UMEM_BYTES (300 * 1024 * 1024)
+// #define DEFAULT_UMEM_BYTES (300 * 1024 * 1024)
+#define DEFAULT_UMEM_BYTES (10 * 1024 * 1024)
 #define DEFAULT_KMEM_BYTES (20 * 1024 * 1024)
 
 /* Integer division, rounded up (rather than truncating) */
@@ -43,6 +44,7 @@ typedef struct frame_table_entry
 
 
     uint32_t swap_frame_version;
+    uint32_t swap_frame_number;
     int ctrl;
     seL4_CPtr   remap_cap;
     enum frame_entry_status status;

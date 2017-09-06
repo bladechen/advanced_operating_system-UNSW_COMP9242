@@ -49,8 +49,8 @@
 #include "syscall/syscall.h"
 #include <sos.h>
 
-/* uint32_t dbflags = 0xFFFFFFFF; */
-uint32_t dbflags = 0 ;//0xFFFFFFFF;
+uint32_t dbflags = 0xFFFFFFFF; 
+// uint32_t dbflags = 0 ;//0xFFFFFFFF;
 
 extern int test_coro();
 
@@ -136,7 +136,7 @@ void syscall_loop(seL4_CPtr ep)
                     seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
-            handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(2));
+            handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
 
         }
         else if(label == seL4_NoFault)
@@ -309,21 +309,18 @@ int main(void) {
 
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
-    // TODO, create console
 
     assert(0 == start_timer(_sos_interrupt_ep_cap));
 
     m1_test();
-    //
-    dprintf(0, "initialise frametable...\n");
-    frametable_init(0, 0);
-    proc_bootstrap();
-
-
     vfs_bootstrap();
     init_kern_file_table();
     init_console();
     init_nfs(&mnt_point);
+
+    vm_bootstrap();
+    proc_bootstrap();
+    
     /* init_test_coro(); */
 
     /* Start the user application */
@@ -333,25 +330,10 @@ int main(void) {
     proc_activate(test_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
-    /* m2_test(); */
-
-    /* Wait on synchronous endpoint for IPC */
     dprintf(0, "\nSOS entering syscall loop\n");
-    dprintf(0, "\nsizeof void* %d\n", sizeof(void*));
-    dprintf(0, "coro proc: %p\n", test_process->p_coro);
-    /* jmp_buf h; */
-    /* dprintf(0, "\nsizeof jmp %d\n", sizeof(h)); */
-    // init_test_coro();
-    /* test_process->p_reply_cap = 0; */
-    /* sos_syscall_sleep(test_process); */
-    /* serial_send(_serial._serial_handler, buf, 6000); */
-
-    /* test_randomly_file_read_write(); */
-
-    /* printf("\nhereher\n"); */
     syscall_loop(_sos_ipc_ep_cap);
+    dprintf(0, "\nSOS exits loop\n");
 
-    /* Not reached */
     return 0;
 }
 
