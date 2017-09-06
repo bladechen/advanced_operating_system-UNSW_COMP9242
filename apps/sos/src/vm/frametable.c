@@ -70,6 +70,12 @@ static void _clock_set_frame(struct frame_table_entry* e)
 
 }
 
+static void _dump_frame_table_entry(struct frame_table_entry* e)
+{
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame id: %d[%d:%d]\n", e->myself, e->prev, e->next);
+
+}
+
 static struct frame_table_entry* _find_evict_uframe()
 {
 
@@ -79,6 +85,7 @@ static struct frame_table_entry* _find_evict_uframe()
     while (true)
     {
         struct frame_table_entry* tmp = &_frame_table[_app_free_index.tick_index];
+        _dump_frame_table_entry(tmp);
         assert(tmp->status == FRAME_APP);
         if (tmp->ctrl & FRAME_PIN_BIT)
         {
@@ -565,7 +572,7 @@ sos_vaddr_t uframe_alloc()
     if (e == NULL)
     {
         // FIXME
-        assert(0);
+        /* assert(0); */
         assert(_is_empty_uframe());
         // now try to evict a frame
         e = _find_evict_uframe();

@@ -222,7 +222,7 @@ static void _unmap_page_frame( paddr_t paddr)
     seL4_CPtr app_cap = get_frame_app_cap(paddr);
     assert(app_cap != 0);
     assert(0 == seL4_ARM_Page_Unmap(app_cap));
-    cspace_delete_cap(cur_cspace, app_cap); //TODO
+    cspace_delete_cap(cur_cspace, app_cap); //
     /* printf ("free cap: %d\n", app_cap); */
     set_frame_app_cap(paddr, 0);
 }
@@ -301,7 +301,7 @@ int set_page_writable(struct pagetable* pt,
     vaddr &= seL4_PAGE_MASK;
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
     assert((entity != 0 && !_is_page_dirty(entity) && (seL4_CanWrite & cap_right)) );
-    assert(!_is_page_swap(entity) );// TODO make sure works in multi proc
+    assert(!_is_page_swap(entity) );
 
     _unmap_page_frame(_get_page_frame(entity)); // readonly , first unmap, then map into writable
     entity |= PAGE_DIRTY_BIT;
@@ -415,7 +415,6 @@ paddr_t page_phys_addr(struct pagetable* pt, vaddr_t vaddr)
 // the old frame number
 uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame)
 {
-    assert(0); // TODO remove me
     assert(0 != _get_page_frame(page->entity)) ;// make sure it mapped.
     _set_page_swap(&(page->entity)); // mark page swappout
     _unmap_page_frame(_get_page_frame(page->entity)); // dettach page from that frame, TODO

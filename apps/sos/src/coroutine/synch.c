@@ -3,6 +3,13 @@
 
 // TODO the name should be const.
 
+
+extern int sos_init_flag;
+extern void sos_usleep(int usecs);
+extern void rpc_timeout(int ms);
+
+
+
 static struct wchan* create_wchan()
 {
     struct wchan* wc = malloc(sizeof(struct wchan));
@@ -97,15 +104,31 @@ void sem_destroy(struct semaphore* sem)
     free(sem);
 }
 
+static void _block_wait(struct semaphore* sem)
+{
+    while(sem->_sem_count == 0)
+    {
+        sos_usleep(1000);
+        rpc_timeout(1);
+    }
+}
+
 void P(struct semaphore* sem)
 {
-    assert(check_valid_wchan(sem->_sem_wchan));
-    assert(sem != NULL);
-    while (sem->_sem_count == 0)
+    if (!sos_init_flag)
     {
-        wchan_sleep(sem->_sem_wchan);
+        _block_wait(sem);
     }
-    assert(check_valid_wchan(sem->_sem_wchan));
+    else
+    {
+        assert(check_valid_wchan(sem->_sem_wchan));
+        assert(sem != NULL);
+        while (sem->_sem_count == 0)
+        {
+            wchan_sleep(sem->_sem_wchan);
+        }
+        assert(check_valid_wchan(sem->_sem_wchan));
+    }
     assert(sem->_sem_count > 0);
     sem->_sem_count --;
 }
@@ -113,7 +136,12 @@ void P(struct semaphore* sem)
 void V(struct semaphore* sem)
 {
     assert(sem != NULL);
-    /* printf("V: %d\n", sem->_sem_count); */
+    if (!sos_init_flag)
+    {
+        sem->_sem_count ++;
+        assert(sem->_sem_count > 0);
+        return;
+    }
     if (sem->_max_count != -1 && sem->_sem_count == sem->_max_count)
     {
         // if someone is blocking in P, but V does not wake that guy up, something wrong with _max_count setting!

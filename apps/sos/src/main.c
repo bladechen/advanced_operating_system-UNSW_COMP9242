@@ -49,7 +49,10 @@
 #include "syscall/syscall.h"
 #include <sos.h>
 
-uint32_t dbflags = 0xFFFFFFFF; 
+
+volatile bool sos_init_flag = false;
+
+uint32_t dbflags = 0xFFFFFFFF;
 // uint32_t dbflags = 0 ;//0xFFFFFFFF;
 
 extern int test_coro();
@@ -320,7 +323,7 @@ int main(void) {
 
     vm_bootstrap();
     proc_bootstrap();
-    
+
     /* init_test_coro(); */
 
     /* Start the user application */
@@ -331,6 +334,7 @@ int main(void) {
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");
+    sos_init_flag = true;
     syscall_loop(_sos_ipc_ep_cap);
     dprintf(0, "\nSOS exits loop\n");
 

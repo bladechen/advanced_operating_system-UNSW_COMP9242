@@ -14,7 +14,7 @@ struct nfs_fs;
 struct nfs_cb_arg
 {
     struct fhandle handler;
-    enum nfs_stat stat;
+    volatile enum nfs_stat stat;
     struct semaphore* sem;
     fattr_t attr;
     struct uio* uio;
@@ -23,6 +23,7 @@ struct nfs_cb_arg
     int remain_pos;
 
     int total_files;
+
 };
 
 struct nfs_vnode
