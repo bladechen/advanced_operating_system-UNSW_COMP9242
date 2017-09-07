@@ -80,8 +80,8 @@ void init_swapping()
     QUEUE.free_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
     QUEUE.total_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
 
-    self_test();
-    self_test();
+    /* self_test(); */
+    /* self_test(); */
 }
 
 
@@ -257,7 +257,7 @@ int do_swapout_frame(sos_vaddr_t vaddr,
         {
             // This condition indicates that this swapped data haven't been updated in the
             // pagefile since last swap in.
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "swap in the same version number: %u, in swap num: %u\n", swap_frame_version, ste->myself_index);
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "swap out the same version number: %u, in swap num: %u\n", swap_frame_version, ste->myself_index);
             _remove_from_queue(&QUEUE, ste);
         }
         else

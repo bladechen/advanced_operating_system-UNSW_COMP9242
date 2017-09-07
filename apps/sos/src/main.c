@@ -135,10 +135,10 @@ void syscall_loop(seL4_CPtr ep)
         else if(label == seL4_VMFault)
         {
             /* Page fault */
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm fault at 0x%08x, pc = 0x%08x, %s\n",
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
                     seL4_GetMR(1),
                     seL4_GetMR(0),
-                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault");
+                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault", seL4_GetMR(3));
             handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
 
         }

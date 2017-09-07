@@ -213,7 +213,7 @@ int as_define_heap (struct addrspace* as)
                             PF_R, PF_W, 0, HEAP);
 
 }
-int as_define_ipc(struct addrspace* as)
+int as_define_ipc(struct proc* proc, struct addrspace* as)
 {
     int ret = as_define_region(as,
                             APP_PROCESS_IPC_BUFFER,
@@ -226,7 +226,12 @@ int as_define_ipc(struct addrspace* as)
     }
     struct as_region_metadata* r = as_get_region_by_type(as, IPC);
     assert(r != NULL);
-    return build_pagetable_link(as_get_page_table(as), APP_PROCESS_IPC_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
+    ret = build_pagetable_link(as_get_page_table(as), APP_PROCESS_IPC_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
+    if (ret == 0)
+    {
+        pin_frame(( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_BUFFER)));
+    }
+    return ret;
 }
 
 int as_define_ipc_shared_buffer(struct proc* proc, struct addrspace * as)
@@ -491,18 +496,23 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     {
         return ret;
     }
+
     paddr_t paddr = page_phys_addr(pt, fault_addr);
-    assert(paddr != 0);
-    // calculate the copy region
-
-    /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm off: %u, file addr: %u, bytes: %d\n", vm_copied_addr_offset, file_copy_addr,file_copy_bytes ); */
-
-    file_copy_addr += (uint32_t) r->p_elfbase;
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "alloc vaddr: 0x%x at paddr: 0x%x\n", fault_addr, paddr);
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* copy file at 0x%x to physical mem 0x%x with %d bytes\n", file_copy_addr, paddr + vm_copied_addr_offset, file_copy_bytes);
-    if (file_copy_bytes)
+    if (!is_page_loaded(pt, fault_addr))
     {
-        memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
+        assert(paddr != 0);
+        // calculate the copy region
+
+        /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm off: %u, file addr: %u, bytes: %d\n", vm_copied_addr_offset, file_copy_addr,file_copy_bytes ); */
+
+        file_copy_addr += (uint32_t) r->p_elfbase;
+        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "alloc vaddr: 0x%x at paddr: 0x%x\n", fault_addr, paddr);
+        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* copy file at 0x%x to physical mem 0x%x with %d bytes\n", file_copy_addr, paddr + vm_copied_addr_offset, file_copy_bytes);
+        if (file_copy_bytes)
+        {
+            memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
+        }
+        set_page_already_load(pt, fault_addr);
     }
     flush_sos_frame(paddr);
     return 0;

@@ -6,7 +6,7 @@
 
 
 /* it also the size of `pagefile`*/
-#define PAGEFILE_SIZE (2*1024*1024)
+#define PAGEFILE_SIZE (100*1024*1024)
 #define SWAPTABLE_ENTRY_AMOUNT DIVROUND(PAGEFILE_SIZE, seL4_PAGE_SIZE)
 
 #include "vm.h"

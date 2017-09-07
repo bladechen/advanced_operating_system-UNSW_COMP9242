@@ -90,15 +90,20 @@ static struct frame_table_entry* _find_evict_uframe()
     while (true)
     {
         struct frame_table_entry* tmp = &_frame_table[_app_free_index.tick_index];
-        _dump_frame_table_entry(tmp);
-        assert(tmp->status == FRAME_APP);
 
-        if (!(tmp->ctrl & FRAME_PIN_BIT) &&(tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
+        if (tmp->status != -1 )
         {
-            ret = tmp;
-            break;
+            if (!(tmp->status == FRAME_APP))
+                _dump_frame_table_entry(tmp);
+            assert(tmp->status == FRAME_APP);
+
+            if (!(tmp->ctrl & FRAME_PIN_BIT) &&(tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
+            {
+                ret = tmp;
+                break;
+            }
+            tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
         }
-        tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
 
         _app_free_index.tick_index ++;
         if (_app_free_index.tick_index == _app_free_index.tick_end)
@@ -612,8 +617,7 @@ sos_vaddr_t uframe_alloc()
         assert(e->owner != NULL);
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
-        int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), e->swap_frame_number,  (e->ctrl & FRAME_DIRTY_BIT) ? e->swap_frame_version : 0, &swap_frame);
-        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "swapout frame 0x%08x", frame_translate_index_to_vaddr(e->myself));
+        int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), unshift_swapnumber(e->swap_frame_number),  (!(e->ctrl & FRAME_DIRTY_BIT)) ? e->swap_frame_version : 0, &swap_frame);
         // TODO print something here
         // TODO see frame swap same
         if (ret != 0)
@@ -622,8 +626,9 @@ sos_vaddr_t uframe_alloc()
             _unpin_frame(e);
             return (sos_vaddr_t)(NULL);
         }
+        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame 0x%08x swapout vaddr 0x%08x to swapframe 0x%08x\n", frame_translate_index_to_vaddr(e->myself), e->user_vaddr, shift_swapnumber(swap_frame));
 
-        uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), swap_frame);
+        uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), shift_swapnumber(swap_frame));
         assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
 
         _unpin_frame(e);
@@ -636,7 +641,7 @@ sos_vaddr_t uframe_alloc()
     sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
     assert(_valid_uvaddr(vaddr));
     _zero_frame(vaddr);
-    _dump_frame_table_entry(e);
+    /* _dump_frame_table_entry(e); */
     return vaddr;
 }
 
@@ -764,6 +769,16 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
     e->owner = owner;
 }
 
+void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t en)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    assert(e != NULL);
+    assert(e->status == FRAME_APP);
+    e->user_vaddr= en;
+}
+
 void pin_frame(sos_vaddr_t vaddr)
 {
     assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
@@ -781,13 +796,14 @@ int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr)
     assert(e->remap_cap == 0);
     uint32_t version = 0;
     _pin_frame(e); // pin it. because current thread maybe kick out.
-    int ret = do_swapin_frame(vaddr, swap_number, &version);
+    int ret = do_swapin_frame(vaddr, unshift_swapnumber(swap_number), &version);
     if (ret != 0)
     {
         _unpin_frame(e);
-        ERROR_DEBUG("do_frame_swapin swapnumber: %d, vaddr: 0x%x ret: %d\n", swap_number, vaddr);
+        ERROR_DEBUG("do_frame_swapin swapnumber: 0x%08x, vaddr: 0x%x ret: %d\n", swap_number, vaddr, ret);
         return ret;
     }
+    /* ERROR_DEBUG("do_frame_swapin swapnumber: 0x%08x, vaddr: 0x%x\n", swap_number, vaddr); */
     assert(version > 0);
     assert(e->swap_frame_version == 0);
     e->swap_frame_version = version;

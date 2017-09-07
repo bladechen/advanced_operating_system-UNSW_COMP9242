@@ -8,6 +8,7 @@
 #define PAGE_CTRL_MASK (0xfff)
 #define PAGE_DIRTY_BIT (1 << 0)
 #define PAGE_SWAP_BIT  (1 << 1)
+#define PAGE_NOT_FIRST_LOAD (1 << 2)
 // define more here if needed
 
 
@@ -60,5 +61,9 @@ seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr);
 
 // physical addr refer to sos vaddr, not ut addr
 paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr);
+
+
+void set_page_already_load(struct pagetable* pt, vaddr_t vaddr);
+bool is_page_loaded(struct pagetable* pt, vaddr_t vaddr);
 
 #endif

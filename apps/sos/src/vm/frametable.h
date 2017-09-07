@@ -4,7 +4,7 @@
 #include <sel4/sel4.h>
 #include "vm.h"
 
-#define DEFAULT_UMEM_BYTES (1 * 1024 * 1024)
+#define DEFAULT_UMEM_BYTES (3 * 1024 * 1024)
 #define DEFAULT_KMEM_BYTES (50 * 1024 * 1024)
 
 /* Integer division, rounded up (rather than truncating) */
@@ -49,6 +49,8 @@ typedef struct frame_table_entry
     enum frame_entry_status status;
     void* owner; // the page entry belong to, only make sense when APP_FRAME
 
+
+    uint32_t user_vaddr;
     // bool clock_bit;
 
 } frame_table_entry;
@@ -79,6 +81,7 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
 void flush_sos_frame(sos_vaddr_t vaddr);// TODO why?
 
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner);
+void set_uframe_entity(sos_vaddr_t vaddr, uint32_t );
 
 
 void pin_frame(sos_vaddr_t vaddr);

@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-#define LARGE_SIZE (16*1024*1024 / 4)
+#define LARGE_SIZE (2*1024*1024 / 4)
 
 
 
@@ -21,6 +21,7 @@ void thrash_test()
     /* int * large_HEAP_arr = (int *)malloc(LARGE_SIZE * sizeof(int)); */
     /* assert(large_HEAP_arr != NULL); */
 
+    printf("begin thrash_test\n");
     for(int i = 0; i < LARGE_SIZE; i++)
     {
         large_STACK_arr[i] = i;
@@ -28,17 +29,22 @@ void thrash_test()
         /* *(large_HEAP_arr + i) = i; */
     }
 
+    printf("thrash_test cmp stage1\n");
     int test_loops = LARGE_SIZE;
 
     for(int i = 0; i < test_loops; i++)
     {
+        if (large_STACK_arr[i] != i)
+            printf ("%d %d %p %p\n", large_STACK_arr[i], i, large_STACK_arr + i, &i);
         assert(large_STACK_arr[i] == i);
         assert(large_DATA_arr[i] == i);
     }
 
     int j,k;
 
+    printf("thrash_test random\n");
     srand(sos_sys_time_stamp());
+    test_loops = 1000;
     for(int i = 0; i < test_loops; i++)
     {
 
@@ -61,6 +67,7 @@ void thrash_test()
 
     }
 
+    printf("thrash_test cmp stage2\n");
     for (int i = 0; i < len ; ++ i)
     {
         assert(large_DATA_arr[queue[i][0]] == queue[i][1]);
