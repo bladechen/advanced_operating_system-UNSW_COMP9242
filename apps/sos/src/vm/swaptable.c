@@ -323,7 +323,7 @@ static void self_test()
 
     srand(666);
 
-    for(int i = 0; i < 100; i++)
+    for(int i = 0; i < 1000; i++)
     {
         int offset = 4096 * (rand() % SWAPTABLE_ENTRY_AMOUNT);
         
