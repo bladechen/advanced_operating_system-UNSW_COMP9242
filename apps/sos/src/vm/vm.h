@@ -32,4 +32,17 @@ void vm_shutdown(void);
 // int vm_fault(struct proc* cur_proc, vaddr_t vaddr);
 void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code);
 
+static inline uint32_t shift_swapnumber(uint32_t swap_number)
+{
+    // assert(swap_number != 0);
+
+    return (swap_number << 12);
+}
+static inline uint32_t unshift_swapnumber(uint32_t frame_num)
+{
+    uint32_t ret = frame_num >> 12;
+    // assert(ret != 0);
+    return ret;
+}
+
 #endif

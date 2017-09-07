@@ -378,12 +378,6 @@ void shutdown_coro_env(void)
         list_del(&(tmp->_link));
         destroy_coro(tmp);
     }
-    /* for (vaddr_t i = COROUTINE_STACK_START; i < _stack_base; i += (4096)) */
-    /* { */
-    /*  */
-    /*  */
-    /* } */
-    /*  */
     destroy_coro(schedule_obj._daemon);
 }
 

@@ -290,6 +290,7 @@ static bool _alloc_ut_page(sos_vaddr_t* vaddr, seL4_Word* cap)
     sos_paddr_t paddr = ut_alloc(seL4_PageBits);
     if (paddr == (sos_paddr_t)NULL)
     {
+        printf("_alloc_ut_page error\n");
         return false;
     }
     else
@@ -307,7 +308,6 @@ static bool _alloc_ut_page(sos_vaddr_t* vaddr, seL4_Word* cap)
 
 static int _pre_alloc_frames(size_t pages, struct frame_table_head* _free, enum frame_entry_status status)
 {
-
     assert(pages >= 1);
     sos_vaddr_t vaddr;
     seL4_Word cap;
@@ -321,6 +321,7 @@ static int _pre_alloc_frames(size_t pages, struct frame_table_head* _free, enum 
     _free->start_vaddr = vaddr;
     _free->end_vaddr = vaddr;
 
+    printf ("alloc :%d\n", pages);
 
     for (size_t i = 1; i < pages; ++ i)
     {
@@ -379,6 +380,8 @@ void frametable_init(size_t umem, size_t kmem)
     assert(!(_ut_lo & (seL4_PAGE_SIZE -1 )));
     assert(!(_ut_hi & (seL4_PAGE_SIZE -1 )));
 
+    printf ("ut_lo: 0x%08x ut_high: 0x%08x\n", _ut_lo, _ut_hi);
+
     /* dynamically calculate the size of frame_table */
     frames_to_be_managed = DIVROUND((_ut_hi - _ut_lo), seL4_PAGE_SIZE);
     _managed_frame_num = frames_to_be_managed;
@@ -434,12 +437,11 @@ void frametable_init(size_t umem, size_t kmem)
     _app_free_index.tick_index = _app_free_index.tick_start;
     _app_free_index.tick_end = _app_free_index.last;
 
-    printf ("start: %d, end: %d\n", _app_free_index.tick_start, _app_free_index.tick_end);
 
     size_t kpages = DIVROUND(kmem, seL4_PAGE_SIZE);
-    if (_pre_alloc_frames(kpages, &_sos_free_index, FRAME_FREE_SOS) != 0)
+    if (_pre_alloc_frames(kpages, &_sos_free_index, FRAME_FREE_SOS) != 0) // drain all the mem for sos
     {
-        ERROR_DEBUG("reserve %u bytes %d pages for  kmem failed\n", kmem, kpages);
+        ERROR_DEBUG("reserve %u bytes %d pages for kmem failed\n", kmem, kpages);
         assert(0);
     }
 
@@ -450,6 +452,8 @@ void frametable_init(size_t umem, size_t kmem)
 
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* umem start at [%d:0x%08x] to [%d:0x%08x]\n", _app_free_index.first, _app_free_index.start_vaddr, _app_free_index.last, _app_free_index.end_vaddr);
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* kmem start at [%d:0x%08x] to [%d:0x%08x]\n", _sos_free_index.first, _sos_free_index.start_vaddr, _sos_free_index.last, _sos_free_index.end_vaddr);
+
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "Swap table starts at: 0x%08x to 0x%08x managing swap file: 0x%08x bytes\n", swap_table_start_vaddr, swap_table_size + swap_table_start_vaddr, PAGEFILE_SIZE);
 }
 
 /* allocate frame_table */
@@ -480,7 +484,7 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
         }
     }
 
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame table occupied for %d pages\n", i);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame/swap table occupied for %d pages\n", i);
     return 0;
 }
 
@@ -609,11 +613,12 @@ sos_vaddr_t uframe_alloc()
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
         int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), e->swap_frame_number,  (e->ctrl & FRAME_DIRTY_BIT) ? e->swap_frame_version : 0, &swap_frame);
+        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "swapout frame 0x%08x", frame_translate_index_to_vaddr(e->myself));
         // TODO print something here
         // TODO see frame swap same
         if (ret != 0)
         {
-            ERROR_DEBUG("do_swapout_frame 0x%x, error: %d\n", frame_translate_index_to_vaddr(e->myself), ret);;
+            ERROR_DEBUG("do_swapout_frame 0x%08x, error: %d\n", frame_translate_index_to_vaddr(e->myself), ret);
             _unpin_frame(e);
             return (sos_vaddr_t)(NULL);
         }
