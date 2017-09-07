@@ -7,7 +7,7 @@
 
 /* it also the size of `pagefile`*/
 #define PAGEFILE_SIZE (20*1024*1024)
-#define SWAPTABLE_ENTRY_AMOUNT (PAGEFILE_SIZE / seL4_PAGE_SIZE)
+#define SWAPTABLE_ENTRY_AMOUNT DIVROUND(PAGEFILE_SIZE, seL4_PAGE_SIZE)
 
 #include "vm.h"
 #include "frametable.h"
@@ -101,7 +101,11 @@ int do_swapin_frame(sos_vaddr_t vaddr,
 int do_free_swap_frame(uint32_t swap_frame_number);
 
 
+/* This function will be called in vm_bootstrap(), mainly used for initialize vnode, swap table and the doubly linked list queue.*/
 int init_swapping(void);
+
+/* This function will be called in frametable init, so that we do not need to malloc for the swap table */
+int alloc_swaptable(void);
 
 void init_swapping_vnode(void);
 
@@ -112,7 +116,5 @@ void init_swapping_vnode(void);
 */
 bool write_to_pagefile(seL4_Word sos_vaddr, int offset);
 bool read_from_pagefile(seL4_Word sos_vaddr, int offset);
-
-int do_free_swap_frame(uint32_t swap_frame_number);
 
 #endif

@@ -24,6 +24,8 @@ static seL4_Word   _managed_frame_num = 0;
 static seL4_Word   _ut_hi = 0;
 static seL4_Word   _ut_lo = 0;
 
+extern swap_table _swap_table;
+
 // point to the frame which is free-ed, but not deleted and unmaped
 /* static int _sos_free_index = -1; */
 
@@ -352,6 +354,7 @@ static int _pre_alloc_frames(size_t pages, struct frame_table_head* _free, enum 
 }
 
 
+// put swap_table and frame_table before the WINDOW_START
 void frametable_init(size_t umem, size_t kmem)
 {
     if (umem == 0)
@@ -383,17 +386,28 @@ void frametable_init(size_t umem, size_t kmem)
     frame_table_size = frames_to_be_managed * sizeof(frame_table_entry);
 
     frame_table_size = DIVROUND(frame_table_size, seL4_PAGE_SIZE) * seL4_PAGE_SIZE;
+
+
+    uint32_t swap_table_size = SWAPTABLE_ENTRY_AMOUNT * sizeof(swap_table_entry);
+    swap_table_size = DIVROUND(swap_table_size, seL4_PAGE_SIZE) * seL4_PAGE_SIZE;
     // do this instead of directly WINDOW_START is to keep the address aligned
     // otherwise it may execeed the WINDOW_START when doing allocation
 
-    frame_table_start_vaddr = WINDOW_START - frame_table_size;
+    frame_table_start_vaddr = WINDOW_START - frame_table_size - swap_table_size;
+    sos_vaddr_t swap_table_start_vaddr = WINDOW_START - swap_table_size;
 
     err = _allocate_frame_table(frame_table_start_vaddr, frame_table_size);
+    conditional_panic(err, "Failed to allocate frame table");
+
+    // simply resue `_allocate_frame_table` to allocate swap_table
+    err = _allocate_frame_table(swap_table_start_vaddr, swap_table_size);
     conditional_panic(err, "Failed to allocate frame table");
 
     assert(frame_table_start_vaddr > DMA_VEND);
 
     _frame_table = (frame_table) frame_table_start_vaddr;
+    _swap_table = (swap_table) swap_table_start_vaddr;
+
     for (int i = 0; i < _managed_frame_num; i ++)
     {
         _frame_table[i].frame_cap = 0;

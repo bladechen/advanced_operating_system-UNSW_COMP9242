@@ -12,7 +12,7 @@ static swap_table_head QUEUE = {-1, -1, 0, 0};
 
 // NOTICE, number 0 is used to represent invalid here, so the version number start from 1,
 // and the first entry in swap table is not used;
-static swap_table _swap_table = NULL;
+swap_table _swap_table = NULL;
 
 static struct vnode * pagefile_vn = NULL;
 
@@ -44,9 +44,9 @@ int init_swapping()
     /* Init the `pagefile` vnode */
     init_swapping_vnode();
 
-    /* Init swap table */
-    _swap_table = (swap_table_entry *)malloc(SWAPTABLE_ENTRY_AMOUNT * sizeof(swap_table_entry));
-    // TODO
+    /* Init swap table */ 
+    // _swap_table = (swap_table_entry *)malloc(SWAPTABLE_ENTRY_AMOUNT * sizeof(swap_table_entry));
+    /* swap_table is allocated in `frametable_init`, and initialized here */
 
     if (_swap_table == NULL)
     {
@@ -325,7 +325,7 @@ static void self_test()
 
     srand(666);
 
-    for(int i = 0; i < 1000; i++)
+    for(int i = 0; i < 100; i++)
     {
         int offset = 4096 * (rand() % SWAPTABLE_ENTRY_AMOUNT);
 
