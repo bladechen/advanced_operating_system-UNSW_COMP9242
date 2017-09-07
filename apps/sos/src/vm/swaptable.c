@@ -46,9 +46,11 @@ int init_swapping()
 
     /* Init swap table */
     _swap_table = (swap_table_entry *)malloc(SWAPTABLE_ENTRY_AMOUNT * sizeof(swap_table_entry));
+    // TODO
 
     if (_swap_table == NULL)
     {
+        assert(0);
         printf("swap table is NULL ~~~########\n");
         return ENOMEM;
     }
@@ -326,7 +328,7 @@ static void self_test()
     for(int i = 0; i < 1000; i++)
     {
         int offset = 4096 * (rand() % SWAPTABLE_ENTRY_AMOUNT);
-        
+
 
         struct iovec iov;
         struct uio u;
@@ -351,7 +353,7 @@ static void self_test()
         // assert(strncmp(string, temp, 4096) == 0);
         free(temp);
     }
-    
+
 }
 
 
