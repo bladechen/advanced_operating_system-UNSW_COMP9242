@@ -125,3 +125,9 @@ static void vm_fault(void* argv)
     }
 }
 
+
+void dump_vm_state()
+{
+    dump_frame_status();
+    dump_swap_status();
+}

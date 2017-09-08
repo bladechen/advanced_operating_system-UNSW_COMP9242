@@ -9,10 +9,19 @@
 #include <stdlib.h>
 
 
-static swap_table_head QUEUE = {-1, -1, 0, 0};
+swap_table_head QUEUE = {-1, -1, 0, 0};
 
 // NOTICE, number 0 is used to represent invalid here, so the version number start from 1,
 // and the first entry in swap table is not used;
+
+
+void dump_swap_status(void)
+{
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_YELLOW, "swap  file total pages: %d, free pages: %d\n",
+                QUEUE.total_entries, QUEUE.free_entries);
+
+}
+
 swap_table _swap_table = NULL;
 
 static struct vnode * pagefile_vn = NULL;

@@ -46,10 +46,18 @@ struct frame_table_head
     int tick_end;
 };
 
-static struct frame_table_head _app_free_index = {-1, -1, 0, 0};
+struct frame_table_head _app_free_index = {-1, -1, 0, 0};
+ struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
 
-static struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
 
+void dump_frame_status()
+{
+     COLOR_DEBUG(DB_VM, ANSI_COLOR_YELLOW, "frame table for app, total pages: %d, free pages: %d\n",
+                 _app_free_index.total_pages, _app_free_index.free_pages);
+
+     COLOR_DEBUG(DB_VM, ANSI_COLOR_YELLOW, "frame table for sos, total pages: %d, free pages: %d\n",
+                 _sos_free_index.total_pages, _sos_free_index.free_pages);
+}
 
 // used for the pool limitation
 /* static int _free_frame_count = 0; */
@@ -110,7 +118,6 @@ static struct frame_table_entry* _find_evict_uframe()
                 break;
             }
             invalid_page_frame(tmp->owner);
-
             tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
         }
 
@@ -690,10 +697,11 @@ void uframe_free(sos_vaddr_t vaddr)
     }
 
     frame_table_entry* fte = _frame_table + index;
-    fte->status = FRAME_FREE_APP;
-    fte->owner = NULL;
-    fte->ctrl = 0;
-    assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it
+    _clear_uframe(fte);
+    /* fte->status = FRAME_FREE_APP; */
+    /* fte->owner = NULL; */
+    /* fte->ctrl = 0; */
+    /* assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it */
     _put_back_frame(fte, &_app_free_index);
 }
 

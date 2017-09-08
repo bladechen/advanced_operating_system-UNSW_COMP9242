@@ -6,7 +6,7 @@
 
 
 /* it also the size of `pagefile`*/
-#define PAGEFILE_SIZE (100*1024*1024)
+#define PAGEFILE_SIZE (4*1024*1024)
 #define SWAPTABLE_ENTRY_AMOUNT DIVROUND(PAGEFILE_SIZE, seL4_PAGE_SIZE)
 
 #include "vm.h"
@@ -104,5 +104,7 @@ int do_free_swap_frame(uint32_t swap_frame_number);
 /* This function will be called in vm_bootstrap(), mainly used for initialize vnode, swap table and the doubly linked list queue.*/
 void init_swapping(void);
 
+
+void dump_swap_status(void);
 
 #endif

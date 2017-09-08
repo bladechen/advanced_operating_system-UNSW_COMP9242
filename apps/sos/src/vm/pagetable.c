@@ -285,7 +285,10 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     }
     else
     {
-        assert(paddr == 0);
+        // invalid via second tick, but still using the frame.
+        printf ("%x %x\n", entity, paddr);
+        /* _unmap_page_frame(paddr); */
+        pt->free_func(paddr);
     }
     e->entity = 0;
 }
@@ -412,7 +415,6 @@ int alloc_page(struct pagetable* pt,
 
     if (_is_page_swap(entity))
     {
-        /* assert(entity & PAGE_NOT_FIRST_LOAD ); */
         assert(pt->free_func == uframe_free);
         cap_right &= (~seL4_CanWrite); // if swap in, mark it readonly
         assert(!(cap_right & seL4_CanWrite)); // the page swap in is always readonly

@@ -23,6 +23,7 @@
 #include "proc.h"
 #include "vm/address_space.h"
 #include "vm/pagetable.h"
+#include "vm/vm.h"
 
 #include "syscall/handle_syscall.h"
 
@@ -250,5 +251,6 @@ void recycle_process()
         assert(get_current_proc() != test_process);
         proc_destroy(test_process);
         test_process = NULL;
+        dump_vm_state();
     }
 }
