@@ -91,17 +91,26 @@ static struct frame_table_entry* _find_evict_uframe()
     {
         struct frame_table_entry* tmp = &_frame_table[_app_free_index.tick_index];
 
-        if (tmp->status != -1 )
+        if (tmp->status != -1 && !(tmp->ctrl & FRAME_PIN_BIT))
         {
             if (!(tmp->status == FRAME_APP))
                 _dump_frame_table_entry(tmp);
             assert(tmp->status == FRAME_APP);
 
-            if (!(tmp->ctrl & FRAME_PIN_BIT) &&(tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
+            if (!(tmp->ctrl & FRAME_PIN_BIT) && (tmp->ctrl & FRAME_CLOCK_TICK_BIT) == 0)
             {
+                _app_free_index.tick_index ++;
+                if (_app_free_index.tick_index == _app_free_index.tick_end)
+                {
+                    _app_free_index.tick_index = _app_free_index.tick_start;
+                }
+
+                _dump_frame_table_entry(tmp);
                 ret = tmp;
                 break;
             }
+            invalid_page_frame(tmp->owner);
+
             tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
         }
 
@@ -133,7 +142,6 @@ static int _build_paddr_to_vaddr_frame(sos_paddr_t paddr, sos_vaddr_t vaddr, seL
 {
 
     *cap = 0;
-    /* printf ("_build_paddr_to_vaddr_frame: 0x%x to 0x%x\n", paddr , vaddr); */
     int ret;
     ret = cspace_ut_retype_addr(paddr,
                                 seL4_ARM_SmallPageObject,
@@ -271,7 +279,6 @@ static bool _valid_kvaddr(sos_vaddr_t vaddr)
 
 static int _frame_entry_status(frame_table_entry* e)
 {
-    /* printf ("next %d, prev %d, status: %d\n", e->next, e->prev, e->status); */
     if (e->status == FRAME_UNINIT)
     {
         return FRAME_UNINIT;
@@ -326,7 +333,6 @@ static int _pre_alloc_frames(size_t pages, struct frame_table_head* _free, enum 
     _free->start_vaddr = vaddr;
     _free->end_vaddr = vaddr;
 
-    printf ("alloc :%d\n", pages);
 
     for (size_t i = 1; i < pages; ++ i)
     {
@@ -602,8 +608,6 @@ sos_vaddr_t uframe_alloc()
     struct frame_table_entry* e = _grab_free_frame(&_app_free_index);
     if (e == NULL)
     {
-        // FIXME
-        /* assert(0); */
         assert(_is_empty_uframe());
         // now try to evict a frame
         e = _find_evict_uframe();
@@ -613,13 +617,12 @@ sos_vaddr_t uframe_alloc()
         }
 
         assert(e->status == FRAME_APP);
-        assert(e->remap_cap != 0);
+        assert(e->remap_cap == 0);
         assert(e->owner != NULL);
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
+        // FIXME race condition?
         int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), unshift_swapnumber(e->swap_frame_number),  (!(e->ctrl & FRAME_DIRTY_BIT)) ? e->swap_frame_version : 0, &swap_frame);
-        // TODO print something here
-        // TODO see frame swap same
         if (ret != 0)
         {
             ERROR_DEBUG("do_swapout_frame 0x%08x, error: %d\n", frame_translate_index_to_vaddr(e->myself), ret);
@@ -698,7 +701,7 @@ void uframe_free(sos_vaddr_t vaddr)
 // the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
-    /* printf ("set_frame_app_cap 0x:%x, cap: %d\n", vaddr, cap); */
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "set_frame_app_cap 0x:%x, cap: %d\n", vaddr, cap);
     assert(cap <= MAX_CAP_ID);
     assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
@@ -759,6 +762,16 @@ void flush_sos_frame(seL4_Word vaddr)
 }
 
 
+void* get_uframe_owner(sos_vaddr_t vaddr)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+
+    frame_table_entry* e = _get_ft_entry(vaddr);
+    assert(e != NULL);
+    assert(e->status == FRAME_APP);
+    return e->owner;
+}
+
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
 {
     assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
@@ -813,6 +826,14 @@ int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr)
     return 0;
 }
 
+bool get_uframe_dirty(sos_vaddr_t vaddr)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+    struct frame_table_entry* e  = &(_frame_table[frame_translate_vaddr_to_index(vaddr)]);
+    assert(e->status == FRAME_APP);
+    assert(e->owner != NULL);
+    return (e->ctrl & FRAME_DIRTY_BIT);
+}
 
 void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty)
 {
@@ -829,3 +850,11 @@ void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty)
     }
 }
 
+void clock_set_frame(sos_vaddr_t vaddr)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+    struct frame_table_entry* e  = &(_frame_table[frame_translate_vaddr_to_index(vaddr)]);
+    assert(e->status == FRAME_APP);
+    e->ctrl |= FRAME_CLOCK_TICK_BIT;
+
+}

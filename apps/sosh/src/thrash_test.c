@@ -44,10 +44,9 @@ void thrash_test()
 
     printf("thrash_test random\n");
     srand(sos_sys_time_stamp());
-    test_loops = 1000;
+    test_loops = 200;
     for(int i = 0; i < test_loops; i++)
     {
-
         j = rand() % LARGE_SIZE;
         while (hash[j] == 1)
         {
@@ -57,6 +56,7 @@ void thrash_test()
         k = rand() ;
         queue[len][0] = j;
         queue[len][1] = k;
+        printf ("%d %d %d\n",i, j, k);
         len ++;
 
         large_STACK_arr[j] = k;
@@ -70,6 +70,9 @@ void thrash_test()
     printf("thrash_test cmp stage2\n");
     for (int i = 0; i < len ; ++ i)
     {
+        if (large_STACK_arr[queue[i][0]] != queue[i][1])
+            printf ("%d %d %d %p %p\n", large_STACK_arr[queue[i][0]], queue[i][1],  i, large_STACK_arr + queue[i][0], &i);
+
         assert(large_DATA_arr[queue[i][0]] == queue[i][1]);
         assert(large_STACK_arr[queue[i][0]] == queue[i][1]);
     }

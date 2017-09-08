@@ -9,6 +9,7 @@
 #define PAGE_DIRTY_BIT (1 << 0)
 #define PAGE_SWAP_BIT  (1 << 1)
 #define PAGE_NOT_FIRST_LOAD (1 << 2)
+#define PAGE_VALID_BIT (1 << 3)
 // define more here if needed
 
 
@@ -65,5 +66,6 @@ paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr);
 
 void set_page_already_load(struct pagetable* pt, vaddr_t vaddr);
 bool is_page_loaded(struct pagetable* pt, vaddr_t vaddr);
+void invalid_page_frame(struct pagetable_entry* page);
 
 #endif

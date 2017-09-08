@@ -81,6 +81,7 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
 void flush_sos_frame(sos_vaddr_t vaddr);// TODO why?
 
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner);
+void* get_uframe_owner(sos_vaddr_t vaddr);
 void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t );
 
 
@@ -89,5 +90,7 @@ void pin_frame(sos_vaddr_t vaddr);
 int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr);
 
 void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty);
+bool get_uframe_dirty(sos_vaddr_t vaddr);
+void clock_set_frame(sos_vaddr_t vaddr);
 
 #endif
