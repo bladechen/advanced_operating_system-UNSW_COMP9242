@@ -83,7 +83,8 @@ static void vm_fault(void* argv)
         }
         else // we should make it dirty(writable) :)
         {
-            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, 1);
+            /* assert(0); */
+            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->vm_fault_code));
         }
     }
     else
@@ -95,12 +96,12 @@ static void vm_fault(void* argv)
         //
         if (region->type == STACK || region->type == HEAP)
         {
-            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, 0);
+            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->vm_fault_code));
         }
         else // code, date
         {
             assert (region->type == CODE || region->type == DATA);
-            ret = as_handle_elfload_fault(cur_proc->p_pagetable, region, vaddr);
+            ret = as_handle_elfload_fault(cur_proc->p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->vm_fault_code));
         }
     }
 

@@ -429,7 +429,7 @@ static void dump_region(struct as_region_metadata* region)
     return;
 }
 
-int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, vaddr_t fault_addr)
+int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, vaddr_t fault_addr, int fault_type)
 {
     assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
     assert(!(fault_addr &(~seL4_PAGE_MASK)));
@@ -491,7 +491,7 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
         assert(0);
     }
 
-    int ret = as_handle_page_fault(pt, r, fault_addr, 0); // always make it readonly
+    int ret = as_handle_page_fault(pt, r, fault_addr, fault_type);
     if (ret != 0)
     {
         return ret;
@@ -518,7 +518,7 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     return 0;
 }
 
-int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, bool dirty)
+int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, int fault_type)
 {
 
     /* printf ("%x %x %x\n", fault_addr, region->region_vaddr, region->region_vaddr + (region->npages << 12)); */
@@ -530,14 +530,19 @@ int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * regio
     assert(pt != NULL && region != NULL);
     assert((fault_addr &(~seL4_PAGE_MASK)) == 0);
     seL4_CapRights right = as_region_caprights(region);
-    assert(!(dirty == 1 && !(right & seL4_CanWrite)));
-    /* if (dirty == 0 && (right & seL4_CanWrite)) */
-    /* { */
-    /*     right &= (~seL4_CanWrite) ; // make it readonly */
-    /* } */
+    assert(!((fault_type == FAULT_WRITE || fault_type == FAULT_WRITE_ON_READONLY) && !(right & seL4_CanWrite)));
     int ret = 0;
-    if (dirty == 0)
+    if (fault_type != FAULT_WRITE_ON_READONLY)
     {
+        if (fault_type == FAULT_WRITE)
+        {
+            right |= seL4_CanWrite;
+        }
+        else
+        {
+            right &= ~seL4_CanWrite;
+        }
+
         ret = alloc_page(pt,
                          fault_addr,
                          as_region_vmattrs(region),
@@ -545,6 +550,7 @@ int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * regio
     }
     else
     {
+        // FAULT_WRITE_ON_READONLY
         ret = set_page_writable(pt, fault_addr, as_region_vmattrs(region), right);
     }
 

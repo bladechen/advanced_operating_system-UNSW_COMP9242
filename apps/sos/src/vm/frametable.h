@@ -81,7 +81,7 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr);
 void flush_sos_frame(sos_vaddr_t vaddr);// TODO why?
 
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner);
-void set_uframe_entity(sos_vaddr_t vaddr, uint32_t );
+void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t );
 
 
 void pin_frame(sos_vaddr_t vaddr);

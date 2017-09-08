@@ -382,7 +382,7 @@ int alloc_page(struct pagetable* pt,
     {
         set_uframe_owner(paddr, _get_pt_entry_addr(pt, vaddr));
         set_uframe_dirty(paddr, (cap_right & seL4_CanWrite)? 1: 0);
-        set_frame_user_vaddr(paddr, vaddr); // XXX
+        set_uframe_user_vaddr(paddr, vaddr); // XXX
     }
     return 0;
 }

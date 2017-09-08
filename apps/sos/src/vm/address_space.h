@@ -23,6 +23,34 @@ enum region_type
     OTHER,
 };
 
+enum fault_type
+{
+    FAULT_READ = 1,
+    FAULT_WRITE = 2,
+    FAULT_WRITE_ON_READONLY = 3,
+};
+
+static inline int sel4_fault_code_to_fault_type(int code)
+{
+    // FIXME http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.100511_0401_10_en/ric1447333676062.html
+    if (code == 2055 || code == 2053)
+    {
+        return FAULT_WRITE;
+    }
+    else if (code == 2063)
+    {
+        return FAULT_WRITE_ON_READONLY;
+    }
+    else if (code ==  7|| code == 5)
+    {
+        return FAULT_READ;
+    }
+    ERROR_DEBUG("need handle fault: %d\n", code);
+    assert(0);
+    return -1;
+
+}
+
 struct as_region_metadata
 {
 
@@ -105,9 +133,9 @@ seL4_CPtr as_get_ipc_cap(struct addrspace * as);
  *   Functions used in VM_Fault execution in main.c, which load or create corresponding frame
  *   when VM_Fault is triggered
  */
-int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, bool dirty);
+int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, int fault_type);
 
-int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr);
+int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as, vaddr_t fault_addr, int fault_type);
 
 void loop_through_region(struct addrspace *as);
 
