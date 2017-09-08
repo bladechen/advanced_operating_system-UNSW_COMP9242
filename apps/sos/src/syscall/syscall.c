@@ -16,6 +16,7 @@
 #include "dev/console.h"
 #include "vm/frametable.h"
 #include "vm/address_space.h"
+#include "vm/vm.h"
 #include "proc/proc.h"
 #include "syscall.h"
 #include "vm/pagetable.h"
@@ -185,6 +186,7 @@ void sos_syscall_close(void* argv)
 
 void sos_syscall_time_stamp(void * argv)
 {
+    dump_vm_state();
     struct proc* proc = (struct proc*) argv;
     assert(proc == get_current_proc());
     timestamp_t now = g_cur_timestamp_us;

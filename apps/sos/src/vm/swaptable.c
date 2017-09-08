@@ -17,7 +17,7 @@ swap_table_head QUEUE = {-1, -1, 0, 0};
 
 void dump_swap_status(void)
 {
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_YELLOW, "swap  file total pages: %d, free pages: %d\n",
+    printf( "swap  file total pages: %d, free pages: %d\n",
                 QUEUE.total_entries, QUEUE.free_entries);
 
 }
@@ -319,6 +319,11 @@ int do_free_swap_frame(uint32_t swap_frame_number)
     assert(valid_swap_number(swap_frame_number) && _swap_table != NULL);
 
     swap_table_entry * ste = _swap_table + swap_frame_number;
+    if (ste ->status != SWAP_OUT_TO_FILE)
+    {
+        dump_entry(ste);
+
+    }
     assert(ste->status == SWAP_OUT_TO_FILE);
 
     assert(enqueue(&QUEUE, ste) == 0);

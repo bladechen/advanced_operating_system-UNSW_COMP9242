@@ -3,10 +3,10 @@
 #include <assert.h>
 #include <string.h>
 
-#define LARGE_SIZE (2*1024*1024 / 4)
+#define LARGE_SIZE (1*1024*1024 / 4)
 
 static int large_DATA_arr[LARGE_SIZE];
-static int queue[2000][2] = {0};
+static int queue[300000][2] = {0};
 static char hash[LARGE_SIZE] = {0};
 int len = 0;
 
@@ -42,7 +42,7 @@ void thrash_test()
 
     printf("thrash_test random\n");
     srand(sos_sys_time_stamp());
-    test_loops = 100;
+    test_loops = 1000;
     for(int i = 0; i < test_loops; i++)
     {
         j = rand() % LARGE_SIZE;

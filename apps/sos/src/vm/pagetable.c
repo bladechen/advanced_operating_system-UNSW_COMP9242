@@ -274,10 +274,14 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     sos_vaddr_t paddr = _get_page_frame(entity);
     if (pt->free_func == uframe_free && _is_page_swap(entity))
     {
+        printf ("do free swap frame %x %x\n",vaddr, entity);
+        assert(paddr != 0);
         assert(0 == do_free_swap_frame(unshift_swapnumber(paddr)));
+        e->entity = 0;
         return;
     }
 
+    printf ("%x %x\n", vaddr, paddr);
     if (_is_page_valid(entity))
     {
         _unmap_page_frame(paddr);
@@ -286,7 +290,6 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     else
     {
         // invalid via second tick, but still using the frame.
-        printf ("%x %x\n", entity, paddr);
         /* _unmap_page_frame(paddr); */
         pt->free_func(paddr);
     }
@@ -519,7 +522,7 @@ void set_page_already_load(struct pagetable* pt, vaddr_t vaddr)
 
 // set the swap bit, and swap number
 // return the old frame number
-uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame)
+uint32_t set_page_swapout(struct pagetable_entry* page, uint32_t swap_frame)
 {
     uint32_t ret = _get_page_frame(page->entity) ;// make sure it mapped.
     assert(ret & seL4_PAGE_MASK);

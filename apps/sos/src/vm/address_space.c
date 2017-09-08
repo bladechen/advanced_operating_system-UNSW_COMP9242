@@ -286,7 +286,7 @@ static void as_destroy_region_pages(struct pagetable* pt,
                                     uint32_t npages)
 {
 
-    /* dump_region(region); */
+    dump_region(region);
     /* printf ("as_destroy_region_pages %d\n", r); */
     assert(pt != NULL &&  region != NULL);
     vaddr_t start = region->region_vaddr;
@@ -296,6 +296,7 @@ static void as_destroy_region_pages(struct pagetable* pt,
         vaddr_t vaddr_del = begin_addr + i * (1 << seL4_PageBits);
         if (vaddr_del >= start && vaddr_del < end)
         {
+            printf ("free vaddr: %x\n", vaddr_del);
             free_page(pt, vaddr_del);
         }
         else

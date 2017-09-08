@@ -52,10 +52,10 @@ struct frame_table_head _app_free_index = {-1, -1, 0, 0};
 
 void dump_frame_status()
 {
-     COLOR_DEBUG(DB_VM, ANSI_COLOR_YELLOW, "frame table for app, total pages: %d, free pages: %d\n",
+     printf("frame table for app, total pages: %d, free pages: %d\n",
                  _app_free_index.total_pages, _app_free_index.free_pages);
 
-     COLOR_DEBUG(DB_VM, ANSI_COLOR_YELLOW, "frame table for sos, total pages: %d, free pages: %d\n",
+     printf("frame table for sos, total pages: %d, free pages: %d\n",
                  _sos_free_index.total_pages, _sos_free_index.free_pages);
 }
 
@@ -787,7 +787,13 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
     assert(e->status == FRAME_APP);
+    /* if (owner == NULL) */
     e->owner = owner;
+    /* else */
+    /* { */
+    /*     assert(e->owner == NULL); */
+    /*     e->owner = owner; */
+    /* } */
 }
 
 void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t en)
