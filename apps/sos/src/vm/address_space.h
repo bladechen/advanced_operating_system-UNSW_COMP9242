@@ -27,21 +27,49 @@ enum fault_type
 {
     FAULT_READ = 1,
     FAULT_WRITE = 2,
-    FAULT_WRITE_ON_READONLY = 3,
+    FAULT_WRITE_ON_READONLY = 4,
 };
 
 static inline int sel4_fault_code_to_fault_type(int code)
 {
-    // FIXME http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.100511_0401_10_en/ric1447333676062.html
+    // refer this for detail
+    // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.100511_0401_10_en/ric1447333676062.html
+    // [11]
+    //     WnR
+    //     Not read and write.
+    //     Indicates what type of access caused the abort:
+    //     0 = read
+    //     1 = write.
+    //
+    //The following encodings are in priority order, highest first:
+    //1. 0b000001 alignment fault
+    //2. 0b000100 instruction cache maintenance fault
+    //3. 0bx01100 1st level translation, synchronous external abort
+    //4. 0bx01110 2nd level translation, synchronous external abort
+    //5. 0b000101 translation fault, section
+    //6. 0b000111 translation fault, page
+    //7. 0b000011 access flag fault, section
+    //8. 0b000110 access flag fault, page
+    //9. 0b001001 domain fault, section
+    //10. 0b001011 domain fault, page
+    //11. 0b001101 permission fault, section
+    //12. 0b001111 permission fault, page
+    //13. 0bx01000 synchronous external abort, nontranslation
+    //14. 0bx10110 asynchronous external abort
+    //15. 0b000010 debug event.
+    //Any unused encoding not listed is reserved.
+    //
+    // XXX we need handle section and page both!!
+    // int ret = 0;
     if (code == 2055 || code == 2053)
     {
         return FAULT_WRITE;
     }
-    else if (code == 2063)
+    else if (code == 2063 || code == 2061)
     {
         return FAULT_WRITE_ON_READONLY;
     }
-    else if (code ==  7|| code == 5)
+    else if (code ==  7 || code == 5)
     {
         return FAULT_READ;
     }

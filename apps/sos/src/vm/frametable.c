@@ -293,14 +293,7 @@ static int _frame_entry_status(frame_table_entry* e)
     if (e->status == FRAME_FREE_SOS || e->status == FRAME_FREE_APP)
     {
         assert(e->remap_cap == 0 && e->frame_cap != 0);
-        /* assert(!_is_empty_kframe()); */
-        /* assert(e->next != -1 || e->prev != -1); */
     }
-    /* else if (e->status == FRAME_APP) */
-    /* { */
-    /*     #<{(| assert(e->frame_cap != 0 && e->remap_cap); |)}># */
-    /* } */
-    /* else if(e->) */
     return e->status;
 }
 
@@ -309,7 +302,7 @@ static bool _alloc_ut_page(sos_vaddr_t* vaddr, seL4_Word* cap)
     sos_paddr_t paddr = ut_alloc(seL4_PageBits);
     if (paddr == (sos_paddr_t)NULL)
     {
-        printf("_alloc_ut_page error\n");
+        ERROR_DEBUG("_alloc_ut_page error\n");
         return false;
     }
     else
@@ -379,6 +372,10 @@ void frametable_init(size_t umem, size_t kmem)
     if (umem == 0)
     {
         umem = DEFAULT_UMEM_BYTES;
+    }
+    if (umem >= MAX_UMEM_BYTES) // we should limit umem, otherwise the addr for other cap will be not enough!
+    {
+        umem = MAX_UMEM_BYTES;
     }
     if (kmem == 0)
     {
@@ -487,7 +484,6 @@ static int _allocate_frame_table(sos_vaddr_t frame_table_start_vaddr, uint32_t f
         sos_paddr_t paddr = ut_alloc(seL4_PageBits);
         if (paddr)
         {
-            // TODO maybe we need record the frame itself cap
             seL4_Word temp_cap;
             int ret = _build_paddr_to_vaddr_frame(paddr, cur_vaddr, &temp_cap);
             if (ret != 0)
@@ -698,10 +694,6 @@ void uframe_free(sos_vaddr_t vaddr)
 
     frame_table_entry* fte = _frame_table + index;
     _clear_uframe(fte);
-    /* fte->status = FRAME_FREE_APP; */
-    /* fte->owner = NULL; */
-    /* fte->ctrl = 0; */
-    /* assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it */
     _put_back_frame(fte, &_app_free_index);
 }
 
@@ -725,7 +717,6 @@ int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
     // we can not overlap app cap, otherwise, app cap maybe leek.
     else if(status == FRAME_SOS || status == FRAME_APP)
     {
-        //FIXME add more status
         if (cap == 0)
         {
             assert(e->remap_cap != 0);
@@ -787,13 +778,8 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
     assert(e->status == FRAME_APP);
-    /* if (owner == NULL) */
+    assert(e->owner == NULL);
     e->owner = owner;
-    /* else */
-    /* { */
-    /*     assert(e->owner == NULL); */
-    /*     e->owner = owner; */
-    /* } */
 }
 
 void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t en)

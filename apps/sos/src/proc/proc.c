@@ -247,7 +247,6 @@ void recycle_process()
 {
     if (test_process != NULL && test_process->p_status == PROC_STATUS_ZOMBIE)
     {
-        printf ("recycle_process\n");
         assert(get_current_proc() != test_process);
         proc_destroy(test_process);
         test_process = NULL;

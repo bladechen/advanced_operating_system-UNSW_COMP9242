@@ -64,7 +64,7 @@ void init_swapping()
 
     if (_swap_table == NULL)
     {
-        printf("swap table is NULL\n");
+        ERROR_DEBUG("swap table is NULL\n");
         assert(0);
     }
 
@@ -89,7 +89,6 @@ void init_swapping()
     QUEUE.free_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
     QUEUE.total_entries = SWAPTABLE_ENTRY_AMOUNT - 1;
 
-    /* self_test(); */
     /* self_test(); */
 }
 
@@ -147,7 +146,7 @@ static int enqueue(swap_table_head * queue, swap_table_entry * ste)
     if (!(ste->next_index == -1 && ste->prev_index == -1 && ste->status == SWAP_OUT_TO_FILE))
     {
         dump_entry(ste);
-        printf ("free entry: %d\n", queue->free_entries);
+        ERROR_DEBUG("free entry: %d\n", queue->free_entries);
     }
     assert(ste->next_index == -1 && ste->prev_index == -1 && ste->status == SWAP_OUT_TO_FILE);
 
@@ -332,212 +331,212 @@ int do_free_swap_frame(uint32_t swap_frame_number)
 }
 
 
-static void self_test()
-{
-    printf("come into swap_table tests########\n");
-    assert(QUEUE.free_entries == QUEUE.total_entries);
-    assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1);
-
-    swap_table_entry * test_arr[100];
-
-    for(int i=0; i< 100; i++)
-    {
-        test_arr[i] = dequeue(&QUEUE);
-    }
-
-    for(int i=0; i<100; i++)
-    {
-        enqueue(&QUEUE, test_arr[i]);
-    }
-
-    assert(QUEUE.free_entries == QUEUE.total_entries);
-    assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1);
-
-
-    char string[4096];
-    for(int i = 0; i < 4096; i++)
-    {
-        string[i] = (char)(i%26 + 65);
-    }
-
-    srand(unix_time_stamp());
-
-    char * temp = (char*)kframe_alloc();
-    for(int i = 0; i < 10; i++)
-    {
-        int offset = 4096 * (rand() % SWAPTABLE_ENTRY_AMOUNT);
-        struct iovec iov;
-        struct uio u;
-        uio_kinit(&iov, &u, (void*)string, seL4_PAGE_SIZE, offset, UIO_WRITE);
-        assert(u.uio_resid == seL4_PAGE_SIZE);
-        int ret = VOP_WRITE(pagefile_vn, &u);
-        assert(ret == 0 && u.uio_resid == 0);
-
-        uio_kinit(&iov, &u, (void*)temp, seL4_PAGE_SIZE, offset, UIO_READ);
-        assert(u.uio_resid == seL4_PAGE_SIZE);
-        ret = VOP_READ(pagefile_vn, &u);
-        assert(ret == 0 && u.uio_resid == 0);
-
-        if (strncmp(string, temp, 4096) != 0)
-        {
-            ERROR_DEBUG("%s \n",temp);
-            ERROR_DEBUG("i: %d, offset: %d\n", i, offset);
-        }
-
-    }
-    printf ("end VOP test\n begin swap api test\n");
-    int cnt = 3;
-    static bool hash[SWAPTABLE_ENTRY_AMOUNT + 10];
-    static uint32_t ver[SWAPTABLE_ENTRY_AMOUNT];
-    int count = SWAPTABLE_ENTRY_AMOUNT ;
-    while (cnt -- )
-    {
-        memset(hash, 0, sizeof(hash));
-
-        for (int i = 1; i < count; i ++)
-        {
-            uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-            int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num);
-            assert(hash[swap_num] == 0);
-            hash[swap_num] = 1;
-            assert(ret == 0 && swap_num != 0);
-        }
-        for (int i = 1; i < count; i ++)
-        {
-            uint32_t tmp = 0;
-            int ret = do_swapin_frame((sos_vaddr_t)temp, i, &tmp);
-            assert(ret == 0);
-            assert(tmp > 0);
-            assert(strncmp(temp, string, 4096) == 0);
-        }
-    }
-
-    printf ("finish normal swapin/out test\n");
-    printf ("begin free swap test\n");
-    cnt = 3;
-
-    while (cnt -- )
-    {
-        memset(hash, 0, sizeof(hash));
-        int count = SWAPTABLE_ENTRY_AMOUNT ;
-
-        for (int i = 1; i < count; i ++)
-        {
-            uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-            int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num);
-            assert(hash[swap_num] == 0);
-            hash[swap_num] = 1;
-            assert(ret == 0 && swap_num != 0);
-        }
-        for (int i = 1; i < count; i ++)
-        {
-            int ret = do_free_swap_frame(i);
-            assert(ret == 0);
-
-        }
-    }
-    printf ("end free swap test\n");
-
-    printf ("begin swap out same version test\n");
-    cnt = 3;
-    while (cnt -- )
-    {
-        memset(hash, 0, sizeof(hash));
-        int count = SWAPTABLE_ENTRY_AMOUNT ;
-
-        for (int i = 1; i < count; i ++)
-        {
-            uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-            int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num);
-            assert(ret == 0 && swap_num != 0);
-            assert(hash[swap_num] == 0);
-            hash[swap_num] = 1;
-        }
-
-
-        memset(hash, 0, sizeof(hash));
-
-        for (int i = 1; i < count; i ++)
-        {
-            uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-
-            while (hash[swap_num] || swap_num == 0)
-            {
-                swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-            }
-
-            uint32_t tmp = 0;
-            int ret = do_swapin_frame((sos_vaddr_t)temp, swap_num, &tmp);
-            assert(ret == 0);
-            assert(tmp > 0);
-            ver[swap_num] = tmp;
-            hash[swap_num] = 1;
-            assert(strncmp(temp, string, 4096) == 0);
-        }
-        memset(hash, 0, sizeof(hash));
-        for (int i = 1; i < count ; i ++)
-        {
-            uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-
-            while (hash[swap_num] || swap_num == 0)
-            {
-                swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-            }
-
-
-            hash[swap_num] = 1;
-            uint32_t tmp ;
-            int ret = do_swapout_frame((sos_vaddr_t)temp, swap_num, ver[swap_num],  &tmp);
-            assert(ret == 0 && tmp > 0);
-            assert(swap_num == tmp);
-        }
-        for (int i = 1; i < count; i ++)
-        {
-            int ret = do_free_swap_frame(i);
-            assert(ret == 0);
-        }
-    }
-
-    printf ("end swap out same version test\n");
-
-    cnt = 1000;
-    while (cnt --)
-    {
-        for(int i = 0; i < 4096; i++)
-        {
-            string[i] = (char)(rand()%26 + 65);
-        }
-        memcpy(temp, string, 4096);
-        uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-        int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num);
-        assert(ret == 0 && swap_num != 0);
-        uint32_t tmp = 0;
-        ret = do_swapin_frame((sos_vaddr_t)temp, swap_num, &tmp);
-        assert(ret == 0);
-        assert(tmp > 0);
-        assert(strncmp(temp, string, 4096) == 0);
-    }
-
-    printf ("begin invalid swap test\n");
-
-    memset(hash, 0, sizeof(hash));
-    for (int i = 1; i <= count; i ++)
-    {
-        uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT);
-        int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num);
-        assert(i == count || hash[swap_num] == 0);
-        hash[swap_num] = 1;
-        assert((ret == 0 && swap_num != 0) || i == count);
-    }
-    for (int i = 1; i < count; i ++)
-    {
-        uint32_t tmp = 0;
-        int ret = do_swapin_frame((sos_vaddr_t)temp, i, &tmp);
-        assert(ret == 0);
-        assert(tmp > 0);
-    }
-
-
-    printf ("end of swap test\n");
-    kframe_free((sos_vaddr_t)temp);
-}
+/* static void self_test() */
+/* { */
+/*     printf("come into swap_table tests########\n"); */
+/*     assert(QUEUE.free_entries == QUEUE.total_entries); */
+/*     assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1); */
+/*  */
+/*     swap_table_entry * test_arr[100]; */
+/*  */
+/*     for(int i=0; i< 100; i++) */
+/*     { */
+/*         test_arr[i] = dequeue(&QUEUE); */
+/*     } */
+/*  */
+/*     for(int i=0; i<100; i++) */
+/*     { */
+/*         enqueue(&QUEUE, test_arr[i]); */
+/*     } */
+/*  */
+/*     assert(QUEUE.free_entries == QUEUE.total_entries); */
+/*     assert(QUEUE.free_entries == SWAPTABLE_ENTRY_AMOUNT - 1); */
+/*  */
+/*  */
+/*     char string[4096]; */
+/*     for(int i = 0; i < 4096; i++) */
+/*     { */
+/*         string[i] = (char)(i%26 + 65); */
+/*     } */
+/*  */
+/*     srand(unix_time_stamp()); */
+/*  */
+/*     char * temp = (char*)kframe_alloc(); */
+/*     for(int i = 0; i < 10; i++) */
+/*     { */
+/*         int offset = 4096 * (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*         struct iovec iov; */
+/*         struct uio u; */
+/*         uio_kinit(&iov, &u, (void*)string, seL4_PAGE_SIZE, offset, UIO_WRITE); */
+/*         assert(u.uio_resid == seL4_PAGE_SIZE); */
+/*         int ret = VOP_WRITE(pagefile_vn, &u); */
+/*         assert(ret == 0 && u.uio_resid == 0); */
+/*  */
+/*         uio_kinit(&iov, &u, (void*)temp, seL4_PAGE_SIZE, offset, UIO_READ); */
+/*         assert(u.uio_resid == seL4_PAGE_SIZE); */
+/*         ret = VOP_READ(pagefile_vn, &u); */
+/*         assert(ret == 0 && u.uio_resid == 0); */
+/*  */
+/*         if (strncmp(string, temp, 4096) != 0) */
+/*         { */
+/*             ERROR_DEBUG("%s \n",temp); */
+/*             ERROR_DEBUG("i: %d, offset: %d\n", i, offset); */
+/*         } */
+/*  */
+/*     } */
+/*     printf ("end VOP test\n begin swap api test\n"); */
+/*     int cnt = 3; */
+/*     static bool hash[SWAPTABLE_ENTRY_AMOUNT + 10]; */
+/*     static uint32_t ver[SWAPTABLE_ENTRY_AMOUNT]; */
+/*     int count = SWAPTABLE_ENTRY_AMOUNT ; */
+/*     while (cnt -- ) */
+/*     { */
+/*         memset(hash, 0, sizeof(hash)); */
+/*  */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*             int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num); */
+/*             assert(hash[swap_num] == 0); */
+/*             hash[swap_num] = 1; */
+/*             assert(ret == 0 && swap_num != 0); */
+/*         } */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             uint32_t tmp = 0; */
+/*             int ret = do_swapin_frame((sos_vaddr_t)temp, i, &tmp); */
+/*             assert(ret == 0); */
+/*             assert(tmp > 0); */
+/*             assert(strncmp(temp, string, 4096) == 0); */
+/*         } */
+/*     } */
+/*  */
+/*     printf ("finish normal swapin/out test\n"); */
+/*     printf ("begin free swap test\n"); */
+/*     cnt = 3; */
+/*  */
+/*     while (cnt -- ) */
+/*     { */
+/*         memset(hash, 0, sizeof(hash)); */
+/*         int count = SWAPTABLE_ENTRY_AMOUNT ; */
+/*  */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*             int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num); */
+/*             assert(hash[swap_num] == 0); */
+/*             hash[swap_num] = 1; */
+/*             assert(ret == 0 && swap_num != 0); */
+/*         } */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             int ret = do_free_swap_frame(i); */
+/*             assert(ret == 0); */
+/*  */
+/*         } */
+/*     } */
+/*     printf ("end free swap test\n"); */
+/*  */
+/*     printf ("begin swap out same version test\n"); */
+/*     cnt = 3; */
+/*     while (cnt -- ) */
+/*     { */
+/*         memset(hash, 0, sizeof(hash)); */
+/*         int count = SWAPTABLE_ENTRY_AMOUNT ; */
+/*  */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*             int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num); */
+/*             assert(ret == 0 && swap_num != 0); */
+/*             assert(hash[swap_num] == 0); */
+/*             hash[swap_num] = 1; */
+/*         } */
+/*  */
+/*  */
+/*         memset(hash, 0, sizeof(hash)); */
+/*  */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*  */
+/*             while (hash[swap_num] || swap_num == 0) */
+/*             { */
+/*                 swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*             } */
+/*  */
+/*             uint32_t tmp = 0; */
+/*             int ret = do_swapin_frame((sos_vaddr_t)temp, swap_num, &tmp); */
+/*             assert(ret == 0); */
+/*             assert(tmp > 0); */
+/*             ver[swap_num] = tmp; */
+/*             hash[swap_num] = 1; */
+/*             assert(strncmp(temp, string, 4096) == 0); */
+/*         } */
+/*         memset(hash, 0, sizeof(hash)); */
+/*         for (int i = 1; i < count ; i ++) */
+/*         { */
+/*             uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*  */
+/*             while (hash[swap_num] || swap_num == 0) */
+/*             { */
+/*                 swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*             } */
+/*  */
+/*  */
+/*             hash[swap_num] = 1; */
+/*             uint32_t tmp ; */
+/*             int ret = do_swapout_frame((sos_vaddr_t)temp, swap_num, ver[swap_num],  &tmp); */
+/*             assert(ret == 0 && tmp > 0); */
+/*             assert(swap_num == tmp); */
+/*         } */
+/*         for (int i = 1; i < count; i ++) */
+/*         { */
+/*             int ret = do_free_swap_frame(i); */
+/*             assert(ret == 0); */
+/*         } */
+/*     } */
+/*  */
+/*     printf ("end swap out same version test\n"); */
+/*  */
+/*     cnt = 1000; */
+/*     while (cnt --) */
+/*     { */
+/*         for(int i = 0; i < 4096; i++) */
+/*         { */
+/*             string[i] = (char)(rand()%26 + 65); */
+/*         } */
+/*         memcpy(temp, string, 4096); */
+/*         uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*         int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num); */
+/*         assert(ret == 0 && swap_num != 0); */
+/*         uint32_t tmp = 0; */
+/*         ret = do_swapin_frame((sos_vaddr_t)temp, swap_num, &tmp); */
+/*         assert(ret == 0); */
+/*         assert(tmp > 0); */
+/*         assert(strncmp(temp, string, 4096) == 0); */
+/*     } */
+/*  */
+/*     printf ("begin invalid swap test\n"); */
+/*  */
+/*     memset(hash, 0, sizeof(hash)); */
+/*     for (int i = 1; i <= count; i ++) */
+/*     { */
+/*         uint32_t swap_num = (rand() % SWAPTABLE_ENTRY_AMOUNT); */
+/*         int ret = do_swapout_frame((sos_vaddr_t)temp, 0, 0,  &swap_num); */
+/*         assert(i == count || hash[swap_num] == 0); */
+/*         hash[swap_num] = 1; */
+/*         assert((ret == 0 && swap_num != 0) || i == count); */
+/*     } */
+/*     for (int i = 1; i < count; i ++) */
+/*     { */
+/*         uint32_t tmp = 0; */
+/*         int ret = do_swapin_frame((sos_vaddr_t)temp, i, &tmp); */
+/*         assert(ret == 0); */
+/*         assert(tmp > 0); */
+/*     } */
+/*  */
+/*  */
+/*     printf ("end of swap test\n"); */
+/*     kframe_free((sos_vaddr_t)temp); */
+/* } */

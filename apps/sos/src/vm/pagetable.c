@@ -98,7 +98,7 @@ struct pagetable* kcreate_pagetable(void)
         destroy_pagetable(pt);
         return NULL;
     }
-    // i don't know the address. it doesn't matter.
+    // i don't know the address of seL4_CapInitThreadPD . but it doesn't matter.
     pt->vroot.cap = seL4_CapInitThreadPD;
     pt->alloc_func = kframe_alloc;
     pt->free_func = kframe_free;
@@ -228,8 +228,9 @@ static int _insert_pagetable_entry(struct pagetable* pt, vaddr_t vaddr, uint32_t
         }
     }
 
-    assert(pt->page_dir[l1_index][l2_index].entity == 0 || _is_page_swap(pt->page_dir[l1_index][l2_index].entity) ||
-           (!_is_page_dirty(pt->page_dir[l1_index][l2_index].entity) && ( _is_page_dirty( paddr))) );
+    assert(pt->page_dir[l1_index][l2_index].entity == 0 ||  // first time mapping
+           _is_page_swap(pt->page_dir[l1_index][l2_index].entity) || // swapped out
+           (!_is_page_dirty(pt->page_dir[l1_index][l2_index].entity) && ( _is_page_dirty( paddr))) ); // write on readonly
     pt->page_dir[l1_index][l2_index].entity = paddr;
     return 0;
 }
@@ -271,18 +272,18 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
         return;
     }
     // two case, one is in frame, another is in swap
+    // you should mark entity to zero, while finish free page
     sos_vaddr_t paddr = _get_page_frame(entity);
-    if (pt->free_func == uframe_free && _is_page_swap(entity))
+    if (pt->free_func == uframe_free && _is_page_swap(entity)) // the page is in swap area
     {
-        printf ("do free swap frame %x %x\n",vaddr, entity);
+        COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "do free swap frame %x %x\n",vaddr, entity);
         assert(paddr != 0);
         assert(0 == do_free_swap_frame(unshift_swapnumber(paddr)));
         e->entity = 0;
         return;
     }
 
-    printf ("%x %x\n", vaddr, paddr);
-    if (_is_page_valid(entity))
+    if (_is_page_valid(entity)) // the page is in frame
     {
         _unmap_page_frame(paddr);
         pt->free_func(paddr);
@@ -290,7 +291,7 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     else
     {
         // invalid via second tick, but still using the frame.
-        /* _unmap_page_frame(paddr); */
+        assert(0 == get_frame_app_cap(paddr));
         pt->free_func(paddr);
     }
     e->entity = 0;
@@ -341,23 +342,24 @@ int set_page_writable(struct pagetable* pt,
     assert(pt->free_func == uframe_free);
     vaddr &= seL4_PAGE_MASK;
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
-    if (!((entity != 0 && !_is_page_dirty(entity) && (seL4_CanWrite & cap_right))))
-    {
-        ERROR_DEBUG("%x, %d\n", entity, cap_right);
-    }
+    /* if (!((entity != 0 && !_is_page_dirty(entity) && (seL4_CanWrite & cap_right)))) */
+    /* { */
+    /*     ERROR_DEBUG("%x, %d\n", entity, cap_right); */
+    /* } */
     assert((entity != 0 && !_is_page_dirty(entity) && (seL4_CanWrite & cap_right)) );
     assert(!_is_page_swap(entity) );
     assert(_is_page_valid(entity));
     assert(_get_page_frame(entity));
+    assert(get_uframe_dirty(_get_page_frame(entity)) == _is_page_dirty(_get_pt_entry_addr(pt, vaddr)->entity));
 
-    /* assert(0); */
     _unmap_page_frame(_get_page_frame(entity)); // readonly , first unmap, then map into writable
     entity |= PAGE_DIRTY_BIT;
 
     assert(0 == _insert_pagetable_entry(pt, vaddr, entity));
 
     assert(0 == _map_page_frame(pt, vaddr, _get_page_frame(entity), vm_attr, cap_right));
-    set_uframe_owner(_get_page_frame(entity), _get_pt_entry_addr(pt, vaddr));
+    assert(get_uframe_owner(_get_page_frame(entity)) == _get_pt_entry_addr(pt, vaddr));
+    /* set_uframe_owner(_get_page_frame(entity), _get_pt_entry_addr(pt, vaddr)); */
     set_uframe_dirty(_get_page_frame(entity), 1);
     clock_set_frame(_get_page_frame(entity));
     return 0;
@@ -373,39 +375,32 @@ int alloc_page(struct pagetable* pt,
     vaddr &= seL4_PAGE_MASK;
 
     uint32_t entity = _get_pagetable_entry(pt, vaddr);
-    // 1. page not mapped
+    // 1. page not mapped, which is first time fault
     // 2. page swapped out
     // 3. page second tick marks as invalid
     assert(entity == 0 || _is_page_swap(entity) || !_is_page_valid(entity));
 
-    if (entity != 0 && !_is_page_valid(entity) && !_is_page_swap(entity) ) //  page marks as invalid, but frame still in mem
+    // case 3. page marks as invalid, but frame still in mem
+    if (entity != 0 && !_is_page_valid(entity) && !_is_page_swap(entity) )
     {
         paddr_t paddr = _get_page_frame(entity);
         assert(paddr != 0);
+        assert(get_uframe_owner(paddr) == (void*)(_get_pt_entry_addr(pt, vaddr)));
         assert(get_uframe_dirty(paddr) == _is_page_dirty(_get_pt_entry_addr(pt, vaddr)->entity));
-        // current fault on write, previos is readonly, now mark it writable
+        // current fault on write, previous is readonly, now mark it writable
         if ((cap_right & seL4_CanWrite) && !get_uframe_dirty(paddr))
         {
             set_uframe_dirty(paddr, 1);
             _set_page_dirty(&(_get_pt_entry_addr(pt, vaddr)->entity));
         }
-        // previous is writable, we should make it writable also
+        // previous is writable, we should make it writable also, although current fault is read
         else if (!(cap_right & seL4_CanWrite) && get_uframe_dirty(paddr))
         {
             cap_right |= seL4_CanWrite;
         }
-        /* if (_is_page_dirty(entity)) */
-        /* { */
-        /*     cap_right |= seL4_CanWrite; */
-        /* } */
-        /* else */
-        /* { */
-        /*     cap_right &= ~seL4_CanWrite; */
-        /* } */
         _map_page_frame(pt, vaddr, paddr, vm_attr, cap_right);
         _set_page_valid(&(_get_pt_entry_addr(pt, vaddr)->entity));
         clock_set_frame(paddr);
-        assert(get_uframe_owner(paddr) == (void*)(_get_pt_entry_addr(pt, vaddr)));
         return 0;
     }
 
@@ -416,6 +411,7 @@ int alloc_page(struct pagetable* pt,
         return ENOMEM;
     }
 
+    // case 2. we need firstly swap in, and the remaining process in same as case 1
     if (_is_page_swap(entity))
     {
         assert(pt->free_func == uframe_free);
@@ -434,8 +430,6 @@ int alloc_page(struct pagetable* pt,
         _reset_page_swap(&entity);
     }
     _set_page_frame(&entity, paddr);
-    /* assert((cap_right & seL4_CanWrite)); */
-    /* entity |= (cap_right & seL4_CanWrite) ? PAGE_DIRTY_BIT: 0; */
 
     if (cap_right & seL4_CanWrite)
     {
@@ -462,7 +456,7 @@ int alloc_page(struct pagetable* pt,
     {
         set_uframe_owner(paddr, _get_pt_entry_addr(pt, vaddr));
         set_uframe_dirty(paddr, (cap_right & seL4_CanWrite)? 1: 0);
-        set_uframe_user_vaddr(paddr, vaddr); // XXX
+        set_uframe_user_vaddr(paddr, vaddr); // only for debug purpose...
     }
     return 0;
 }
@@ -527,25 +521,24 @@ uint32_t set_page_swapout(struct pagetable_entry* page, uint32_t swap_frame)
     uint32_t ret = _get_page_frame(page->entity) ;// make sure it mapped.
     assert(ret & seL4_PAGE_MASK);
 
-    assert(get_uframe_dirty(page->entity & seL4_PAGE_MASK) ==
-           _is_page_dirty(page->entity));
+    assert(get_uframe_dirty(page->entity & seL4_PAGE_MASK) == _is_page_dirty(page->entity));
+    assert(!_is_page_valid(page->entity)); // must invalid_page_frame first. previously first tick make it invalid
 
     assert(!_is_page_swap(page->entity) );
     _set_page_swap(&(page->entity)); // mark page swappout
-    /* assert(!_get_page_frame(ret)); // second tick should mark it invalid */
-    assert(!_is_page_valid(page->entity));
     page->entity &= (~PAGE_DIRTY_BIT);
-    /* assert(!_is_page_dirty(page->entity)); */
     _set_page_frame(&(page->entity), swap_frame); // record swap offset in page entry
     return ret;
 }
 
-// unmap frame, then set it invalid
+// unmap frame, then set it invalid, but the frame is still occupied by the page,
+// next tick will make it swapout
 void invalid_page_frame(struct pagetable_entry* page)
 {
     uint32_t ret = _get_page_frame(page->entity) ;// make sure it mapped.
     assert(ret & seL4_PAGE_MASK);
     assert(!_is_page_swap(page->entity) );
+    assert(get_uframe_dirty(page->entity & seL4_PAGE_MASK) == _is_page_dirty(page->entity));
     _unmap_page_frame(_get_page_frame(page->entity));
     _reset_page_valid(&page->entity);
 }

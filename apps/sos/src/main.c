@@ -52,7 +52,7 @@
 
 volatile bool sos_init_flag = false;
 
-uint32_t dbflags = 0xFFFFFFFF; //&(~DB_VM);
+uint32_t dbflags = 0xFFFFFFFF &(~DB_VM);
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
 extern int test_coro();

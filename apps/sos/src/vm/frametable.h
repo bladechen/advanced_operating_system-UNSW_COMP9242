@@ -4,7 +4,8 @@
 #include <sel4/sel4.h>
 #include "vm.h"
 
-#define DEFAULT_UMEM_BYTES (1 * 1024 * 1024)
+#define DEFAULT_UMEM_BYTES (2 * 1024 * 1024)
+#define MAX_UMEM_BYTES (200 * 1024 * 1024)
 #define DEFAULT_KMEM_BYTES (50 * 1024 * 1024)
 
 /* Integer division, rounded up (rather than truncating) */
@@ -40,10 +41,10 @@ typedef struct frame_table_entry
     int next; // last = -1//
     int prev; // prev = -1
 
-
-
+    //swap info only makes sense while frame is in using
     uint32_t swap_frame_version;
     uint32_t swap_frame_number;
+
     int ctrl;
     seL4_CPtr   remap_cap;
     enum frame_entry_status status;
@@ -60,7 +61,6 @@ typedef frame_table_entry *frame_table;
 void frametable_init(size_t umem, size_t kmem); // umem in bytes, which limited user mem, left mem is for sos itself, and for another type of mem. 0 stands for no limited
 sos_vaddr_t uframe_alloc();
 void uframe_free(sos_vaddr_t vaddr);
-
 
 
 // for sos it self only. which means it can not be swapped out!
