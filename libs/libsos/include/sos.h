@@ -38,6 +38,7 @@
 #define SOS_SYSCALL_STAT                (8)
 #define SOS_SYSCALL_GET_DIRENT          (9)
 #define SOS_SYSCALL_REMOVE              (10) 
+#define SOS_SYSCALL_CREATE_PROCESS      (11)
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)

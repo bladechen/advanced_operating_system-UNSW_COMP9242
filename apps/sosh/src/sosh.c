@@ -180,6 +180,8 @@ static int exec(int argc, char **argv) {
     }
 
     pid = sos_process_create(argv[1]);
+
+    while(1){}
     if (pid >= 0) {
         printf("Child pid=%d\n", pid);
         if (bg == 0) {
@@ -417,6 +419,7 @@ int main(void) {
 
     /* while (1){} */
     printf("\n[SOS SHELL Starting]\n");
+    tty_debug_print("\n[SOS SHELL Starting]\n");
 
     while (!done) {
         if (new) {

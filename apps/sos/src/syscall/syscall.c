@@ -38,11 +38,15 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_close, .will_block=false},
     {.syscall=&sos_syscall_stat, .will_block=false},
     {.syscall=&sos_syscall_get_dirent, .will_block=false},
-    {.syscall=&sos_syscall_remove, .will_block=false}};
+    {.syscall=&sos_syscall_remove, .will_block=false},
+    {.syscall=&sos_syscall_create_process, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
 extern struct serial_console _serial;
+
+/* for process creation */
+extern seL4_CPtr _sos_ipc_ep_cap;
 
 /*
 *   In M4, assume read from/write to console device
@@ -357,6 +361,32 @@ void sos_syscall_brk(void* argv)
         memcpy(get_ipc_buffer(proc), &retbrk, 4);
     }
     COLOR_DEBUG(DB_SYSCALL, ret == 0 ? ANSI_COLOR_GREEN : ANSI_COLOR_RED, "end sos_syscall_brk proc %u, return brk: 0x%x, ret: %d\n", proc->p_pid,retbrk, ret);
+
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
+void sos_syscall_create_process(void * argv) 
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+
+    char* proc_name = (get_ipc_buffer(proc));
+    struct ipc_buffer_ctrl_msg ctrl;
+
+    struct proc * new_proc = proc_create(proc_name, _sos_ipc_ep_cap);
+    if (new_proc == NULL) 
+    {
+        ctrl.ret_val = ENOMEM;
+        ctrl.file_id = -1;
+        ipc_reply(&ctrl, &(proc->p_reply_cap));
+    }
+
+    proc_activate(new_proc);
+
+    ctrl.offset = 0;
+    ctrl.ret_val = 0;
+    ctrl.file_id = new_proc->p_pid;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_create_process proc: %u\n",proc->p_pid);
 
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }

@@ -97,6 +97,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 
     process->p_badge = proc_count;
 
+    // TODO: use large pid loop, and check before put it into slot
     proc_array[proc_count ++] = process;
 
 
@@ -172,9 +173,10 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // According to `extern char _cpio_archive[];` in main.c
     // It has been declared in main.c
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
+    conditional_panic(!elf_base, "Unable to locate cpio header");
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), name);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "name: %s\n", name);
-    conditional_panic(!elf_base, "Unable to locate cpio header");
+    
 
 
     /*** load the elf image info, set up addrspace ***/

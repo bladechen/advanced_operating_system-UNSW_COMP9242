@@ -98,7 +98,7 @@ extern fhandle_t mnt_point;
 
 // this represent the process start by ourself.
 struct proc * test_process;
-struct proc * tty_process;
+// struct proc * tty_process;
 
 
 extern struct proc* proc_array[128];
@@ -337,9 +337,9 @@ int main(void) {
     test_process = proc_create(SOSH_NAME, _sos_ipc_ep_cap);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating sosh...\n");
 
-    tty_process = proc_create("tty_test", _sos_ipc_ep_cap);
+    // tty_process = proc_create("tty_test", _sos_ipc_ep_cap);
     proc_activate(test_process);
-    proc_activate( tty_process);
+    // proc_activate( tty_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");
