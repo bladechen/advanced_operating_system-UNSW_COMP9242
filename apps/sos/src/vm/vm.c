@@ -24,6 +24,7 @@ static void vm_fault(void* argv); // coroutine func
 // currently still in main coroutine.
 void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code)
 {
+    printf ("vm fault proc: %d\n", proc->p_pid);
     proc->vm_fault_code = fault_code;
     seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);

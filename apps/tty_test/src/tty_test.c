@@ -108,11 +108,11 @@ int main(void){
 
     int i = 0;
     do {
-        printf("task:\tHello world, I'm\ttty_test!\n");
-        thread_block();
+        printf("task:\tHello world, I'm\ttty_test! %d\n", i);
+        /* thread_block(); */
         i++;
-        // sleep(1);	// Implement this as a syscall
-    } while(i< 10);
+        sleep(10);	// Implement this as a syscall
+    } while(1);
 
     return 0;
 }

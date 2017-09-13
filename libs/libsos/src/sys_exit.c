@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sel4/sel4.h>
+#include <assert.h>
 #include "sos.h"
 
 static void
@@ -44,6 +45,8 @@ sys_getpid(va_list ap) {
 long
 sys_exit(va_list ap)
 {
+    tty_debug_print("sys_exit");
+    assert(0 == 1);
     abort();
     return 0;
 }
@@ -51,6 +54,8 @@ sys_exit(va_list ap)
 long
 sys_exit_group(va_list ap)
 {
+    tty_debug_print("sys_exit");
+    assert(0 == 2);
     abort();
     return 0;
 }

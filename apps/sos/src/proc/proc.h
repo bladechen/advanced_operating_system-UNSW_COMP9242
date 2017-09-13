@@ -45,6 +45,9 @@ struct proc
     char p_status; //
 
     int vm_fault_code; // i am lazy...
+
+    uint32_t p_badge;
+
 };
 
 

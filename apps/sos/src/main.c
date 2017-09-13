@@ -52,7 +52,8 @@
 
 volatile bool sos_init_flag = false;
 
-uint32_t dbflags = 0xFFFFFFFF &(~DB_VM);
+/* uint32_t dbflags = 0xFFFFFFFF &(~DB_VM); */
+uint32_t dbflags = 0xFFFFFFFF ;
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
 extern int test_coro();
@@ -97,7 +98,10 @@ extern fhandle_t mnt_point;
 
 // this represent the process start by ourself.
 struct proc * test_process;
+struct proc * tty_process;
 
+
+extern struct proc* proc_array[128];
 
 void update_timestamp(void);
 void handle_epit1_irq(void);
@@ -134,22 +138,24 @@ void syscall_loop(seL4_CPtr ep)
         }
         else if(label == seL4_VMFault)
         {
+            dprintf(0, "badge : 0x%x\n", badge);
             /* Page fault */
             COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
                     seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault", seL4_GetMR(3));
-            handle_vm_fault(test_process, seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
+            handle_vm_fault(proc_array[badge], seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
 
         }
         else if(label == seL4_NoFault)
         {
+            dprintf(0, "badge : 0x%x\n", badge);
             /* System call */
-            /* dprintf(0, "badge : 0x%x\n", badge); */
 
             // TODO: under multiprocess circumstance, pass the corresponding
             // APP process.
-            handle_syscall(badge, test_process);
+            assert(badge >= 1);
+            handle_syscall(badge, proc_array[badge]);
         }
         else
         {
@@ -330,7 +336,10 @@ int main(void) {
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
     test_process = proc_create(SOSH_NAME, _sos_ipc_ep_cap);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating sosh...\n");
+
+    tty_process = proc_create("tty_test", _sos_ipc_ep_cap);
     proc_activate(test_process);
+    proc_activate( tty_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");

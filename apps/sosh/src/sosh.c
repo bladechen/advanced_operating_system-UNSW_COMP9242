@@ -415,7 +415,8 @@ int main(void) {
     /* stress tests for file operations */
     /* file_unittest(); */
 
-    printf("\n[SOS Starting]\n");
+    /* while (1){} */
+    printf("\n[SOS SHELL Starting]\n");
 
     while (!done) {
         if (new) {

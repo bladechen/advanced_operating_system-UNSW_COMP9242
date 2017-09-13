@@ -31,7 +31,7 @@ struct proc kproc;
 
 // TODO, now we assume there is only one process, and the badge
 // is hard coded, may try create badge dynamically
-#define TEMP_ONE_PROCESS_BADGE (1<<3)
+/* #define TEMP_ONE_PROCESS_BADGE (1<<3) */
 
 extern char _cpio_archive[];
 
@@ -51,6 +51,10 @@ static void clear_proc(struct proc* proc)
 }
 
 
+struct proc* proc_array[128];
+int proc_count = 0;
+
+
 static void init_kproc(char* kname)
 {
     clear_proc(&kproc);
@@ -62,6 +66,7 @@ static void init_kproc(char* kname)
     kproc.p_croot = NULL;
     kproc.p_ep_cap = 0;
     set_kproc_coro(&kproc);
+    proc_array[proc_count ++] = &kproc;
 }
 
 void proc_bootstrap()
@@ -74,6 +79,7 @@ void proc_bootstrap()
 
 /* void loop_through_region(struct addrspace *as); */
 
+
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
     int err;
@@ -84,9 +90,16 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     }
     clear_proc(process);
 
+
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
-    process->p_pid = 1;
+    process->p_pid = proc_count;
+
+    process->p_badge = proc_count;
+
+    proc_array[proc_count ++] = process;
+
+
 
     /*
     *  pagetable will take care of the virtual address root
@@ -130,7 +143,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
                                         cur_cspace,
                                         fault_ep_cap,
                                         seL4_AllRights,
-                                        seL4_CapData_Badge_new(TEMP_ONE_PROCESS_BADGE));
+                                        seL4_CapData_Badge_new(process->p_badge));
     assert(process->p_ep_cap != CSPACE_NULL);
     assert(process->p_ep_cap == 1);// FIXME
 
