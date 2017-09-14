@@ -35,7 +35,19 @@ pid_t sos_process_create(const char *path)
 
 int sos_process_delete(pid_t pid)
 {
-    handle_no_implemented_syscall("sos_process_delete");
+    tty_debug_print("[app] sos_process_delete with pid %d\n", pid);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_PROCESS_DELETE;
+
+    // currently, use file_id field to transfer proc_id
+    ctrl_msg.file_id = pid;
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
+    tty_debug_print("[app] sos_process_delete return %d\n", ret.ret_val);
+
+    assert(ret.ret_val == 0);
+    // return (ret.ret_val == 0) ? ret.file_id: ( -ret.ret_val);
     return 0;
 }
 

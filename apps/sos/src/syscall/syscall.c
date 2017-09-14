@@ -39,7 +39,10 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_stat, .will_block=false},
     {.syscall=&sos_syscall_get_dirent, .will_block=false},
     {.syscall=&sos_syscall_remove, .will_block=false},
-    {.syscall=&sos_syscall_create_process, .will_block=false}};
+    {.syscall=&sos_syscall_create_process, .will_block=false},
+    {.syscall=&sos_syscall_delete_process, .will_block=false},
+    {.syscall=&sos_syscall_wait_process, .will_block=false},
+    {.syscall=&sos_syscall_process_status, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -395,6 +398,10 @@ void sos_syscall_create_process(void * argv)
 
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
+
+void sos_syscall_delete_process(void * argv){}
+void sos_syscall_wait_process(void * argv){} 
+void sos_syscall_process_status(void * argv){}
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {
