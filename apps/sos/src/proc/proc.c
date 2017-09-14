@@ -24,6 +24,7 @@
 #include "vm/address_space.h"
 #include "vm/pagetable.h"
 #include "vm/vm.h"
+#include "clock/clock.h"
 
 #include "syscall/handle_syscall.h"
 
@@ -70,6 +71,7 @@ static void init_kproc(char* kname)
     kproc.p_tcb = NULL;
     kproc.p_croot = NULL;
     kproc.p_ep_cap = 0;
+    kproc.stime = 0;
     set_kproc_coro(&kproc);
     /* should be proc-id 0, the very first proc*/
     proc_array[proc_id_counter++] = &kproc;
@@ -121,8 +123,7 @@ static int find_next_proc_id()
 
     if (proc_array[proc_id_counter % PROC_ARRAY_SIZE] == NULL) {
         return proc_id_counter++;
-    } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE ||
-        proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_DIE) {
+    } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE) {
         // no longer in use, then, help to clean that up.
         proc_destroy(proc_array[proc_id_counter % PROC_ARRAY_SIZE]);
         proc_array[proc_id_counter % PROC_ARRAY_SIZE] = NULL;
@@ -152,10 +153,11 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
         return NULL;
     }
 
-    process->p_name = name;
+    process->p_name = strdup(name);
     process->p_pid = proc_id;
     process->p_badge = proc_id % PROC_ARRAY_SIZE;
     proc_array[proc_id % PROC_ARRAY_SIZE] = process;
+    process->stime = time_stamp();
 
     /*
     *  pagetable will take care of the virtual address root
@@ -267,8 +269,7 @@ void proc_activate(struct proc * process)
 
 int proc_destroy(struct proc * process)
 {
-    assert(process->p_status == PROC_STATUS_ZOMBIE ||
-           process->p_status == PROC_STATUS_DIE);
+    assert(process->p_status == PROC_STATUS_ZOMBIE);
     // TODO free fs, free pid in M7
     destroy_reply_cap(&process->p_reply_cap);
     /* destroy_fd_table(process); TODO */

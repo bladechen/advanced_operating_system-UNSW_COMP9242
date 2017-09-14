@@ -42,7 +42,8 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_create_process, .will_block=false},
     {.syscall=&sos_syscall_delete_process, .will_block=false},
     {.syscall=&sos_syscall_wait_process, .will_block=false},
-    {.syscall=&sos_syscall_process_status, .will_block=false}};
+    {.syscall=&sos_syscall_process_status, .will_block=false},
+    {.syscall=&sos_syscall_exit_process, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -50,6 +51,7 @@ extern struct serial_console _serial;
 
 /* for process creation */
 extern seL4_CPtr _sos_ipc_ep_cap;
+extern struct proc* proc_array[PROC_ARRAY_SIZE];
 
 /*
 *   In M4, assume read from/write to console device
@@ -422,6 +424,51 @@ void sos_syscall_delete_process(void * argv)
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
+void sos_syscall_wait_process(void * argv){} 
+
+void sos_syscall_process_status(void * argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    void* ipc_buf = (get_ipc_buffer(proc));
+    int ps_amount = *(int *)ipc_buf;
+
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_process_status proc %u\n", proc->p_pid);
+
+    // Temporary array to hold return values
+    sos_process_t * processes = (sos_process_t *)malloc(ps_amount * sizeof(sos_process_t));
+    // loop through proc_array and try to find proper process pointer
+    int i = 0; // If don't want to display the SOS and SOSH, start from 2
+    int j = 0;
+    while (i < PROC_ARRAY_SIZE && j < ps_amount) 
+    {
+        if (proc_array[i] == NULL || proc_array[i]->p_status == PROC_STATUS_ZOMBIE) 
+        {
+            i++;
+            continue;
+        }
+
+        processes[j].pid = proc_array[i]->p_pid;
+        processes[j].size = 12345; // ??? maybe something like get_proc_size(proc_array[i]);
+        processes[j].stime = proc_array[i]->stime;
+        strcpy(processes[j].command, proc_array[i]->p_name);
+
+        printf("~~~~~~~~~~~~~~processes[j].command: %s\n", processes[j].command);
+
+        i++;
+        j++;
+    }
+
+    // write processes array and ps_amount to share buffer, then reply
+    memcpy((int *)ipc_buf, &j, sizeof(int));
+    memcpy((sos_process_t *)(ipc_buf + sizeof(int)), processes, j * sizeof(sos_process_t));
+
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.ret_val = 0;
+    ctrl.offset = sizeof(int) + j * sizeof(sos_process_t);
+
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
 // try to kill itself
 void sos_syscall_exit_process(void* argv)
 {
@@ -431,9 +478,6 @@ void sos_syscall_exit_process(void* argv)
     proc->p_status = PROC_STATUS_ZOMBIE;
     seL4_TCB_Suspend(proc->p_tcb->cap);
 }
-
-void sos_syscall_wait_process(void * argv){} 
-void sos_syscall_process_status(void * argv){}
 
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
