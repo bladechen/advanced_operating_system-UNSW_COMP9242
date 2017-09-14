@@ -52,6 +52,7 @@ struct proc
     uint32_t p_badge;
 
 
+    unsigned int stime;
     // bool p_exitflag;
 
     struct list children_list; // for managing the child proc

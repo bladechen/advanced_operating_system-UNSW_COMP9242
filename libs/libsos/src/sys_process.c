@@ -11,7 +11,7 @@ pid_t sos_process_create(const char *path)
 {
     // handle_no_implemented_syscall("sos_process_create");
 
-	tty_debug_print("[app] sos_process_create with path %s\n", path);
+    tty_debug_print("[app] sos_process_create with path %s\n", path);
     struct ipc_buffer_ctrl_msg ctrl_msg ;
 
     ctrl_msg.syscall_number = SOS_SYSCALL_CREATE_PROCESS;
@@ -35,11 +35,12 @@ pid_t sos_process_create(const char *path)
 
 int sos_process_delete(pid_t pid)
 {
-	// It is the proc max, hard code for now
-	if (pid <= 1 || pid >= 256) {
-		tty_debug_print("[app] invalid pid for sos_process_delete\n");
-		return -1;
-	}
+    // It is the proc max, hard code for now
+    if (pid <= 1 || pid >= 256) 
+    {
+        tty_debug_print("[app] invalid pid for sos_process_delete\n");
+        return -1;
+    }
 
     tty_debug_print("[app] sos_process_delete with pid %d\n", pid);
     struct ipc_buffer_ctrl_msg ctrl_msg ;
@@ -77,16 +78,37 @@ pid_t sos_process_wait(pid_t pid)
 
 int sos_process_status(sos_process_t *processes, unsigned max)
 {
-    handle_no_implemented_syscall("sos_process_status");
-    return 0;
+    // handle_no_implemented_syscall("sos_process_status");
+    tty_debug_print("[app] sos_process_status \n");
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_PROCESS_STATUS;
+
+    // pass max to SOS
+    ctrl_msg.offset = sizeof(int);
+    ctrl_msg.start_app_buffer_addr = APP_PROCESS_IPC_SHARED_BUFFER;
+    *(int *)(APP_PROCESS_IPC_SHARED_BUFFER) = max;
+
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
+    tty_debug_print("[app] sos_process_status return %d\n", ret.ret_val);
+
+    assert(ret.ret_val == 0);
+   
+    int ps_amount = *(int *)(APP_PROCESS_IPC_SHARED_BUFFER);
+
+    seL4_Word processes_start_addr = APP_PROCESS_IPC_SHARED_BUFFER + sizeof(int);
+    memcpy(processes, processes_start_addr, ps_amount * sizeof(sos_process_t));
+
+    return ps_amount;
 }
 
 
 void sos_process_exit()
 {
-	tty_debug_print("[app] sos_process_exit start\n");
+    tty_debug_print("[app] sos_process_exit start\n");
 
-	/* should use seL4_Send, since we do not expect any response*/
+    /* should use seL4_Send, since we do not expect any response*/
     struct ipc_buffer_ctrl_msg ctrl_msg ;
 
     ctrl_msg.syscall_number = SOS_SYSCALL_PROCESS_EXIT;

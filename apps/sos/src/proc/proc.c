@@ -25,6 +25,7 @@
 #include "vm/address_space.h"
 #include "vm/pagetable.h"
 #include "vm/vm.h"
+#include "clock/clock.h"
 
 #include "syscall/handle_syscall.h"
 
@@ -88,6 +89,7 @@ static void init_kproc(char* kname)
     kproc.p_tcb = NULL;
     kproc.p_croot = NULL;
     kproc.p_ep_cap = 0;
+    kproc.stime = 0;
     set_kproc_coro(&kproc);
     /* should be proc-id 0, the very first proc*/
     kproc.p_pid = get_free_pid();
@@ -159,6 +161,7 @@ static int get_free_pid()
     /* } */
 }
 
+/* <<<<<<< HEAD */
 static void set_free_pid(int pid)
 {
     if (pid < 0)
@@ -166,6 +169,20 @@ static void set_free_pid(int pid)
     assert(get_proc_by_pid(pid) != NULL);
     proc_free_slot_counter ++;
     proc_array[procid_to_procarray_index(pid)] = NULL;
+/* ======= */
+/*     if (proc_array[proc_id_counter % PROC_ARRAY_SIZE] == NULL) { */
+/*         return proc_id_counter++; */
+/*     } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE) { */
+/*         // no longer in use, then, help to clean that up. */
+/*         proc_destroy(proc_array[proc_id_counter % PROC_ARRAY_SIZE]); */
+/*         proc_array[proc_id_counter % PROC_ARRAY_SIZE] = NULL; */
+/*         return proc_id_counter++;  */
+/*     } else { */
+/*         // should not reach here */
+/*         assert(0); */
+/*         return -1; */
+/*     } */
+/* >>>>>>> 00d4e02b6d0f30d7c9cca8f9f21256d05f47c975 */
 }
 
 
@@ -193,6 +210,7 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     // TODO we need test badge reuse!!!
     process->p_badge = proc_id % PROC_ARRAY_SIZE;
     proc_array[procid_to_procarray_index(proc_id)] = process;
+    process->stime = time_stamp();
 
     /*
     *  pagetable will take care of the virtual address root
