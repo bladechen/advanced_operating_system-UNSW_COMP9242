@@ -2,6 +2,7 @@
 #define _PROC_H_
 
 
+#include "comm/list.h"
 #include "coroutine/synch.h"
 #include "comm/comm.h"
 #include "vm/pagetable.h"
@@ -87,7 +88,14 @@ void recycle_process();
 struct proc * get_proc_by_pid(int pid);
 
 
-void proc_wakeup_father(struct proc* child);
+bool proc_wakeup_father(struct proc* child);
+
+void proc_attach_kproc(struct proc* child);
+
+static inline void proc_deattch(struct proc* proc)
+{
+    list_del(&proc->as_child_next);
+}
 
 /* Fetch the address space of the current process. */
 struct addrspace *proc_getas(void);

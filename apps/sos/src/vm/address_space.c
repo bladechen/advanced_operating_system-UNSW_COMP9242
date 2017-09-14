@@ -296,7 +296,7 @@ static void as_destroy_region_pages(struct pagetable* pt,
         vaddr_t vaddr_del = begin_addr + i * (1 << seL4_PageBits);
         if (vaddr_del >= start && vaddr_del < end)
         {
-            printf ("free vaddr: %x\n", vaddr_del);
+            /* printf ("free vaddr: %x\n", vaddr_del); */
             free_page(pt, vaddr_del);
         }
         else

@@ -35,13 +35,6 @@ pid_t sos_process_create(const char *path)
 
 int sos_process_delete(pid_t pid)
 {
-    // It is the proc max, hard code for now
-    if (pid <= 1 || pid >= 256) 
-    {
-        tty_debug_print("[app] invalid pid for sos_process_delete\n");
-        return -1;
-    }
-
     tty_debug_print("[app] sos_process_delete with pid %d\n", pid);
     struct ipc_buffer_ctrl_msg ctrl_msg ;
 
@@ -94,7 +87,7 @@ int sos_process_status(sos_process_t *processes, unsigned max)
     tty_debug_print("[app] sos_process_status return %d\n", ret.ret_val);
 
     assert(ret.ret_val == 0);
-   
+
     int ps_amount = *(int *)(APP_PROCESS_IPC_SHARED_BUFFER);
 
     seL4_Word processes_start_addr = APP_PROCESS_IPC_SHARED_BUFFER + sizeof(int);
@@ -106,10 +99,11 @@ int sos_process_status(sos_process_t *processes, unsigned max)
 
 void sos_process_exit()
 {
-    tty_debug_print("[app] sos_process_exit start\n");
+    tty_debug_print("[app] sos_process_exit\n");
 
     /* should use seL4_Send, since we do not expect any response*/
     struct ipc_buffer_ctrl_msg ctrl_msg ;
+    ctrl_msg.offset = 0;
 
     ctrl_msg.syscall_number = SOS_SYSCALL_PROCESS_EXIT;
 

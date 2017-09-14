@@ -438,20 +438,20 @@ void sos_syscall_wait_process(void * argv)
             goto wait_end;
         }
         wait_proc->someone_wait = true;
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %u now  blocks waiting for %u\n",proc->p_pid, pid);
+
         P(proc->p_waitchild);
         wait_proc->someone_wait = false;
         sem_destroy(proc->p_waitchild);
+        proc_deattch(wait_proc);
         proc_destroy(wait_proc);
     }
 wait_end:
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %u wait for %u finish: %d\n",proc->p_pid, pid, ctrl.ret_val);
     ipc_reply(&ctrl, &(proc->p_reply_cap));
     return;
 }
 
-void sos_syscall_process_status(void * argv)
-{
-
-}
 void sos_syscall_delete_process(void * argv)
 {
     struct proc* proc = (struct proc*) argv;
@@ -477,7 +477,12 @@ void sos_syscall_delete_process(void * argv)
         return;
     }
     proc_exit(proc_to_be_deleted);
-    proc_wakeup_father(proc_to_be_deleted);
+    bool wakeup = proc_wakeup_father(proc_to_be_deleted);
+    if (!wakeup)
+    {
+        proc_attach_kproc(proc);
+    }
+
     /* if (proc != get_current_proc()) */
     /*     coro_stop(proc->p_coro);  //make sure app coro not schedule again */
 
@@ -538,7 +543,12 @@ void sos_syscall_exit_process(void* argv)
     struct proc* proc = (struct proc*) argv;
     assert(get_current_proc() == proc);
     proc_exit(proc);
-    proc_wakeup_father(proc);
+    bool wakeup = proc_wakeup_father(proc);
+    // let kproc to recycle this proc, which is not same semetic as linux
+    if (!wakeup)
+    {
+        proc_attach_kproc(proc);
+    }
 }
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
@@ -555,13 +565,16 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
 
     assert(coro_status(app_process->p_coro) == COROUTINE_INIT);
     /* Save the caller */
-    reply_cap = cspace_save_reply_cap(cur_cspace);
-    assert(reply_cap != CSPACE_NULL);
-
-    // in case the app process block, the reply_cap and message get flushed
-    // we put these into `proc struct`
     assert(app_process->p_reply_cap == 0);
-    app_process->p_reply_cap = reply_cap;
+    if (syscall_number != SOS_SYSCALL_PROCESS_EXIT)
+    {
+        reply_cap = cspace_save_reply_cap(cur_cspace);
+        assert(reply_cap != CSPACE_NULL);
+
+        // in case the app process block, the reply_cap and message get flushed
+        // we put these into `proc struct`
+        app_process->p_reply_cap = reply_cap;
+    }
 
     if (syscall_number < 0 || syscall_number > NUMBER_OF_SYSCALL) {
         printf("%s:%d (%s) Unknown syscall %d\n",

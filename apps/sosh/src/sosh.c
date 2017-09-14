@@ -166,6 +166,7 @@ static int exec(int argc, char **argv) {
     int r;
     int bg = 0;
 
+    tty_debug_print("argc num: %d\n", argc);
     if (argc < 2 || (argc > 2 && argv[2][0] != '&')) {
         printf("Usage: exec filename [&]\n");
         return 1;
@@ -191,6 +192,7 @@ static int exec(int argc, char **argv) {
         printf("Failed!\n");
     }
     if (bg == 0) {
+        tty_debug_print("continue sosh\n");
         in = open("console", O_RDONLY);
         assert(in >= 0);
     }

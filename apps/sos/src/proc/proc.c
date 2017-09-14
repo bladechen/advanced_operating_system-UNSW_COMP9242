@@ -143,25 +143,8 @@ static int get_free_pid()
     assert(i > 0);
     assert(proc_array[proc_id % PROC_ARRAY_SIZE] == NULL);
     return proc_id;
-
-    /* if (proc_array[proc_id_counter % PROC_ARRAY_SIZE] == NULL) { */
-    /*     return proc_id_counter++; */
-    /* } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE || */
-    /*     proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_DIE) { */
-    /*     // no longer in use, then, help to clean that up. */
-    /*     proc_destroy(proc_array[proc_id_counter % PROC_ARRAY_SIZE]); */
-    /*     proc_array[proc_id_counter % PROC_ARRAY_SIZE] = NULL; */
-    /*     return proc_id_counter++; */
-    /* } */
-    /* else */
-    /* { */
-    /*     // should not reach here */
-    /*     assert(0); */
-    /*     return -1; */
-    /* } */
 }
 
-/* <<<<<<< HEAD */
 static void set_free_pid(int pid)
 {
     if (pid < 0)
@@ -169,20 +152,6 @@ static void set_free_pid(int pid)
     assert(get_proc_by_pid(pid) != NULL);
     proc_free_slot_counter ++;
     proc_array[procid_to_procarray_index(pid)] = NULL;
-/* ======= */
-/*     if (proc_array[proc_id_counter % PROC_ARRAY_SIZE] == NULL) { */
-/*         return proc_id_counter++; */
-/*     } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE) { */
-/*         // no longer in use, then, help to clean that up. */
-/*         proc_destroy(proc_array[proc_id_counter % PROC_ARRAY_SIZE]); */
-/*         proc_array[proc_id_counter % PROC_ARRAY_SIZE] = NULL; */
-/*         return proc_id_counter++;  */
-/*     } else { */
-/*         // should not reach here */
-/*         assert(0); */
-/*         return -1; */
-/*     } */
-/* >>>>>>> 00d4e02b6d0f30d7c9cca8f9f21256d05f47c975 */
 }
 
 
@@ -395,10 +364,10 @@ static void proc_handle_children_process(struct proc * process)
 }
 
 
-void proc_wakeup_father(struct proc* child)
+bool proc_wakeup_father(struct proc* child)
 {
     assert(child != NULL);
-    assert(child->p_status == PROC_STATUS_RUNNING);
+    assert(child->p_status == PROC_STATUS_ZOMBIE);
     if (child->someone_wait)
     {
         struct proc* father = get_proc_by_pid(child->p_father_pid);
@@ -406,14 +375,32 @@ void proc_wakeup_father(struct proc* child)
         if (father == NULL)
         {
             ERROR_DEBUG("proc_wakeup_father failed\n");
-            return;
+            return false;
         }
+        if (child->p_father_pid == kproc.p_pid)
+        {
+            ERROR_DEBUG("proc_wakeup_father wake up kproc ?????\n");
+            return true;
+        }
+        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "proc_wakeup_father wake up: %d\n", father->p_pid);
         assert(father->p_waitchild != NULL);
         V(father->p_waitchild);
+        return true;
     }
+    ERROR_DEBUG("proc_wakeup_father nothing????\n");
+    return false;
 
 }
 
+void proc_attach_kproc(struct proc* child)
+{
+    assert(!list_empty(&(child->as_child_next)));
+    list_del(&(child->as_child_next));
+    list_add_tail(&(child->as_child_next), &( kproc.children_list.head));
+    child->p_father_pid = kproc.p_pid;
+}
+
+// FIXME we need split this function....
 int proc_destroy(struct proc * process)
 {
     // TODO maybe we need handle kproc destroy specially
@@ -425,7 +412,7 @@ int proc_destroy(struct proc * process)
         assert(process != get_current_proc());
     }
     assert(is_list_empty(&process->children_list));
-    assert(list_empty(&process->as_child_next));
+    assert(!is_linked(&process->as_child_next));
     assert(process->someone_wait == false);
     destroy_reply_cap(&process->p_reply_cap);
 
@@ -482,11 +469,11 @@ void proc_exit(struct proc* proc)
     seL4_TCB_Suspend(proc->p_tcb->cap);
     proc_handle_children_process(proc);
 
-    assert(!list_empty(&proc->as_child_next));
 
     struct proc* father = get_proc_by_pid(proc->p_father_pid);
     assert(father != NULL); // except for kproc, but it should not exit
     assert(father->p_status == PROC_STATUS_RUNNING); // if father not running it should under init, and init is also running:)
+    assert(!list_empty(&proc->as_child_next));
     /* if (proc != get_current_proc()) */
     /*     coro_stop(proc->p_coro);  //make sure app coro not schedule again */
 

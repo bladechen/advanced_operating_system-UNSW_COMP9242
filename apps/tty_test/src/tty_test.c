@@ -75,11 +75,11 @@ pt_test( void )
 
     /* stack test */
     do_pt_test(buf1);
-    tty_debug_print("begion malloc\n");
+    /* tty_debug_print("begion malloc\n"); */
 
     /* heap test */
     buf2 = malloc(NPAGES * PAGE_SIZE_4K);
-    tty_debug_print("malloc 0x%x\n", buf2);
+    /* tty_debug_print("malloc 0x%x\n", buf2); */
     assert(buf2);
     do_pt_test(buf2);
     free(buf2);
@@ -99,19 +99,19 @@ int main(void){
     /* { */
     /*     printf ("helloworld"); */
     /* } */
-    tty_debug_print("do_pt_test ing\n");
+    /* tty_debug_print("do_pt_test ing\n"); */
     do_pt_test(buff);
-    tty_debug_print("finish do_pt_test\n");
-    tty_debug_print("pt_test\n");
+    /* tty_debug_print("finish do_pt_test\n"); */
+    /* tty_debug_print("pt_test\n"); */
     pt_test();
-    tty_debug_print("finish pt_test\n");
+    /* tty_debug_print("finish pt_test\n"); */
 
     int i = 0;
     do {
         printf("task:\tHello world, I'm\ttty_test! %d\n", i);
         /* thread_block(); */
         i++;
-        sleep(5);	// Implement this as a syscall
+        /* sleep(1);	// Implement this as a syscall */
     } while(i<10);
 
     return 0;
