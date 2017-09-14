@@ -56,8 +56,7 @@ static void clear_proc(struct proc* proc)
 *   the reuse of proc_id will have to experience a longer time, which will
 *   help to mitigate the problem may happen with proc id reuse
 */
-#define MAX_PROC_ID 256
-#define PROC_ARRAY_SIZE 128
+
 struct proc* proc_array[PROC_ARRAY_SIZE] = {NULL}; // make sure it initialized as NULL
 int proc_id_counter = 0;
 
@@ -82,6 +81,13 @@ void proc_bootstrap()
     bootstrap_coro_env();
     init_kproc(kname);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "kernel proc at: %p, coroutine at: %p\n", &kproc, kproc.p_coro)
+}
+
+struct proc * get_proc_by_pid(int pid)
+{
+    struct proc * temp = proc_array[pid % PROC_ARRAY_SIZE];
+    assert(temp != NULL);
+    return temp;
 }
 
 /* void loop_through_region(struct addrspace *as); */

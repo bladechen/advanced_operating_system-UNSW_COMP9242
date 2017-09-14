@@ -42,6 +42,7 @@
 #define SOS_SYSCALL_PROCESS_DELETE      (12)
 #define SOS_SYSCALL_PROCESS_WAIT        (13)
 #define SOS_SYSCALL_PROCESS_STATUS      (14)
+#define SOS_SYSCALL_PROCESS_EXIT        (15)
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)
@@ -176,6 +177,11 @@ int sos_process_delete(pid_t pid);
 /* Delete process (and close all its file descriptors).
  * Returns 0 if successful, -1 otherwise (invalid process).
  */
+
+void sos_process_exit();
+/* Successfully executed the process and exit, the logic is
+*  pretty much the same as delete
+*/
 
 pid_t sos_my_id(void);
 /* Returns ID of caller's process. */
