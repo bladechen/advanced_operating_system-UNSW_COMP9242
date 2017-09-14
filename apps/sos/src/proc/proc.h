@@ -25,7 +25,7 @@ enum PROC_STATUS
 struct proc
 {
     char*              p_name; // proc name, current need by cpio to load elf.
-    uint32_t p_pid; // hard code make it to 2, TODO in M8 need manage pid
+    int p_pid; // hard code make it to 2, TODO in M8 need manage pid
     struct addrspace*  p_addrspace;
     struct pagetable*  p_pagetable;
     struct files_struct*  fs_struct;
@@ -58,7 +58,7 @@ struct proc
 
     struct list_head as_child_next; // used as child link node for the parent proc
 
-    pid_t  p_father_pid;
+    int p_father_pid;
 
     bool someone_wait;
     struct semaphore* p_waitchild;
@@ -76,8 +76,7 @@ int proc_destroy(struct proc* proc); // XXX we may no need proc_exit
 
 void proc_activate(struct proc* proc);
 
-/* suspend the proc TODO later in M8 */
-int proc_suspend(struct proc* proc);
+void proc_exit(struct proc* proc);
 
 /* resume the proc TODO later in M8 */
 int proc_resume(struct proc* proc);
@@ -86,6 +85,9 @@ void recycle_process();
 
 struct proc * get_proc_by_pid(int pid);
 
+
+void proc_wakeup_father(struct proc* child);
+
 /* Fetch the address space of the current process. */
 struct addrspace *proc_getas(void);
 
@@ -93,9 +95,8 @@ struct addrspace *proc_getas(void);
 struct addrspace *proc_setas(struct addrspace *);
 
 
-struct proc* proc_get_child(pid_t pid);
+struct proc* proc_get_child(int pid);
 
-void proc_handle_children_process(struct proc * process);
 inline static void proc_to_be_killed(struct proc* proc)
 {
     proc->p_status = PROC_STATUS_ZOMBIE;

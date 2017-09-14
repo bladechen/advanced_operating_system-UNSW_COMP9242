@@ -160,6 +160,7 @@ static int ps(int argc, char **argv) {
     return 0;
 }
 
+//TODO support argc,argv running command
 static int exec(int argc, char **argv) {
     pid_t pid;
     int r;

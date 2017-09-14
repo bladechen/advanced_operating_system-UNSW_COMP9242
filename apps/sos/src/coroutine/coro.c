@@ -233,6 +233,8 @@ void destroy_coro(struct coroutine* coro)
     {
         return;
     }
+    // you can't destroy yourself.
+    assert(coro->_proc != get_current_proc());
     assert(coro->_status !=  COROUTINE_SUSPEND &&
            coro->_status != COROUTINE_SUSPEND &&
            coro->_status != COROUTINE_RUNNING);

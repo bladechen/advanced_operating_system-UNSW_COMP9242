@@ -37,6 +37,7 @@ struct context
 typedef void (*coroutine_func)(void * argv);
 struct coroutine
 {
+    // bool _exit_flag;
     struct context _ctx;
     void*          _stack_top;
     void*          _stack_addr;
@@ -62,10 +63,24 @@ struct schedule
     uint32_t _stack_base;
 };
 
+struct coroutine* current_running_coro();
 
+static inline struct proc* get_current_proc()
+{
+    return current_running_coro()->_proc;
+}
 static inline int coro_status(struct coroutine* coro)
 {
     return coro->_status;
+}
+
+static inline void coro_stop(struct coroutine* coro)
+{
+    // XXX some assert?
+    assert(coro->_status != COROUTINE_RUNNING);
+    assert(coro->_proc != get_current_proc()); // you could not stop your self
+    coro->_status = COROUTINE_SUSPEND;
+    list_del(&coro->_link);
 }
 
 void bootstrap_coro_env();
@@ -84,10 +99,6 @@ void make_coro_runnable(struct coroutine* coro);
 void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv);
 
 
-struct coroutine* current_running_coro();
 
-static inline struct proc* get_current_proc()
-{
-    return current_running_coro()->_proc;
-}
+
 #endif

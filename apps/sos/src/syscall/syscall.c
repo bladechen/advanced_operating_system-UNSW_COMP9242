@@ -375,6 +375,7 @@ void sos_syscall_create_process(void * argv)
 
     char* ipc_buf = (get_ipc_buffer(proc));
     struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
 
     char proc_name[proc->p_ipc_ctrl.offset + 1];
     memcpy(proc_name, ipc_buf, proc->p_ipc_ctrl.offset);
@@ -389,9 +390,10 @@ void sos_syscall_create_process(void * argv)
         return;
     }
 
+
+
     proc_activate(new_proc);
 
-    ctrl.offset = 0;
     ctrl.ret_val = 0;
     ctrl.file_id = new_proc->p_pid;
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_create_process proc: %u\n",proc->p_pid);
@@ -406,6 +408,7 @@ void sos_syscall_wait_process(void * argv)
     assert(proc == get_current_proc());
 
     struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
     pid_t pid = proc->p_ipc_ctrl.file_id;
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %u wait for %u\n",proc->p_pid, pid);
     struct proc* wait_proc = proc_get_child(pid);
@@ -415,6 +418,7 @@ void sos_syscall_wait_process(void * argv)
         ctrl.ret_val = ECHILD;
         goto wait_end;
     }
+    assert(!list_empty(&proc->as_child_next)); // FIXME has this child.
     if (wait_proc->p_status == PROC_STATUS_ZOMBIE)
     {
         ERROR_DEBUG("zombie proc exit\n");
@@ -433,6 +437,7 @@ void sos_syscall_wait_process(void * argv)
         }
         wait_proc->someone_wait = true;
         P(proc->p_waitchild);
+        wait_proc->someone_wait = false;
         sem_destroy(proc->p_waitchild);
         proc_destroy(wait_proc);
     }
@@ -450,35 +455,45 @@ void sos_syscall_delete_process(void * argv)
     struct proc* proc = (struct proc*) argv;
 
     struct ipc_buffer_ctrl_msg ctrl;
-
-    int pid = proc->p_ipc_ctrl.file_id;
-    assert(pid>0);
-
-    struct proc * proc_to_be_deleted = get_proc_by_pid(pid);
-    proc_to_be_deleted->p_status = PROC_STATUS_ZOMBIE;
-    // seL4 stop runing this process, and will clean up the
-    // data structrue in `recycle_process` in syscall loop in main.c
-    seL4_TCB_Suspend(proc_to_be_deleted->p_tcb->cap);
-
     ctrl.offset = 0;
     ctrl.ret_val = 0;
     ctrl.file_id = 0;
+    int pid = proc->p_ipc_ctrl.file_id;
+    struct proc * proc_to_be_deleted = get_proc_by_pid(pid);
+    if (!proc_to_be_deleted || pid == 0) // you can not kill kproc!
+    {
+        ctrl.ret_val = ESRCH;
+        ipc_reply(&ctrl, &(proc->p_reply_cap));
+        return;
+    }
+
+    // like linux D status, you can't kill it while blocked on nfs or something else
+    if (coro_status(proc_to_be_deleted->p_coro) == COROUTINE_SUSPEND)
+    {
+        ctrl.ret_val = EPERM;
+        ipc_reply(&ctrl, &(proc->p_reply_cap));
+        return;
+    }
+    proc_exit(proc_to_be_deleted);
+    proc_wakeup_father(proc_to_be_deleted);
+    /* if (proc != get_current_proc()) */
+    /*     coro_stop(proc->p_coro);  //make sure app coro not schedule again */
+
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_delete_process proc\n");
 
-    ipc_reply(&ctrl, &(proc->p_reply_cap));
+    // TODO we need write something on nc
+    if (proc_to_be_deleted != get_current_proc())
+        ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
 // try to kill itself
 void sos_syscall_exit_process(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
-
-    // do not need to reply anything, this is all we need to do
-    proc->p_status = PROC_STATUS_ZOMBIE;
-    seL4_TCB_Suspend(proc->p_tcb->cap);
+    assert(get_current_proc() == proc);
+    proc_exit(proc);
+    proc_wakeup_father(proc);
 }
-
-
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {

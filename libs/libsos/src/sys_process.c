@@ -67,6 +67,7 @@ pid_t sos_process_wait(pid_t pid)
     // currently, use file_id field to transfer proc_id
     ctrl_msg.file_id = pid;
     struct ipc_buffer_ctrl_msg ret;
+    ctrl_msg.offset = 0;
     assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
     // FIXME implement myid
     tty_debug_print("[app] sos_process_wait return %d\n", ret.ret_val);
