@@ -385,6 +385,7 @@ void sos_syscall_create_process(void * argv)
         ctrl.ret_val = ENOMEM;
         ctrl.file_id = -1;
         ipc_reply(&ctrl, &(proc->p_reply_cap));
+        return;
     }
 
     proc_activate(new_proc);

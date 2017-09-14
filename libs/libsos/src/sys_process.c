@@ -23,6 +23,7 @@ pid_t sos_process_create(const char *path)
         ctrl_msg.offset = APP_PROCESS_IPC_SHARED_BUFFER_SIZE;
     }
 
+    // currently, use file_id field to transfer proc_id
     ctrl_msg.file_id = -1;
     struct ipc_buffer_ctrl_msg ret;
     assert (0 == ipc_call(&ctrl_msg, path, &ret));

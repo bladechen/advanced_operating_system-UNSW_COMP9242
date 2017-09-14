@@ -50,23 +50,30 @@ static void clear_proc(struct proc* proc)
     proc->p_status = PROC_STATUS_RUNNING;
 }
 
-
-struct proc* proc_array[128];
-int proc_count = 0;
-
+/*
+*   Use proc_id % PROC_ARRAY_SIZE to retrieve the location on proc_array
+*   Design, the proc_id may greater than the size of proc_array, so that
+*   the reuse of proc_id will have to experience a longer time, which will
+*   help to mitigate the problem may happen with proc id reuse
+*/
+#define MAX_PROC_ID 256
+#define PROC_ARRAY_SIZE 128
+struct proc* proc_array[PROC_ARRAY_SIZE] = {NULL}; // make sure it initialized as NULL
+int proc_id_counter = 0;
 
 static void init_kproc(char* kname)
 {
     clear_proc(&kproc);
     kproc.p_name = kname;
-    kproc.p_pid = 0;
+    kproc.p_pid = proc_id_counter;
     kproc.p_pagetable = (struct pagetable*)(kcreate_pagetable());
     kproc.p_addrspace = NULL; // i don't need the restriction.
     kproc.p_tcb = NULL;
     kproc.p_croot = NULL;
     kproc.p_ep_cap = 0;
     set_kproc_coro(&kproc);
-    proc_array[proc_count ++] = &kproc;
+    /* should be proc-id 0, the very first proc*/
+    proc_array[proc_id_counter++] = &kproc;
 }
 
 void proc_bootstrap()
@@ -79,6 +86,47 @@ void proc_bootstrap()
 
 /* void loop_through_region(struct addrspace *as); */
 
+static int find_next_proc_id() 
+{
+    if (proc_id_counter >= MAX_PROC_ID) {
+        proc_id_counter = 0;
+    }   
+
+    int i = PROC_ARRAY_SIZE;
+    while(proc_array[proc_id_counter % PROC_ARRAY_SIZE] != NULL) {
+        if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status != PROC_STATUS_RUNNING) 
+        {
+            break;
+        }
+
+        proc_id_counter++;
+        if (proc_id_counter >= MAX_PROC_ID) {
+            proc_id_counter = 0;
+        }
+        if (--i <= 0) {
+            break;
+        }
+    }
+
+    // can't find an empty slot on proc_array
+    if (i <= 0) {
+        return -1;
+    }
+
+    if (proc_array[proc_id_counter % PROC_ARRAY_SIZE] == NULL) {
+        return proc_id_counter++;
+    } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE ||
+        proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_DIE) {
+        proc_destroy(proc_array[proc_id_counter % PROC_ARRAY_SIZE]);
+        proc_array[proc_id_counter % PROC_ARRAY_SIZE] = NULL;
+        return proc_id_counter++; 
+    } else {
+        // should not reach here
+        assert(0);
+        return -1;
+    }
+}
+
 
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
@@ -90,16 +138,19 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     }
     clear_proc(process);
 
-
     process->p_name = name;
     // TODO: set the pid dynamically, now we hard code it as 2
-    process->p_pid = proc_count;
 
-    process->p_badge = proc_count;
+    int proc_id = find_next_proc_id();
 
-    // TODO: use large pid loop, and check before put it into slot
-    proc_array[proc_count ++] = process;
+    if (proc_id == -1) {
+        free(process);
+        return NULL;
+    }
 
+    process->p_pid = proc_id;
+    process->p_badge = proc_id % PROC_ARRAY_SIZE;
+    proc_array[proc_id % PROC_ARRAY_SIZE] = process;
 
 
     /*
