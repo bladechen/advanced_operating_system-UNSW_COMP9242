@@ -138,9 +138,6 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     }
     clear_proc(process);
 
-    process->p_name = name;
-    // TODO: set the pid dynamically, now we hard code it as 2
-
     int proc_id = find_next_proc_id();
 
     if (proc_id == -1) {
@@ -148,10 +145,10 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
         return NULL;
     }
 
+    process->p_name = name;
     process->p_pid = proc_id;
     process->p_badge = proc_id % PROC_ARRAY_SIZE;
     proc_array[proc_id % PROC_ARRAY_SIZE] = process;
-
 
     /*
     *  pagetable will take care of the virtual address root
@@ -223,14 +220,11 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     unsigned long elf_size;
     // According to `extern char _cpio_archive[];` in main.c
     // It has been declared in main.c
-    printf("#############in proc_create name: %s\n", name);
     char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
     conditional_panic(!elf_base, "Unable to locate cpio header");
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), name);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "name: %s\n", name);
     
-
-
     /*** load the elf image info, set up addrspace ***/
     // DATA and CODE region is set up by `vm_elf_load`
     err = vm_elf_load(process->p_addrspace, process->p_pagetable->vroot.cap, elf_base);
