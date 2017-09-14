@@ -111,8 +111,8 @@ int main(void){
         printf("task:\tHello world, I'm\ttty_test! %d\n", i);
         /* thread_block(); */
         i++;
-        sleep(10);	// Implement this as a syscall
-    } while(1);
+        sleep(2);	// Implement this as a syscall
+    } while(i<5);
 
     return 0;
 }

@@ -377,8 +377,6 @@ void sos_syscall_create_process(void * argv)
     memcpy(proc_name, ipc_buf, proc->p_ipc_ctrl.offset);
     proc_name[proc->p_ipc_ctrl.offset] = '\0';
 
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "######### the process name get from ipc: %s\n", proc_name);
-
     struct proc * new_proc = proc_create(proc_name, _sos_ipc_ep_cap);
     if (new_proc == NULL) 
     {

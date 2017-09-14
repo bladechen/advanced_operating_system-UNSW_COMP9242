@@ -108,7 +108,7 @@ static int find_next_proc_id()
         }
     }
 
-    // can't find an empty slot on proc_array
+    // if can't find an empty slot on proc_array
     if (i <= 0) {
         return -1;
     }

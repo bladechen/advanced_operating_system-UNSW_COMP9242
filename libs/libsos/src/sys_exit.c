@@ -45,8 +45,8 @@ sys_getpid(va_list ap) {
 long
 sys_exit(va_list ap)
 {
-    tty_debug_print("sys_exit");
-    assert(0 == 1);
+    tty_debug_print("sys_exit\n");
+    // assert(0 == 1);
     abort();
     return 0;
 }
@@ -54,8 +54,10 @@ sys_exit(va_list ap)
 long
 sys_exit_group(va_list ap)
 {
-    tty_debug_print("sys_exit");
-    assert(0 == 2);
+    tty_debug_print("sys_exit_group\n");
+    // assert(0 == 2);
+
+    /* replace this with process_delete() */
     abort();
     return 0;
 }
