@@ -368,10 +368,16 @@ void sos_syscall_brk(void* argv)
 void sos_syscall_create_process(void * argv) 
 {
     struct proc* proc = (struct proc*) argv;
-    assert(proc == get_current_proc());
+    // assert(proc == get_current_proc());
 
-    char* proc_name = (get_ipc_buffer(proc));
+    char* ipc_buf = (get_ipc_buffer(proc));
     struct ipc_buffer_ctrl_msg ctrl;
+
+    char proc_name[proc->p_ipc_ctrl.offset + 1];
+    memcpy(proc_name, ipc_buf, proc->p_ipc_ctrl.offset);
+    proc_name[proc->p_ipc_ctrl.offset] = '\0';
+
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "######### the process name get from ipc: %s\n", proc_name);
 
     struct proc * new_proc = proc_create(proc_name, _sos_ipc_ep_cap);
     if (new_proc == NULL) 

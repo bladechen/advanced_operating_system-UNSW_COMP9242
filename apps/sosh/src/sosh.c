@@ -179,6 +179,8 @@ static int exec(int argc, char **argv) {
         assert(r == 0);
     }
 
+
+    tty_debug_print("######### in exec process name: %s\n", argv[1]);
     pid = sos_process_create(argv[1]);
 
     while(1){}
@@ -419,7 +421,6 @@ int main(void) {
 
     /* while (1){} */
     printf("\n[SOS SHELL Starting]\n");
-    tty_debug_print("\n[SOS SHELL Starting]\n");
 
     while (!done) {
         if (new) {
