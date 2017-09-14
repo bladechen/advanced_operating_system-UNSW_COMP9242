@@ -117,6 +117,7 @@ static int find_next_proc_id()
         return proc_id_counter++;
     } else if (proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_ZOMBIE ||
         proc_array[proc_id_counter % PROC_ARRAY_SIZE]->p_status == PROC_STATUS_DIE) {
+        // no longer in use, then, help to clean that up.
         proc_destroy(proc_array[proc_id_counter % PROC_ARRAY_SIZE]);
         proc_array[proc_id_counter % PROC_ARRAY_SIZE] = NULL;
         return proc_id_counter++; 

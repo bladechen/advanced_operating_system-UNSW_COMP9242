@@ -58,6 +58,8 @@ sys_exit_group(va_list ap)
     // assert(0 == 2);
 
     /* replace this with process_delete() */
+
+    // we need another syscall, proc_exit()
     abort();
     return 0;
 }
