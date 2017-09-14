@@ -1,11 +1,14 @@
 #ifndef _PROC_H_
 #define _PROC_H_
 
+
+#include "coroutine/synch.h"
 #include "comm/comm.h"
 #include "vm/pagetable.h"
 #include "fs/fdtable.h"
 #include "vm/address_space.h"
 #include "coroutine/coro.h"
+#include "comm/list.h"
 #include <sos.h>
 
 
@@ -13,9 +16,8 @@
 enum PROC_STATUS
 {
 
-    PROC_STATUS_RUNNING = 0,
-    PROC_STATUS_ZOMBIE = 1,
-    PROC_STATUS_DIE    = 2,
+    PROC_STATUS_RUNNING = 1,
+    PROC_STATUS_ZOMBIE = 2,
 
 };
 
@@ -48,6 +50,19 @@ struct proc
 
     uint32_t p_badge;
 
+
+    // bool p_exitflag;
+
+    struct list children_list; // for managing the child proc
+
+    struct list_head as_child_next; // used as child link node for the parent proc
+
+    pid_t  p_father_pid;
+
+    bool someone_wait;
+    struct semaphore* p_waitchild;
+
+
 };
 
 
@@ -75,6 +90,9 @@ struct addrspace *proc_getas(void);
 struct addrspace *proc_setas(struct addrspace *);
 
 
+struct proc* proc_get_child(pid_t pid);
+
+void proc_handle_children_process(struct proc * process);
 inline static void proc_to_be_killed(struct proc* proc)
 {
     proc->p_status = PROC_STATUS_ZOMBIE;
