@@ -368,7 +368,7 @@ void sos_syscall_brk(void* argv)
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
-void sos_syscall_create_process(void * argv) 
+void sos_syscall_create_process(void * argv)
 {
     struct proc* proc = (struct proc*) argv;
     // assert(proc == get_current_proc());
@@ -381,7 +381,7 @@ void sos_syscall_create_process(void * argv)
     proc_name[proc->p_ipc_ctrl.offset] = '\0';
 
     struct proc * new_proc = proc_create(proc_name, _sos_ipc_ep_cap);
-    if (new_proc == NULL) 
+    if (new_proc == NULL)
     {
         ctrl.ret_val = ENOMEM;
         ctrl.file_id = -1;
@@ -400,8 +400,52 @@ void sos_syscall_create_process(void * argv)
 }
 
 void sos_syscall_delete_process(void * argv){}
-void sos_syscall_wait_process(void * argv){} 
-void sos_syscall_process_status(void * argv){}
+
+void sos_syscall_wait_process(void * argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+
+    struct ipc_buffer_ctrl_msg ctrl;
+    pid_t pid = proc->p_ipc_ctrl.file_id;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %u wait for %u\n",proc->p_pid, pid);
+    struct proc* wait_proc = proc_get_child(pid);
+    if (wait_proc == NULL)
+    {
+        ERROR_DEBUG("not find the child proc\n");
+        ctrl.ret_val = ECHILD;
+        goto wait_end;
+    }
+    if (wait_proc->p_status == PROC_STATUS_ZOMBIE)
+    {
+        ERROR_DEBUG("zombie proc exit\n");
+        ctrl.ret_val = 0;
+        proc_destroy(wait_proc);
+        goto wait_end;
+    }
+    else
+    {
+        proc->p_waitchild = sem_create("waiting child", 0, -1);
+        if (proc->p_waitchild == NULL)
+        {
+            ERROR_DEBUG("no enough mem creating sem\n");
+            ctrl.ret_val = ENOMEM;
+            goto wait_end;
+        }
+        wait_proc->someone_wait = true;
+        P(proc->p_waitchild);
+        sem_destroy(proc->p_waitchild);
+        proc_destroy(wait_proc);
+    }
+wait_end:
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
+    return;
+}
+
+void sos_syscall_process_status(void * argv)
+{
+
+}
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {

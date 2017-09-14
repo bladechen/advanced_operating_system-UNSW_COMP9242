@@ -54,7 +54,17 @@ int sos_process_delete(pid_t pid)
 
 pid_t sos_process_wait(pid_t pid)
 {
-    handle_no_implemented_syscall("sos_process_wait");
+    tty_debug_print("[app] sos_process_wait with pid %d\n", pid);
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+    ctrl_msg.syscall_number = SOS_SYSCALL_PROCESS_WAIT;
+
+    // currently, use file_id field to transfer proc_id
+    ctrl_msg.file_id = pid;
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
+    // FIXME implement myid
+    tty_debug_print("[app] sos_process_wait return %d\n", ret.ret_val);
+    assert(ret.ret_val == 0);
     return 0;
 }
 
