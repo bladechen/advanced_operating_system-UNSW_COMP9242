@@ -32,6 +32,7 @@ void sos_syscall_create_process(void* proc);
 void sos_syscall_delete_process(void* proc);
 void sos_syscall_wait_process(void* proc);
 void sos_syscall_process_status(void* proc);
+void sos_syscall_exit_process(void* proc);
 
 
 #endif // SOS_SYSCALL_H

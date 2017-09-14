@@ -35,6 +35,12 @@ pid_t sos_process_create(const char *path)
 
 int sos_process_delete(pid_t pid)
 {
+	// It is the proc max, hard code for now
+	if (pid <= 1 || pid >= 256) {
+		tty_debug_print("[app] invalid pid for sos_process_delete\n");
+		return -1;
+	}
+
     tty_debug_print("[app] sos_process_delete with pid %d\n", pid);
     struct ipc_buffer_ctrl_msg ctrl_msg ;
 
@@ -72,4 +78,21 @@ int sos_process_status(sos_process_t *processes, unsigned max)
 {
     handle_no_implemented_syscall("sos_process_status");
     return 0;
+}
+
+
+void sos_process_exit()
+{
+	tty_debug_print("[app] sos_process_exit start\n");
+
+	/* should use seL4_Send, since we do not expect any response*/
+    struct ipc_buffer_ctrl_msg ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_PROCESS_EXIT;
+
+    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, IPC_CTRL_MSG_LENGTH);
+    seL4_SetTag(tag);
+
+    serialize_ipc_ctrl_msg(&ctrl_msg);
+    seL4_Send(SYSCALL_ENDPOINT_SLOT, tag);
 }

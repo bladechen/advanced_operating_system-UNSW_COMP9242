@@ -399,7 +399,6 @@ void sos_syscall_create_process(void * argv)
     ipc_reply(&ctrl, &(proc->p_reply_cap));
 }
 
-void sos_syscall_delete_process(void * argv){}
 
 void sos_syscall_wait_process(void * argv)
 {
@@ -446,6 +445,40 @@ void sos_syscall_process_status(void * argv)
 {
 
 }
+void sos_syscall_delete_process(void * argv)
+{
+    struct proc* proc = (struct proc*) argv;
+
+    struct ipc_buffer_ctrl_msg ctrl;
+
+    int pid = proc->p_ipc_ctrl.file_id;
+    assert(pid>0);
+
+    struct proc * proc_to_be_deleted = get_proc_by_pid(pid);
+    proc_to_be_deleted->p_status = PROC_STATUS_ZOMBIE;
+    // seL4 stop runing this process, and will clean up the
+    // data structrue in `recycle_process` in syscall loop in main.c
+    seL4_TCB_Suspend(proc_to_be_deleted->p_tcb->cap);
+
+    ctrl.offset = 0;
+    ctrl.ret_val = 0;
+    ctrl.file_id = 0;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_delete_process proc\n");
+
+    ipc_reply(&ctrl, &(proc->p_reply_cap));
+}
+
+// try to kill itself
+void sos_syscall_exit_process(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+
+    // do not need to reply anything, this is all we need to do
+    proc->p_status = PROC_STATUS_ZOMBIE;
+    seL4_TCB_Suspend(proc->p_tcb->cap);
+}
+
+
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {

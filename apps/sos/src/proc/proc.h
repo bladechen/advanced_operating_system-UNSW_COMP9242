@@ -11,7 +11,8 @@
 #include "comm/list.h"
 #include <sos.h>
 
-
+#define PROC_ARRAY_SIZE 128
+#define MAX_PROC_ID PROC_ARRAY_SIZE
 
 enum PROC_STATUS
 {
@@ -82,6 +83,8 @@ int proc_suspend(struct proc* proc);
 int proc_resume(struct proc* proc);
 
 void recycle_process();
+
+struct proc * get_proc_by_pid(int pid);
 
 /* Fetch the address space of the current process. */
 struct addrspace *proc_getas(void);

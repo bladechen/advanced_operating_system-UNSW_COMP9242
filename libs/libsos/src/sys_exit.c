@@ -47,7 +47,7 @@ sys_exit(va_list ap)
 {
     tty_debug_print("sys_exit\n");
     // assert(0 == 1);
-    abort();
+    // abort();
     return 0;
 }
 
@@ -57,10 +57,9 @@ sys_exit_group(va_list ap)
     tty_debug_print("sys_exit_group\n");
     // assert(0 == 2);
 
-    /* replace this with process_delete() */
-
-    // we need another syscall, proc_exit()
-    abort();
+    /* replace this with sos_process_exit() */
+    // abort();
+    sos_process_exit();
     return 0;
 }
 
