@@ -174,7 +174,7 @@ int do_sys_open(int dfd,const char* filename, int flags, mode_t mode, struct fil
 }
 int do_sys_close(int fd)
 {
-    return __close_fd(get_current_proc()->fs_struct, fd);
+    return __close_fd(get_current_proc()->p_resource.fs_struct, fd);
 }
 
 int do_sys_remove(const char* filename)
@@ -280,7 +280,7 @@ int do_sys_remove(const char* filename)
 /* } */
 int do_sys_read(int fd, char* buf, size_t buf_len)
 {
-    struct files_struct* fst = get_current_proc()->fs_struct;
+    struct files_struct* fst = get_current_proc()->p_resource.fs_struct;
     if (is_valid_fd(fst, fd) == 0)
     {
         ERROR_DEBUG("do_sys_read invalid fd: %d\n",fd);
@@ -311,7 +311,7 @@ int do_sys_read(int fd, char* buf, size_t buf_len)
 }
 ssize_t do_sys_write(int fd, const void *buf, size_t buf_len)
 {
-    struct files_struct* fst = get_current_proc()->fs_struct;
+    struct files_struct* fst = get_current_proc()->p_resource.fs_struct;
     if (is_valid_fd(fst, fd) == 0)
     {
         ERROR_DEBUG("do_sys_write invalid fd: %d\n",fd);
@@ -383,77 +383,79 @@ static int __init_fdt(struct fdtable* fdt)
         fdt->fd_array[i] = NULL;
     }
     // reserve 0/1/2.
-    fdt->fd_array[0] = (void*)0x01;
-    fdt->fd_array[1] = (void*)0x01;
-    fdt->fd_array[2] = (void*)0x01;
-    fdt->open_fds_bits[0] = 0x7;
+    /* fdt->fd_array[0] = 0; */
+    /* fdt->fd_array[1] = (void*)0x01; */
+    /* fdt->fd_array[2] = (void*)0x01; */
+    /* fdt->open_fds_bits[0] = 0x7; */
     /* fdt->open_fds_bits[0] =  */
 
     return 0;
 }
-/* int init_stdio(struct files_struct* fst) */
-/* { */
-/*     #<{(| (void)fst; |)}># */
-/*     int ret = do_sys_open(0, NULL, 0, 0, fst); */
-/*     if ( ret < 0) */
-/*     { */
-/*         return ret; */
-/*     } */
-/*  */
-/*     ret = do_sys_open(1, NULL, 0, 0, fst); */
-/*     if ( ret < 0) */
-/*     { */
-/*         return ret; */
-/*     } */
-/*  */
-/*     ret = do_sys_open(2, NULL, 0, 0, fst); */
-/*     if ( ret < 0) */
-/*     { */
-/*         return ret; */
-/*     } */
-/*  */
-/*     return 0; */
-/* } */
-
-int init_fd_table(struct proc* cur)
+int init_stdio(struct files_struct* fst)
 {
-
-    assert(cur != NULL);
-    cur->fs_struct = malloc(sizeof(*(cur->fs_struct)));
-    if (cur->fs_struct == NULL)
+    /* int ret = do_sys_open(0, NULL, 0, 0, fst); */
+    /* if ( ret < 0) */
+    /* { */
+    /*     return ret; */
+    /* } */
+    /*  */
+    int ret = do_sys_open(1, NULL, 0, 0, fst);
+    if ( ret < 0)
     {
-        return ENOMEM;
+        return ret;
     }
 
-    cur->fs_struct->fdt = malloc(sizeof((*cur->fs_struct->fdt)));
-    if (cur->fs_struct->fdt == NULL)
+    ret = do_sys_open(2, NULL, 0, 0, fst);
+    if ( ret < 0)
     {
-
-        free(cur->fs_struct);
-        cur->fs_struct = NULL;
-        return ENOMEM;
+        return ret;
     }
-    int ret = __init_fdt(cur->fs_struct->fdt);
-    if (ret != 0)
-    {
-        free(cur->fs_struct->fdt);
 
-        free(cur->fs_struct);
-        cur->fs_struct = NULL;
-        return ENOMEM;
-    }
     return 0;
 }
 
-void destroy_fd_table(struct proc* proc)
+int init_fd_table(struct files_struct** ret)
 {
-    assert(proc != NULL);
 
-    struct fdtable* fdt = proc->fs_struct->fdt;
-    __destroy_fdt(fdt, proc->fs_struct);
+    struct files_struct* tmp = NULL;
+    *ret = NULL;
+    tmp = malloc(sizeof(struct files_struct));
+    if (tmp == NULL)
+    {
+        return ENOMEM;
+    }
+    tmp->fdt = malloc(sizeof((*tmp->fdt)));
+    if (tmp->fdt == NULL)
+    {
+        free(tmp);
+        return ENOMEM;
+    }
+    int res = __init_fdt(tmp->fdt);
+    if (res != 0)
+    {
+        free(tmp->fdt);
+        free(tmp);
+        return ENOMEM;
+    }
+    res = init_stdio(tmp);
+    if (res != 0)
+    {
+        destroy_fd_table(tmp);
+        return ENOMEM;
+    }
+    *ret = tmp;
+    return 0;
+}
 
-    free(proc->fs_struct->fdt);
-    free(proc->fs_struct);
+void destroy_fd_table(struct files_struct* ret)
+{
+    assert(ret != NULL);
+
+    struct fdtable* fdt = ret->fdt;
+    __destroy_fdt(fdt, ret);
+
+    free(fdt);
+    free(ret);
     return;
 }
 

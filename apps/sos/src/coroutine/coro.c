@@ -87,7 +87,7 @@ static struct coroutine* new_coro()
 // FIXME remove assert 0
 static vaddr_t alloc_stack_mem()
 {
-    struct pagetable* pt = schedule_obj._daemon->_proc->p_pagetable;
+    struct pagetable* pt = proc_pagetable(schedule_obj._daemon->_proc);
     int ret = alloc_page(pt, schedule_obj._stack_base, seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead );
 
     assert( 0 == ret);
@@ -107,7 +107,7 @@ static vaddr_t alloc_stack_mem()
 
 static void free_stack_mem(vaddr_t vaddr)
 {
-    struct pagetable* pt = schedule_obj._daemon->_proc->p_pagetable;
+    struct pagetable* pt = proc_pagetable(schedule_obj._daemon->_proc);
     free_page(pt, vaddr - seL4_PAGE_SIZE);
     free_page(pt, vaddr );
     free_page(pt, vaddr + seL4_PAGE_SIZE);
@@ -265,7 +265,8 @@ struct coroutine* create_coro(coroutine_func func, void* argv)
         destroy_coro(coro);
         return NULL;
     }
-    make_coro_runnable(coro);
+    if (func != NULL)
+        make_coro_runnable(coro);
     return coro;
 }
 

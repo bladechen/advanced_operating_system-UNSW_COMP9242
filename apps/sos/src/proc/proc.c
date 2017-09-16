@@ -1,7 +1,3 @@
-/*
-    Process related operations
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -16,11 +12,7 @@
 #include <cpio/cpio.h>
 #include "comm/comm.h"
 #include "comm/list.h"
-
-#define verbose 5
-#include <sys/debug.h>
 #include <sys/panic.h>
-
 #include "proc.h"
 #include "vm/address_space.h"
 #include "vm/pagetable.h"
@@ -31,314 +23,482 @@
 
 struct proc kproc;
 
-// TODO, now we assume there is only one process, and the badge
-// is hard coded, may try create badge dynamically
-/* #define TEMP_ONE_PROCESS_BADGE (1<<3) */
-
+// TODO remove it in m8
 extern char _cpio_archive[];
 
-static int get_free_pid();
-static void set_free_pid();
 
+static inline int get_proc_status(struct proc* proc)
+{
+    return proc->p_status.status;
+}
+
+static inline bool proc_status_check(int from_status, int to_status)
+{
+    if (from_status == PROC_STATUS_INVALID)
+    {
+        return (to_status == PROC_STATUS_INIT);
+    }
+    else if (from_status == PROC_STATUS_INIT)
+    {
+        return (to_status == PROC_STATUS_EXIT || // load elf fails
+               to_status == PROC_STATUS_RUNNING);
+    }
+    else if (from_status == PROC_STATUS_RUNNING)
+    {
+        return (to_status == PROC_STATUS_EXIT);
+    }
+    else if (from_status == PROC_STATUS_EXIT)
+    {
+        return (to_status == PROC_STATUS_ZOMBIE);
+    }
+    else
+    {
+        assert(0);
+    }
+    return false;
+}
+
+static inline void set_proc_status(struct proc* proc, int status)
+{
+    int cur_status = get_proc_status(proc);
+    assert(proc_status_check(cur_status, status));
+    proc->p_status.status = status;
+}
+
+static void clear_proc_resource(struct proc* proc)
+{
+    proc->p_resource.p_addrspace = NULL;
+    proc->p_resource.p_pagetable = NULL;
+    proc->p_resource.fs_struct = NULL;
+    proc->p_resource.p_tcb = NULL;
+    proc->p_resource.p_croot = NULL;
+    proc->p_resource.p_ep_cap = 0;
+}
+
+static void clear_proc_status(struct proc* proc)
+{
+    proc->p_status.name = NULL;
+    proc->p_status.status = PROC_STATUS_INVALID;
+    proc->p_status.stime = (unsigned int)(time_stamp()/1000);
+
+}
+static void clear_proc_context(struct proc* proc)
+{
+    proc->p_context.p_reply_cap = 0;
+    proc->p_context.vm_fault_code = 0;
+}
 
 static void clear_proc(struct proc* proc)
 {
-    proc->p_name = NULL;
     proc->p_pid = -1;
-    proc->p_addrspace = NULL;
-    proc->p_pagetable = NULL;
-    proc->p_tcb = NULL;
-    proc->p_croot = NULL;
-    proc->p_ep_cap = 0;
-    proc->p_coro = NULL;
-    proc->p_reply_cap = 0;
-    proc->fs_struct = NULL;
-    proc->p_status = PROC_STATUS_ZOMBIE;
-    proc->vm_fault_code = -1;
-    proc->p_badge = 0;
     proc->p_father_pid =  -1;
+    proc->p_coro = NULL;
     proc->someone_wait = false;
+
+    proc->p_waitchild = NULL;
     list_init(&(proc->children_list));
     link_init(&(proc->as_child_next));
-}
-
-/*
-*   Use proc_id % PROC_ARRAY_SIZE to retrieve the location on proc_array
-*   Design, the proc_id may greater than the size of proc_array, so that
-*   the reuse of proc_id will have to experience a longer time, which will
-*   help to mitigate the problem may happen with proc id reuse
-*/
-struct proc* proc_array[PROC_ARRAY_SIZE] = {NULL}; // make sure it initialized as NULL
-
-uint32_t proc_id_counter = 0;
-
-uint32_t proc_free_slot_counter = PROC_ARRAY_SIZE;
-
-static int procid_to_procarray_index(uint32_t proc_id)
-{
-    return proc_id % PROC_ARRAY_SIZE;
+    clear_proc_resource(proc);
+    clear_proc_status(proc);
+    clear_proc_context(proc);
 }
 
 
 static void init_kproc(char* kname)
 {
     clear_proc(&kproc);
-    kproc.p_name = strdup(kname);
-    kproc.p_pagetable = (struct pagetable*)(kcreate_pagetable());
-    kproc.p_addrspace = NULL; // i don't need the restriction.
-    kproc.p_tcb = NULL;
-    kproc.p_croot = NULL;
-    kproc.p_ep_cap = 0;
-    kproc.stime = 0;
-    set_kproc_coro(&kproc);
-    /* should be proc-id 0, the very first proc*/
-    kproc.p_pid = get_free_pid();
-    proc_array[procid_to_procarray_index(kproc.p_pid)] = &kproc;
+    kproc.p_status.name = strdup(kname);
+    kproc.p_resource.p_pagetable = (struct pagetable*)(kcreate_pagetable());
+    set_kproc_coro(&kproc); //daemon coroutine
+    kproc.p_pid = alloc_pid(&kproc);
+    kproc.p_father_pid = -1; // i have no parent..
+    assert(kproc.p_pid == 0);
 }
 
 void proc_bootstrap()
 {
-    static char* kname = "sos_kernel";
+    char* kname = "sos_kernel";
     bootstrap_coro_env();
     init_kproc(kname);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "kernel proc at: %p, coroutine at: %p\n", &kproc, kproc.p_coro)
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "kernel proc at: %p, coroutine at: %p\n", &kproc, kproc.p_coro);
+    kproc.p_status.status = PROC_STATUS_RUNNING;
 }
 
-struct proc * get_proc_by_pid(int pid)
+
+static void _free_proc_resource(struct proc* process)
 {
-    if (pid < 0)
+    /* assert(process->p_status.status == PROC_STATUS_INVALID ||process->p_status.status == PROC_STATUS_INIT  || process->p_status.status  == PROC_STATUS_EXIT); */
+    /*  */
+    destroy_reply_cap(&process->p_context.p_reply_cap);
+    if (process->p_resource.fs_struct != NULL)
     {
-        return NULL;
+        destroy_fd_table(process->p_resource.fs_struct);
+        process->p_resource.fs_struct = NULL;
     }
-    struct proc * temp = proc_array[pid % PROC_ARRAY_SIZE];
-    assert(temp != NULL);
-    if (temp->p_pid == pid)
+
+    if (process->p_status.name != NULL )
     {
-        return temp;
+        free(process->p_status.name);
+        process->p_status.name = NULL;
     }
-    return NULL;
+
+    if (process->p_resource.p_addrspace != NULL)
+    {
+        as_destroy(process->p_resource.p_addrspace);
+        process->p_resource.p_addrspace = NULL;
+    }
+
+    // FIXME no need double free:
+    if (process->p_resource.p_pagetable != NULL)
+    {
+        destroy_pagetable(process->p_resource.p_pagetable);
+        process->p_resource.p_pagetable = NULL;
+    }
+
+    if (process->p_resource.p_tcb != NULL)
+    {
+        free_sos_object(process->p_resource.p_tcb, seL4_TCBBits);
+        process->p_resource.p_tcb = NULL;
+    }
+
+    /* // revoke & delete capability */
+    if (process->p_resource.p_croot != NULL && process->p_resource.p_ep_cap != 0)
+    {
+        assert(0 == cspace_revoke_cap(process->p_resource.p_croot, process->p_resource.p_ep_cap));
+        assert(0 == cspace_delete_cap(process->p_resource.p_croot, process->p_resource.p_ep_cap));
+        process->p_resource.p_ep_cap = 0;
+    }
+
+    // mentioned in where it is defined, One could also rely on cspace_destroy() to free object,
+    // if, and only if, there are no copies of caps to the object outside of the cspace being destroyed.
+    //XXX This should be a temporary solution
+    if (process->p_resource.p_croot != NULL)
+    {
+        cspace_destroy(process->p_resource.p_croot);
+        process->p_resource.p_croot = NULL;
+    }
+
+    if (process->p_coro != NULL)
+    {
+        destroy_coro(process->p_coro);
+        process->p_coro = NULL;
+    }
 }
 
-/* void loop_through_region(struct addrspace *as); */
-
-static int get_free_pid()
+static void _free_proc_pid(struct proc* process)
 {
-    if (proc_free_slot_counter == 0)
+    assert(process->someone_wait == 0 && process->p_waitchild == NULL);
+    if (process->p_pid != 0)
     {
+        free_pid(process->p_pid);
+        process->p_pid = 0;
+    }
+}
+// free the resource the process hold, except for the process itself and its pid
+static void _free_proc(struct proc * process)
+{
+
+    /* assert(process->p_status.status == PROC_STATUS_INVALID || */
+    /*        process->p_status.status == PROC_STATUS_INIT  || process->p_status.status == PROC_STATUS_EXIT); */
+    // must be father to clear child even it is attach to kproc!
+    /* if (get_current_proc() != &kproc) */
+    {
+        assert(process->p_father_pid == -1 );// || process->p_father_pid == get_current_proc()->p_pid);
+        assert(process != get_current_proc());
+    }
+    /* assert(process->p_pid == -1); */
+    assert(process->p_father_pid == -1);
+    assert(is_list_empty(&process->children_list));
+    assert(!is_linked(&process->as_child_next));
+    assert(process->someone_wait == false);
+    assert(process->p_waitchild == NULL);
+    _free_proc_resource(process);
+    _free_proc_pid(process);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
+    free(process);
+
+    return;
+}
+
+// only alloc proc without doing pid binding or load elf.
+int _init_proc(struct proc* process, char* name, seL4_CPtr fault_ep_cap)
+{
+    assert(process != NULL);
+    assert(process->p_pid > 0); // 0 is for kproc!
+    int ret = 0;
+    process->p_status.name = strdup(name);
+
+    // begin init p_resource
+    process->p_resource.p_pagetable = create_pagetable();
+    if (process->p_resource.p_pagetable == NULL)
+    {
+        ERROR_DEBUG( "proc_create: get a null p_pagetable\n");
         return -1;
     }
-    assert(proc_free_slot_counter > 0 && proc_free_slot_counter <= MAX_PROC_ID);
-    int i = PROC_ARRAY_SIZE;
 
-    int proc_id = proc_id_counter;
-    while(proc_array[proc_id_counter % PROC_ARRAY_SIZE] != NULL)
+    process->p_resource.p_addrspace = as_create(process->p_resource.p_pagetable);
+    if (process->p_resource.p_addrspace == NULL)
     {
-        proc_id_counter++;
-        proc_id = proc_id_counter;
-        i --;
-        assert(i > 0);
+        ERROR_DEBUG("proc_create: get a null p_addrspace\n");
+        return -1;
     }
 
-    proc_free_slot_counter --;
-    assert(i > 0);
-    assert(proc_array[proc_id % PROC_ARRAY_SIZE] == NULL);
-    return proc_id;
+    // the order is first init ipc buffer, then setup fault ep?
+    ret = as_define_ipc(process->p_resource.p_addrspace);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("as_define_ipc err: %d\n", ret);
+        return -1;
+    }
+    ret = as_define_ipc_shared_buffer(process->p_resource.p_addrspace);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("as_define_ipc_shared_buffer err: %d\n", ret);
+        return -1;
+    }
+
+    vaddr_t stack_pointer;
+    ret = as_define_stack(process->p_resource.p_addrspace, &stack_pointer);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("as_define_stack err: %d\n", ret);
+        return -1;
+    }
+
+    ret = as_define_heap(process->p_resource.p_addrspace);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("as_define_heap err: %d\n", ret);
+        return -1;
+    }
+
+    // TODO: as_define_mmap(process->p_addrspace);
+
+    ret = init_fd_table((&process->p_resource.fs_struct));
+    if(ret != 0)
+    {
+        ERROR_DEBUG( "init_fd_table error\n");
+        return -1;
+    }
+
+    // Create a simple 1 level CSpace
+    process->p_resource.p_croot = cspace_create(1);
+    if (process->p_resource.p_croot == NULL)
+    {
+        ERROR_DEBUG("cspace_create error\n");
+        return -1;
+    }
+
+    // Copy the fault endpoint to the user app to enable IPC
+    process->p_resource.p_ep_cap = cspace_mint_cap(process->p_resource.p_croot,
+                                        cur_cspace,
+                                        fault_ep_cap,
+                                        seL4_AllRights,
+                                        seL4_CapData_Badge_new(process->p_pid));
+    assert(process->p_resource.p_ep_cap != CSPACE_NULL);
+    assert(process->p_resource.p_ep_cap == 1);
+
+    struct sos_object * tcb_obj = (struct sos_object *)malloc(sizeof(struct sos_object));
+    if (tcb_obj == NULL)
+    {
+        ERROR_DEBUG("cspace_create error\n");
+        return -1;
+    }
+    clear_sos_object(tcb_obj);
+    ret = init_sos_object(tcb_obj, seL4_TCBObject, seL4_TCBBits);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("Failed to create TCB: %d\n", ret);
+        return -1;
+    }
+    process->p_resource.p_tcb = tcb_obj;
+
+    // configure TCB
+    // hardcode priority as 0
+    ret = seL4_TCB_Configure(process->p_resource.p_tcb->cap,
+                             process->p_resource.p_ep_cap,
+                             0,
+                              process->p_resource.p_croot->root_cnode,
+                              seL4_NilData,
+                              process->p_resource.p_pagetable->vroot.cap,
+                              seL4_NilData,
+                              APP_PROCESS_IPC_BUFFER,
+                              as_get_ipc_cap(process->p_resource.p_addrspace));
+    if (ret != 0)
+    {
+        ERROR_DEBUG("seL4_TCB_Configure failed: %d\n", ret);
+        return -1;
+    }
+
+    // init misc
+    process->p_coro = create_coro(NULL, NULL);
+    if (process->p_coro == NULL)
+    {
+        ERROR_DEBUG("create_coro failed: %d\n", ret);
+        return -1;
+    }
+    process->p_coro->_proc = process;
+
+    loop_through_region(process->p_resource.p_addrspace);
+    set_proc_status(process, PROC_STATUS_INIT);
+    return 0;
 }
 
-static void set_free_pid(int pid)
-{
-    if (pid < 0)
-        return;
-    assert(get_proc_by_pid(pid) != NULL);
-    proc_free_slot_counter ++;
-    proc_array[procid_to_procarray_index(pid)] = NULL;
-}
+/* static void _free_proc_pid(struct proc* proc) */
+/* { */
+/*     assert(proc->p_pid != 0); */
+/*     free_pid(pid); */
+/*     process->p_pid = 0; */
+/* } */
 
-
-// FIXME we need split this function....
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
-    int proc_id = get_free_pid();
-
-    if (proc_id == -1)
-    {
-        return NULL;
-    }
-
     struct proc * process = (struct proc *)malloc(sizeof(struct proc));
     if (process == NULL)
     {
         return NULL;
     }
     clear_proc(process);
-
-    int err = 0;
-    process->p_name = strdup(name);
-    process->p_pid = proc_id;
-    process->p_father_pid = get_current_proc()->p_pid;
-    // TODO we need test badge reuse!!!
-    process->p_badge = proc_id % PROC_ARRAY_SIZE;
-    proc_array[procid_to_procarray_index(proc_id)] = process;
-    process->stime = time_stamp();
-
-    /*
-    *  pagetable will take care of the virtual address root
-    *  IPC buffer will be created and defined in address space
-    *  Stack will be created and defined in address space
-    */
-
-    // Init address space and page table
-    process->p_addrspace = as_create();
-    if (process->p_addrspace == NULL)
+    int pid = alloc_pid(process);
+    if (pid == -1)
     {
-        ERROR_DEBUG("proc_create: get a null p_addrspace\n");
-        proc_destroy(process);
+        _free_proc(process);
         return NULL;
     }
-    process->p_pagetable = create_pagetable();
-    if (process->p_addrspace == NULL)
+    process->p_pid = pid;
+    int ret = _init_proc(process, name, fault_ep_cap);
+    if (ret != 0)
     {
-        ERROR_DEBUG( "proc_create: get a null p_pagetable\n");
-        proc_destroy(process);
+        ERROR_DEBUG("try to init proc '%s' with pid: %d error\n", name, pid);
+        _free_proc_pid(process);
+        _free_proc(process);
         return NULL;
     }
-
-    if( init_fd_table(process))
-    {
-        ERROR_DEBUG( "init_fd_table error\n");
-        proc_destroy(process);
-        return NULL;
-    }
-    process->p_addrspace->proc = process;
-
-    // Create a simple 1 level CSpace
-    process->p_croot = cspace_create(1);
-    assert(process->p_croot != NULL);
-
-    // the order is first init ipc buffer, then setup fault ep?
-    as_define_ipc(process, process->p_addrspace);
-    as_define_ipc_shared_buffer(process, process->p_addrspace);
-    // Copy the fault endpoint to the user app to enable IPC
-    process->p_ep_cap = cspace_mint_cap(process->p_croot,
-                                        cur_cspace,
-                                        fault_ep_cap,
-                                        seL4_AllRights,
-                                        seL4_CapData_Badge_new(process->p_badge));
-    assert(process->p_ep_cap != CSPACE_NULL);
-    assert(process->p_ep_cap == 1);// FIXME
-
-    // Create a new TCB object
-    struct sos_object * tcb_obj = (struct sos_object *)malloc(sizeof(struct sos_object));
-    clear_sos_object(tcb_obj);
-    err = init_sos_object(tcb_obj, seL4_TCBObject, seL4_TCBBits);
-    conditional_panic(err, "Failed to create TCB");
-    process->p_tcb = tcb_obj;
-
-    // configure TCB
-    // hardcode priority as 0
-    err = seL4_TCB_Configure(process->p_tcb->cap,
-                             process->p_ep_cap,
-                             0,
-                              process->p_croot->root_cnode,
-                              seL4_NilData,
-                              process->p_pagetable->vroot.cap,
-                              seL4_NilData,
-                              APP_PROCESS_IPC_BUFFER,
-                              as_get_ipc_cap(process->p_addrspace));
-    conditional_panic(err, "Unable to configure new TCB");
-
-    // parse the cpio image
-    unsigned long elf_size;
-    // According to `extern char _cpio_archive[];` in main.c
-    // It has been declared in main.c
-    char * elf_base = cpio_get_file(_cpio_archive, name, &elf_size);
-    if (elf_base == NULL)
-    {
-        proc_destroy(process);
-        return NULL;
-    }
-    /* conditional_panic(!elf_base, "Unable to locate cpio header"); */
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), name);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "name: %s\n", name);
-
-    /*** load the elf image info, set up addrspace ***/
-    // DATA and CODE region is set up by `vm_elf_load`
-    err = vm_elf_load(process->p_addrspace, process->p_pagetable->vroot.cap, elf_base);
-    conditional_panic(err, "Failed to load elf image");
-
-    // This pointer here is useless act as a placeholder
-    vaddr_t stack_pointer;
-    as_define_stack(process->p_addrspace, &stack_pointer);
-
-    as_define_heap(process->p_addrspace);
-
-    // TODO: as_define_mmap(process->p_addrspace);
-
-    loop_through_region(process->p_addrspace);
-
-    // each user level process has one coroutine at sos side
-    process->p_coro = create_coro(NULL, NULL);
-    assert(process->p_coro != NULL);
-    process->p_coro->_proc = process;
-    list_add_tail(&(process->as_child_next), &(get_current_proc()->children_list.head));
     return process;
 }
 
-void proc_activate(struct proc * process)
+// should in coroutine, because we need block loading elf from nfs later in m8 XXX
+bool proc_load_elf(struct proc * process, char* file_name)
 {
-    if (process->p_status == PROC_STATUS_RUNNING)
+    assert(get_proc_status(process) == PROC_STATUS_INIT);
+    unsigned long elf_size;
+    char * elf_base = cpio_get_file(_cpio_archive, file_name, &elf_size);
+    if (elf_base == NULL)
     {
-        return;
+        ERROR_DEBUG("cpio_get_file NULL\n");
+        return false;
     }
-    process->p_status = PROC_STATUS_RUNNING;
+    /* conditional_panic(!elf_base, "Unable to locate cpio header"); */
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), file_name);
+
+    /*** load the elf image info, set up addrspace ***/
+    // DATA and CODE region is set up by `vm_elf_load`
+    //  in parent coroutine!
+    int err = vm_elf_load(process->p_resource.p_addrspace, process->p_resource.p_pagetable->vroot.cap, elf_base);
+    if (err != 0)
+    {
+        return false;
+    }
+    return true;
+}
+
+
+static int _init_proc_argv_on_stack(struct proc* proc, int argc, char** argv, uint32_t* argv_addr, uint32_t* stack_top)
+{
+    *argv_addr = 0;
+    if (argc == 0)
+    {
+        *stack_top = APP_PROCESS_STACK_TOP;
+        return 0;
+    }
+    int total_argv_len = 0;
+    for (int i = 0; i < argc; ++ i)
+    {
+        total_argv_len += strlen(argv[0]);
+    }
+    // XXX to make problem easy, we only support less than 1 pages argv.
+    if (total_argv_len >= 2048)
+    {
+        ERROR_DEBUG("sos can't support the argv len larger than 2048\n");
+        return -1;
+    }
+    struct  as_region_metadata *region = as_get_region(proc->p_resource.p_addrspace, APP_PROCESS_STACK_TOP - seL4_PAGE_SIZE);
+    assert(region != NULL);
+    int ret = as_handle_page_fault(proc->p_resource.p_pagetable, region, APP_PROCESS_STACK_TOP - seL4_PAGE_SIZE, FAULT_WRITE);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("as_handle_page_fault failed: %d\n", ret);
+        return -1;
+    }
+    uint32_t tmp = page_phys_addr(proc->p_resource.p_pagetable, APP_PROCESS_STACK_TOP - seL4_PAGE_SIZE);
+    assert(tmp != 0);
+
+    *stack_top = APP_PROCESS_STACK_TOP - seL4_PAGE_SIZE;
+    *argv_addr = *stack_top;
+
+    char* phy_addr = (char*)(tmp + 4 * argc);
+    uint32_t virt_addr = *argv_addr ;
+    virt_addr += 4 * argc;
+    for (int i = 0; i < argc; ++ i)
+    {
+        memcpy((char*)(tmp) + 4 * i, &virt_addr, 4);
+        memcpy(phy_addr, argv[i], strlen(argv[i]));
+        phy_addr[strlen(argv[i])] = 0;
+        phy_addr += strlen(argv[i]) + 1;
+        printf ("argv[%d] %s inapp viraddr: 0x%08x len: %d\n", i, argv[i], virt_addr, strlen(argv[i]));
+        virt_addr += strlen(argv[i]) + 1;
+    }
+    /* printf ("%u\n", virt_addr); */
+    *phy_addr = 0;
+    return 0;
+}
+
+int proc_start(struct proc* proc, int argc, char** argv)
+{
+    int err = 0;
+    if (get_proc_status(proc) == PROC_STATUS_RUNNING)
+    {
+        return 0;
+    }
+    assert(get_proc_status(proc) ==  PROC_STATUS_INIT);
     seL4_UserContext context;
     memset(&context, 0, sizeof(context));
-    context.pc = elf_getEntryPoint(process->p_addrspace->elf_base);
-    context.sp = APP_PROCESS_STACK_TOP;
-    seL4_TCB_WriteRegisters(process->p_tcb->cap, 1, 0, 2, &context);
+    uint32_t argv_stack_addr = 0;
+    uint32_t stack_top = 0;
+    err = _init_proc_argv_on_stack(proc, argc, argv, &argv_stack_addr, &stack_top);
+    if (err != 0)
+    {
+        ERROR_DEBUG("_init_proc_argv_on_stack error %d\n", err);
+        return err;
+    }
+    context.r5 = argc;
+    context.r6 = argv_stack_addr;
+    context.pc = elf_getEntryPoint(proc->p_resource.p_addrspace->elf_base);
+    context.sp = stack_top;
+    set_proc_status(proc, PROC_STATUS_RUNNING);
+    seL4_TCB_WriteRegisters(proc->p_resource.p_tcb->cap, 1, 0, 16, &context);
+    return 0;
 }
 
 
 
-// XXX only for current_proc
-// pid is the child pid
-struct proc* proc_get_child(int pid)
+static void _recycle_child(struct proc* proc)
 {
-    if (pid < 0)
-    {
-        return NULL;
-    }
-    struct proc* ret = proc_array[procid_to_procarray_index(pid)];
-    if (ret == NULL || ret->p_father_pid != get_current_proc()->p_pid)
-    {
-        return NULL;
-    }
-    /* assert(!list_empty(&ret->as_child_next)); */
-    return ret;
-}
-
-
-static void recycle_child(struct proc* proc)
-{
-    assert(list_empty(&proc->as_child_next));
-    if (proc->p_status == PROC_STATUS_RUNNING) //place under kproc
+    assert(!is_linked(&proc->as_child_next));
+    if (get_proc_status(proc) == PROC_STATUS_RUNNING) //place under kproc
     {
         COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "place pid: %d under kproc\n", proc->p_pid);
 
         list_add_tail(&(proc->as_child_next), &(kproc.children_list.head));
         proc->p_father_pid = kproc.p_pid;
     }
-    else if(proc->p_status == PROC_STATUS_ZOMBIE) // destroy it
+    else if(get_proc_status(proc) == PROC_STATUS_ZOMBIE) // destroy it
     {
         COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "clear zombie pid: %d \n", proc->p_pid);
-        /* proc_handle_children_process(proc); // XXX recursive.... */
-        // clear zombie
         proc_destroy(proc);
-
     }
     else
     {
-        // something not handled?
         assert(0);
     }
     return;
@@ -353,9 +513,9 @@ static void proc_handle_children_process(struct proc * process)
 	{
         struct proc* child = list_entry(cur, struct proc, as_child_next);
 		assert(child != NULL);
-		link_detach(child, as_child_next);
 		assert(child->p_father_pid == process->p_pid);
-        recycle_child(child);
+        proc_deattch(child);
+        _recycle_child(child);
 	}
 
 	assert(is_list_empty(&(process->children_list)));
@@ -367,120 +527,114 @@ static void proc_handle_children_process(struct proc * process)
 bool proc_wakeup_father(struct proc* child)
 {
     assert(child != NULL);
-    assert(child->p_status == PROC_STATUS_ZOMBIE);
+    assert(get_proc_status(child) == PROC_STATUS_ZOMBIE);
     if (child->someone_wait)
     {
-        struct proc* father = get_proc_by_pid(child->p_father_pid);
+        struct proc* father = pid_to_proc(child->p_father_pid);
         // father killed by someone...
         if (father == NULL)
         {
             ERROR_DEBUG("proc_wakeup_father failed\n");
             return false;
         }
-        if (child->p_father_pid == kproc.p_pid)
+        if (child->p_father_pid == kproc.p_pid) // sosh shell die...
         {
             ERROR_DEBUG("proc_wakeup_father wake up kproc ?????\n");
             return true;
         }
-        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "proc_wakeup_father wake up: %d\n", father->p_pid);
-        assert(father->p_waitchild != NULL);
-        V(father->p_waitchild);
-        return true;
+        if (get_proc_status(father) == PROC_STATUS_RUNNING)
+        {
+            COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "proc_wakeup_father wake up: %d\n", father->p_pid);
+            assert(father->p_waitchild != NULL);
+            V(father->p_waitchild);
+            return true;
+        }
+        else
+        {
+            ERROR_DEBUG("wake up father in status: %d\n", get_proc_status(father));
+        }
     }
+    // father exec this child in background
     ERROR_DEBUG("proc_wakeup_father nothing????\n");
     return false;
-
 }
 
-void proc_attach_kproc(struct proc* child)
+
+void proc_attach_father(struct proc* child, struct proc* father)
 {
-    assert(!list_empty(&(child->as_child_next)));
+    assert(!is_linked(&(child->as_child_next)));
+    assert(child->p_father_pid == -1);;
     list_del(&(child->as_child_next));
-    list_add_tail(&(child->as_child_next), &( kproc.children_list.head));
-    child->p_father_pid = kproc.p_pid;
+    list_add_tail(&(child->as_child_next), &(father->children_list.head));
+    child->p_father_pid = father->p_pid;
 }
 
-// FIXME we need split this function....
-int proc_destroy(struct proc * process)
+void proc_destroy(struct proc * process)
 {
-    // TODO maybe we need handle kproc destroy specially
-    assert(process->p_status == PROC_STATUS_ZOMBIE);
-    // must be father to clear child even it is attach to kproc!
-    if (get_current_proc() != &kproc)
+    assert(process != &kproc);
+    int status = get_proc_status(process);
+    if (status == PROC_STATUS_INIT || status == PROC_STATUS_INVALID)
     {
-        assert(process->p_father_pid == get_current_proc()->p_pid);
-        assert(process != get_current_proc());
+        assert(get_current_proc() != process);
+        _free_proc(process);
     }
-    assert(is_list_empty(&process->children_list));
-    assert(!is_linked(&process->as_child_next));
-    assert(process->someone_wait == false);
-    destroy_reply_cap(&process->p_reply_cap);
-
-    set_free_pid(process->p_pid);
-    // TODO free fs, free pid in M7
-    /* destroy_fd_table(process); TODO */
-
-    if (process->p_name != NULL )
+    else if (status == PROC_STATUS_RUNNING)
     {
-        free(process->p_name);
-        process->p_name = NULL;
+        proc_exit(process);
     }
-
-    if (process->p_addrspace != NULL)
+    else if(status == PROC_STATUS_EXIT)
     {
-        as_destroy(process->p_addrspace);
-        process->p_addrspace = NULL;
-    }
+        assert(get_current_proc() == &kproc);
+        proc_handle_children_process(process);
+        if (!process->someone_wait)
+        {
+            proc_deattch(process);
+            assert(process->p_waitchild == NULL);
+            _free_proc(process);
 
-    if (process->p_pagetable != NULL)
+        }
+        else// become zombie
+        {
+            _free_proc_resource(process);
+            set_proc_status(process, PROC_STATUS_ZOMBIE);
+            bool wake_success = proc_wakeup_father(process);
+            if (!wake_success)
+            {
+                _free_proc(process);
+            }
+        }
+    }
+    else if(status == PROC_STATUS_ZOMBIE)
     {
-        destroy_pagetable(process->p_pagetable);
-        process->p_pagetable = NULL;
+        assert(process->p_father_pid == -1 || get_current_proc() == &kproc ||get_current_proc()->p_pid == process->p_father_pid);
+        /* _free_proc_pid(); */
+        _free_proc(process);
     }
-
-    if (process->p_tcb != NULL)
+    else
     {
-        seL4_TCB_Suspend(process->p_tcb->cap);
-        free_sos_object(process->p_tcb, seL4_TCBBits);
-        process->p_tcb = NULL;
+        assert(0);
     }
-
-    /* // revoke & delete capability */
-    assert(0 == cspace_revoke_cap(process->p_croot, process->p_ep_cap));
-    assert(0 == cspace_delete_cap(process->p_croot, process->p_ep_cap));
-
-    // mentioned in where it is defined, One could also rely on cspace_destroy() to free object,
-    // if, and only if, there are no copies of caps to the object outside of the cspace being destroyed.
-    // This should be a temporary solution
-    cspace_destroy(process->p_croot);
-
-    process->p_croot = NULL;
-
-    destroy_coro(process->p_coro);
-    free(process);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
-    return 0;
+    return;
 }
 
 void proc_exit(struct proc* proc)
 {
-    assert(proc->p_status == PROC_STATUS_RUNNING);
-    proc->p_status = PROC_STATUS_ZOMBIE;
-    seL4_TCB_Suspend(proc->p_tcb->cap);
-    proc_handle_children_process(proc);
+    assert(get_proc_status(proc) == PROC_STATUS_RUNNING);
+    /* assert(proc->p_father_pid  != -1); */
+    set_proc_status(proc, PROC_STATUS_EXIT);
+    seL4_TCB_Suspend(proc->p_resource.p_tcb->cap);
 
-
-    struct proc* father = get_proc_by_pid(proc->p_father_pid);
+    struct proc* father = pid_to_proc(proc->p_father_pid);
     assert(father != NULL); // except for kproc, but it should not exit
-    assert(father->p_status == PROC_STATUS_RUNNING); // if father not running it should under init, and init is also running:)
-    assert(!list_empty(&proc->as_child_next));
-    /* if (proc != get_current_proc()) */
-    /*     coro_stop(proc->p_coro);  //make sure app coro not schedule again */
-
-    // TODO
+    assert(get_proc_status(father) == PROC_STATUS_RUNNING);
+    if (proc->p_waitchild != NULL)
+    {
+        sem_destroy(proc->p_waitchild);
+        proc->p_waitchild = NULL;
+    }
+    /* assert(!list_empty(&proc->as_child_next)); */
 }
 
-// FIXME in M7
 void recycle_process()
 {
     struct list_head *cur = NULL;
@@ -489,18 +643,33 @@ void recycle_process()
 	{
         struct proc* child = list_entry(cur, struct proc, as_child_next);
 		assert(child != NULL);
-        if (child->p_status == PROC_STATUS_ZOMBIE)
+        if (get_proc_status(child) == PROC_STATUS_ZOMBIE)
         {
             link_detach(child, as_child_next);
             assert(child->p_father_pid == kproc.p_pid);
-            assert(list_empty(&child->p_coro->_link)) ;
+            assert(!is_linked(&child->p_coro->_link)) ;
             assert(coro_status(child->p_coro) == COROUTINE_INIT);
-            assert(list_empty(&child->children_list.head));
+            assert(!is_linked(&child->children_list.head));
             proc_destroy(child);
             dump_vm_state();
         }
 	}
-
+    for (int i = 0; i < PID_ARRAY_SIZE; ++ i)
+    {
+        struct proc* p = index_to_proc(i);
+        if (p != NULL && get_proc_status(p) == PROC_STATUS_EXIT)
+        {
+            assert(p->p_father_pid != -1);
+            /* printf ("%d\n", p->p_coro); */
+            assert(p->p_coro->_status == COROUTINE_INIT);
+            proc_destroy(p);
+        }
+    }
 }
 
+void* get_ipc_buffer(struct proc* proc)
+{
+    // XXX must be 4k, otherwise it will not continuous!!!!
+    return (void*)( page_phys_addr(proc->p_resource.p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER));
 
+}

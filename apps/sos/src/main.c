@@ -101,7 +101,7 @@ struct proc * test_process;
 // struct proc * tty_process;
 
 
-extern struct proc* proc_array[128];
+/* extern struct proc* proc_array[128]; */
 
 void update_timestamp(void);
 void handle_epit1_irq(void);
@@ -144,7 +144,7 @@ void syscall_loop(seL4_CPtr ep)
                     seL4_GetMR(1),
                     seL4_GetMR(0),
                     seL4_GetMR(2) ? "Instruction Fault" : "Data fault", seL4_GetMR(3));
-            handle_vm_fault(proc_array[badge], seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
+            handle_vm_fault(pid_to_proc(badge), seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
 
         }
         else if(label == seL4_NoFault)
@@ -155,7 +155,7 @@ void syscall_loop(seL4_CPtr ep)
             // TODO: under multiprocess circumstance, pass the corresponding
             // APP process.
             assert(badge >= 1);
-            handle_syscall(badge, proc_array[badge]);
+            handle_syscall(badge, pid_to_proc(badge));
         }
         else
         {
@@ -306,6 +306,7 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
  * Main entry point - called by crt.
  */
 extern struct fhandle mnt_point;
+extern struct proc kproc;
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -335,11 +336,16 @@ int main(void) {
     /* Start the user application */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
     test_process = proc_create(SOSH_NAME, _sos_ipc_ep_cap);
+    assert(test_process != NULL);
+    assert(proc_load_elf(test_process, SOSH_NAME));
+    proc_attach_father(test_process, &kproc);
+    // FIXME put sosh in argv[0]
+    assert(0 == proc_start(test_process, 0, NULL));
+
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating sosh...\n");
 
     // tty_process = proc_create("tty_test", _sos_ipc_ep_cap);
-    proc_activate(test_process);
-    // proc_activate( tty_process);
+        // proc_activate(tty_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");

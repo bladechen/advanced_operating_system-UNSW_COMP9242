@@ -167,12 +167,13 @@ static int exec(int argc, char **argv) {
     int bg = 0;
 
     tty_debug_print("argc num: %d\n", argc);
-    if (argc < 2 || (argc > 2 && argv[2][0] != '&')) {
-        printf("Usage: exec filename [&]\n");
-        return 1;
-    }
+    /* if (argc < 2 || (argc > 2 && argv[2][0] != '&')) { */
+    /*     printf("Usage: exec filename [&]\n"); */
+    /*     return 1; */
+    /* } */
 
-    if ((argc > 2) && (argv[2][0] == '&')) {
+    if ((argc > 2) && (argv[argc-1][0] == '&')) {
+        argc --;
         bg = 1;
     }
 
@@ -181,7 +182,12 @@ static int exec(int argc, char **argv) {
         assert(r == 0);
     }
 
-    pid = sos_process_create(argv[1]);
+    if (argc > 2)
+    {
+        pid = sos_process_exec(argc - 1, argv + 1);
+    }
+    else
+        pid = sos_process_create(argv[1]);
 
     if (pid >= 0) {
         printf("Child pid=%d\n", pid);

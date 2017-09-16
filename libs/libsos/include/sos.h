@@ -14,7 +14,9 @@
 #define _SOS_H
 
 #include <stdio.h>
+#include <assert.h>
 #include <stdint.h>
+#include <string.h>
 #include <sel4/sel4.h>
 
 
@@ -37,7 +39,7 @@
 #define SOS_SYSCALL_CLOSE               (7)
 #define SOS_SYSCALL_STAT                (8)
 #define SOS_SYSCALL_GET_DIRENT          (9)
-#define SOS_SYSCALL_REMOVE              (10) 
+#define SOS_SYSCALL_REMOVE              (10)
 #define SOS_SYSCALL_CREATE_PROCESS      (11)
 #define SOS_SYSCALL_PROCESS_DELETE      (12)
 #define SOS_SYSCALL_PROCESS_WAIT        (13)
@@ -99,6 +101,82 @@ int ipc_call(const struct ipc_buffer_ctrl_msg* ctrl,const  void* data,  struct i
 int ipc_recv(struct ipc_buffer_ctrl_msg* ctrl, void* data, size_t count, struct ipc_buffer_ctrl_msg* ret);
 
 // we assume reply data buffer would be less than ipc shared buffer
+//
+static inline int serialize_exec_argv(char* buf, int buf_len, int argc, char** argv)
+{
+    int total_len = argc + 1 + 4;
+    for (int i = 0; i < argc; i ++)
+    {
+        total_len += strlen(argv[i]);
+    }
+    if (total_len > buf_len)
+    {
+        return -1;
+    }
+    int idx = 0;
+    memcpy(buf, &argc, 4);
+    idx += 4;
+    for (int i = 0; i < argc; i ++)
+    {
+        memcpy(buf + idx, argv[i], strlen(argv[i]));
+        buf[idx + strlen(argv[i])] = 0;
+        idx += 1 + strlen(argv[i]);
+    }
+    buf[idx ++] = 0;
+    assert(idx == total_len);
+    return total_len;
+}
+
+// argv is only shallow copy!!!
+static inline int unserialize_exec_argv(char* buf, int buf_len, int* argc, char** argv)
+{
+
+    int tmp = *argc;
+    assert(buf_len > 4);
+    int idx = 0;
+    memcpy(argc, buf, 4);
+    idx += 4;
+    if (*argc >= tmp)
+    {
+        printf ("argc: %d\n", *argc);
+        return -1;
+    }
+    argv[0] = buf + 4;
+    int next = 1;
+    for (int i = 4; i < buf_len - 1; i++)
+    {
+        // if (has_str == 0 && i != 4  && buf[i] == 0)
+        // {
+        //     printf ("meet NUL\n");
+        //     if (next == *argc + 1)
+        //     {
+        //         next = *argc;
+        //     }
+        //     break;
+        // }
+        if (next == tmp)
+        {
+            printf ("why so many argc\n");
+            break;
+        }
+        if (buf[i] == 0)
+        {
+            printf ("%d\n", i);
+            argv[next ++] = buf + i + 1;
+            if (next == *argc + 1 && buf[i + 1] == 0)
+            {
+                next = *argc;
+                break;
+            }
+        }
+    }
+    if (next != *argc)
+    {
+        printf ("%d %d\n", next, *argc);
+        return -1;
+    }
+    return 0;
+}
 
 
 typedef struct {
@@ -172,6 +250,8 @@ pid_t sos_process_create(const char *path);
  * Returns ID of new process, -1 if error (non-executable image, nonexisting
  * file).
  */
+
+pid_t sos_process_exec(int argc, char** argv);
 
 int sos_process_delete(pid_t pid);
 /* Delete process (and close all its file descriptors).

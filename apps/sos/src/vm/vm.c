@@ -4,6 +4,8 @@
 #include "vmem_layout.h"
 #include "pagetable.h"
 #include "syscall/handle_syscall.h"
+#include "proc/proc.h"
+#include "coroutine/coro.h"
 #include "swaptable.h"
 #include "sys/debug.h"
 
@@ -24,12 +26,13 @@ static void vm_fault(void* argv); // coroutine func
 // currently still in main coroutine.
 void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code)
 {
+    assert(proc != NULL);
     printf ("vm fault proc: %d\n", proc->p_pid);
-    proc->vm_fault_code = fault_code;
+    proc->p_context.vm_fault_code = fault_code;
     seL4_CPtr reply_cap = cspace_save_reply_cap(cur_cspace);
     assert(reply_cap != CSPACE_NULL);
-    assert(proc->p_reply_cap == 0);
-    proc->p_reply_cap = reply_cap;
+    assert(proc->p_context.p_reply_cap == 0);
+    proc->p_context.p_reply_cap = reply_cap;
     // FIXME if doing multi proc.
     // currently, one proc one coroutine, after successfully executed
     // one corotine, will call reset_coro which set status to COROTINE_INIT
@@ -56,15 +59,15 @@ static void vm_fault(void* argv)
     if (vaddr == 0) // dereference NULL pointer
     {
         ERROR_DEBUG("[SEGMENT FAULT] proc %d dereference NULL\n", cur_proc->p_pid);
-        proc_to_be_killed(cur_proc);
+        proc_exit(cur_proc);
         return ;
     }
     vaddr &= seL4_PAGE_MASK;
-    struct  as_region_metadata *region = as_get_region(cur_proc->p_addrspace, vaddr);
+    struct  as_region_metadata *region = as_get_region(cur_proc->p_resource.p_addrspace, vaddr);
     if (region == NULL)
     {
         ERROR_DEBUG( "[SEGMENT FAULT] proc %d can not find region via vaddr 0x%x\n", cur_proc->p_pid, vaddr);
-        proc_to_be_killed(cur_proc);
+        proc_exit(cur_proc);
         return;
     }
     if (region->type == IPC || region->type == IPC_SHARED_BUFFER)
@@ -73,19 +76,19 @@ static void vm_fault(void* argv)
         assert(0); // should not happend, because we map while start proc.
     }
     int ret = 0;
-    if (cur_proc->vm_fault_code == 2063)// vm fault on write on readonly page.
+    if (cur_proc->p_context.vm_fault_code == 2063)// vm fault on write on readonly page.
     {
         if ((region->rwxflag & PF_W) == 0) // but you do not have write right. segmentfault
         {
             ERROR_DEBUG( "[SEGMENT FAULT] proc %d write on readonly region[%d] 0x%x\n", cur_proc->p_pid, region->type, vaddr);
-            proc_to_be_killed(cur_proc);
+            proc_exit(cur_proc);
 
             return;
         }
         else // we should make it dirty(writable) :)
         {
             /* assert(0); */
-            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->vm_fault_code));
+            ret = as_handle_page_fault(cur_proc->p_resource.p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->p_context.vm_fault_code));
         }
     }
     else
@@ -97,32 +100,32 @@ static void vm_fault(void* argv)
         //
         if (region->type == STACK || region->type == HEAP)
         {
-            ret = as_handle_page_fault(cur_proc->p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->vm_fault_code));
+            ret = as_handle_page_fault(cur_proc->p_resource.p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->p_context.vm_fault_code));
         }
         else // code, date
         {
             assert (region->type == CODE || region->type == DATA);
-            ret = as_handle_elfload_fault(cur_proc->p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->vm_fault_code));
+            ret = as_handle_elfload_fault(cur_proc->p_resource.p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->p_context.vm_fault_code));
         }
     }
 
     if (ret == ENOMEM)
     {
         ERROR_DEBUG("[OUT OF MEMORY] kill proc %d\n", cur_proc->p_pid);
-        proc_to_be_killed(cur_proc);
+        proc_exit(cur_proc);
     }
     else if(ret != 0)
     {
         ERROR_DEBUG("[SEGMENT FAULT] proc %d at 0x%x!\n", cur_proc->p_pid, vaddr);
-        proc_to_be_killed(cur_proc);
+        proc_exit(cur_proc);
     }
     else
     {
         // we map the fault page into proc address space, restart proc
         seL4_MessageInfo_t reply = seL4_MessageInfo_new(0, 0, 0, 1);
         seL4_SetMR(0, 0);
-        seL4_Send(cur_proc->p_reply_cap, reply);
-        destroy_reply_cap(&cur_proc->p_reply_cap);
+        seL4_Send(cur_proc->p_context.p_reply_cap, reply);
+        destroy_reply_cap(&cur_proc->p_context.p_reply_cap);
     }
 }
 

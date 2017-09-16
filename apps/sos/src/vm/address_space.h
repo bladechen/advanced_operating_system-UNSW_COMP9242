@@ -5,7 +5,7 @@
 #include "comm/list.h"
 #include "vmem_layout.h"
 #include "vm.h"
-#include "proc/proc.h"
+#include "pagetable.h"
 
 
 /*
@@ -111,12 +111,12 @@ struct addrspace
     // char is_loading;
     char* elf_base; // will be set in elf_load(), corresponding value is the elf_base passed into
                     // the elf_load() function, and for now it is at least useful for proc_activate()
-    struct proc* proc;
+    struct pagetable* pt;
 };
 
 
 
-struct addrspace *as_create(void);
+struct addrspace *as_create(struct pagetable* pt);
 // int               as_copy(struct addrspace *src, struct addrspace **ret);// XXX need in fork
 void              as_destroy(struct addrspace *);
 
@@ -133,8 +133,8 @@ int               as_define_region(struct addrspace *as,
 
 int               as_define_stack(struct addrspace* as, vaddr_t* stack_pointer);
 int               as_define_heap (struct addrspace* as);
-int               as_define_ipc  (struct proc* proc, struct addrspace* as);
-int               as_define_ipc_shared_buffer(struct proc*, struct addrspace * as);
+int               as_define_ipc  (struct addrspace* as);
+int               as_define_ipc_shared_buffer(struct addrspace * as);
 int               as_define_mmap (struct addrspace* as); // TODO
 
 struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr);
@@ -167,7 +167,6 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* as,
 
 void loop_through_region(struct addrspace *as);
 
-void* get_ipc_buffer(struct proc* proc);
 
 int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out);
 

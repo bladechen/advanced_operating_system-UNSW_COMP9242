@@ -33,7 +33,7 @@ static int build_pagetable_link(struct pagetable* pt,
 
 
 
-struct addrspace *as_create(void)
+struct addrspace *as_create(struct pagetable* pt)
 {
     struct addrspace *as;
     as = malloc(sizeof (struct addrspace));
@@ -43,7 +43,6 @@ struct addrspace *as_create(void)
     }
     as->elf_base = NULL;
     as->list = NULL;
-
     as->list = malloc(sizeof(struct list));
     if (as->list == NULL)
     {
@@ -51,6 +50,7 @@ struct addrspace *as_create(void)
         return NULL;
     }
     list_init(as->list);
+    as->pt = pt;
     return as;
 }
 
@@ -76,7 +76,7 @@ void as_destroy(struct addrspace * as)
 
 static inline struct pagetable* as_get_page_table(struct addrspace* as)
 {
-    return as->proc->p_pagetable;
+    return as->pt;
 }
 
 static struct as_region_metadata* as_create_region(void)
@@ -213,7 +213,7 @@ int as_define_heap (struct addrspace* as)
                             PF_R, PF_W, 0, HEAP);
 
 }
-int as_define_ipc(struct proc* proc, struct addrspace* as)
+int as_define_ipc(struct addrspace* as)
 {
     int ret = as_define_region(as,
                             APP_PROCESS_IPC_BUFFER,
@@ -229,12 +229,12 @@ int as_define_ipc(struct proc* proc, struct addrspace* as)
     ret = build_pagetable_link(as_get_page_table(as), APP_PROCESS_IPC_BUFFER, 1, as_region_vmattrs(r), as_region_caprights(r));
     if (ret == 0)
     {
-        pin_frame(( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_BUFFER)));
+        pin_frame(( page_phys_addr(as->pt, APP_PROCESS_IPC_BUFFER)));
     }
     return ret;
 }
 
-int as_define_ipc_shared_buffer(struct proc* proc, struct addrspace * as)
+int as_define_ipc_shared_buffer(struct addrspace * as)
 {
     int ret = as_define_region(as,
                                 APP_PROCESS_IPC_SHARED_BUFFER,
@@ -251,7 +251,7 @@ int as_define_ipc_shared_buffer(struct proc* proc, struct addrspace * as)
         APP_PROCESS_IPC_SHARED_BUFFER, APP_PROCESS_IPC_SHARED_BUFFER_SIZE >> 12, as_region_vmattrs(r), as_region_caprights(r));
     if (ret == 0)
     {
-        pin_frame(( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER)));
+        pin_frame(( page_phys_addr(as->pt, APP_PROCESS_IPC_SHARED_BUFFER)));
     }
 
     return ret;
@@ -560,7 +560,7 @@ int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * regio
 
 seL4_CPtr as_get_ipc_cap(struct addrspace * as)
 {
-    return fetch_page_cap(as->proc->p_pagetable, APP_PROCESS_IPC_BUFFER);
+    return fetch_page_cap(as->pt, APP_PROCESS_IPC_BUFFER);
 }
 
 struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr)
@@ -637,8 +637,3 @@ int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out)
 
 }
 
-void* get_ipc_buffer(struct proc* proc)
-{
-    // XXX must be 4k, otherwise it will not continuous!!!!
-    return (void*)( page_phys_addr(proc->p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER));
-}

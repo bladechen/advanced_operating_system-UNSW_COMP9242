@@ -20,7 +20,7 @@ static inline int make_positive(int v)
 
 int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
 {
-    int result = do_sys_open(-1, filename, flags, mode, get_current_proc()->fs_struct);
+    int result = do_sys_open(-1, filename, flags, mode, get_current_proc()->p_resource.fs_struct);
     if (result < 0)
     {
         ERROR_DEBUG("syscall_open filename: %s error: %d\n", filename, result);
@@ -31,7 +31,7 @@ int syscall_open(const char* filename, int flags, mode_t mode, int* fd_num)
     return 0;
 }
 
-int syscall_remove(const char* filename, int * retval) 
+int syscall_remove(const char* filename, int * retval)
 {
     int result = do_sys_remove(filename);
     if (result < 0)

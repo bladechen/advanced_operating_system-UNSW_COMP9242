@@ -27,6 +27,6 @@ void handle_block_sleep(void* argv)
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.ret_val = 0;
     ctrl.offset = 0;
-    ipc_reply(&ctrl, &(proc->p_reply_cap));
+    ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
 }
 

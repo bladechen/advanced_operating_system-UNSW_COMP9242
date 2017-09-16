@@ -141,7 +141,6 @@ static int __do_stdio_open(struct file** f, int fd)
     }
 
     list_add_tail(&(tmp->link_obj),&(g_ftb.list_obj.head));
-
     *f = tmp;
     return 0;
 }
@@ -321,18 +320,6 @@ int kern_file_write(struct file* f, const void * buf, size_t buf_size, size_t *w
     int ret = 0;
     struct iovec iov;
     struct uio u;
-    // XXX not support O_APPEND at this stage.
-
-    /* if (f->f_flags & O_APPEND) */
-    /* { */
-    /*     ret = get_file_stat(f); */
-    /*     if ( ret != 0) */
-    /*     { */
-    /*  */
-    /*         return ret; */
-    /*     } */
-    /*  */
-    /* } */
     size_t old = f->f_pos;
     uio_kinit(&iov, &u,(void *) buf, buf_size, f->f_pos, UIO_WRITE);
     ret = VOP_WRITE(f->v_ptr, &u);
