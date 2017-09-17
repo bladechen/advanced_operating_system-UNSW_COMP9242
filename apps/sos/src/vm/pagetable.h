@@ -34,6 +34,9 @@ struct pagetable
     struct sel4_pagetable*   pt_list;
     alloc_frame_func         alloc_func;
     free_frame_func          free_func;
+
+    // uint32_t res_page_cnt;
+    // uint32_t swap_page_cnt;
 };
 
 struct pagetable* kcreate_pagetable(void);
@@ -67,5 +70,8 @@ paddr_t           page_phys_addr(struct pagetable* pt, vaddr_t vaddr);
 void set_page_already_load(struct pagetable* pt, vaddr_t vaddr);
 bool is_page_loaded(struct pagetable* pt, vaddr_t vaddr);
 void invalid_page_frame(struct pagetable_entry* page);
+
+
+void page_statistic(struct pagetable* pt, uint32_t*, uint32_t*);
 
 #endif

@@ -542,3 +542,34 @@ void invalid_page_frame(struct pagetable_entry* page)
     _unmap_page_frame(_get_page_frame(page->entity));
     _reset_page_valid(&page->entity);
 }
+
+
+void page_statistic(struct pagetable* pt, uint32_t* res, uint32_t* swap)
+{
+    *res = 0;
+    *swap = 0;
+    if (pt->page_dir != NULL)
+    {
+        for (int i = 0; i < LEVEL1_PAGE_ENTRY_COUNT; ++ i)
+        {
+            if (pt->page_dir[i] != NULL)
+            {
+                struct pagetable_entry* l1 = (pt->page_dir[i]);
+                for (int j = 0; j < LEVEL2_PAGE_ENTRY_COUNT; ++ j)
+                {
+                    if (l1[j].entity != 0)
+                    {
+                        if (_is_page_swap(l1[j].entity))
+                        {
+                            (*swap) ++;
+                        }
+                        else if(_get_page_frame(l1[j].entity))
+                        {
+                            (*res) ++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -348,6 +348,7 @@ static void __destroy_fdt(struct fdtable* fdt, struct files_struct* fst)
     {
         if (__get_bit(i, fdt->open_fds_bits) )
         {
+            printf ("closing fd; %d\n", i);
             assert(fdt->fd_array[i] != NULL);
 
             close_kern_file(fdt->fd_array[i]);
@@ -386,14 +387,14 @@ static int __init_fdt(struct fdtable* fdt)
     /* fdt->fd_array[0] = 0; */
     /* fdt->fd_array[1] = (void*)0x01; */
     /* fdt->fd_array[2] = (void*)0x01; */
-    /* fdt->open_fds_bits[0] = 0x7; */
     /* fdt->open_fds_bits[0] =  */
 
     return 0;
 }
 int init_stdio(struct files_struct* fst)
 {
-    /* int ret = do_sys_open(0, NULL, 0, 0, fst); */
+
+        /* int ret = do_sys_open(0, NULL, 0, 0, fst); */
     /* if ( ret < 0) */
     /* { */
     /*     return ret; */
@@ -437,7 +438,14 @@ int init_fd_table(struct files_struct** ret)
         free(tmp);
         return ENOMEM;
     }
+    // play trick here, because we need reserve fd 0 for app to explicitly open.
+    tmp->fdt->fd_array[0] = (void*)0x01;
+    tmp->fdt->open_fds_bits[0] = 0x1;
     res = init_stdio(tmp);
+
+    tmp->fdt->fd_array[0] = NULL;
+    tmp->fdt->open_fds_bits[0] &= (~0x1);
+
     if (res != 0)
     {
         destroy_fd_table(tmp);
@@ -449,6 +457,7 @@ int init_fd_table(struct files_struct** ret)
 
 void destroy_fd_table(struct files_struct* ret)
 {
+    printf ("destroy_fd_table\n");
     assert(ret != NULL);
 
     struct fdtable* fdt = ret->fdt;

@@ -6,7 +6,7 @@
 struct serial_console _serial;
 
 
-struct device *console_dev = NULL;
+struct device *excl_console_dev = NULL;
 /* static char last_char = 0; */
 static bool produce_char(char c)
 {
@@ -104,14 +104,8 @@ static void handle_serial_input(struct  serial* handler, char in)
 }
 
 
-static int con_eachopen(struct device *dev, int openflags)
+static int con_exclusive_eachopen(struct device* dev,  int openflags)
 {
-    assert((struct serial_console*)(dev->d_data) == &_serial);
-    if (openflags == O_WRONLY)
-    {
-        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "con_eachopen: %d, write only\n", openflags);
-        return 0;
-    }
     if (openflags == O_RDONLY || openflags == O_RDWR)
     {
         if (_serial._read_exclusive_flag)
@@ -123,15 +117,27 @@ static int con_eachopen(struct device *dev, int openflags)
         {
             COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"con_eachopen: %d, get read perm\n", openflags);
             _serial._read_exclusive_flag = 1;
-            _serial._coro = current_running_coro();
             return 0;
         }
     }
     else
     {
+        assert(0);
         return EINVAL;
     }
+}
 
+static int con_eachopen(struct device *dev, int openflags)
+{
+    assert((struct serial_console*)(dev->d_data) == &_serial);
+    if (openflags == O_WRONLY)
+    {
+        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "con_eachopen: %d, write only\n", openflags);
+        return 0;
+    }
+    ERROR_DEBUG("read should manipulate on exclusive console dev\n");
+    assert(0);
+    return -1;
 }
 
 #define MAX_SENT_LEN 1200
@@ -212,12 +218,19 @@ static int con_ioctl(struct device *dev, int op, const void* data)
 
 static int con_reclaim(struct device* dev)
 {
+    printf ("con_reclaim\n");
     assert((struct serial_console*)(dev->d_data) == &_serial);
-    if (current_running_coro() == _serial._coro)
-    {
+    return 0;
+}
 
-        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"con_reclaim: %p, release read on the console\n", _serial._coro);
-        _serial._coro = NULL;
+
+static int con_exclusive_reclaim(struct device* dev)
+{
+    assert((struct serial_console*)(dev->d_data) == &_serial);
+    printf ("exclusive con_reclaim\n");
+    if (_serial._read_exclusive_flag)
+    {
+        COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN,"con_reclaim, release read on the console\n");
         _serial._read_exclusive_flag = 0;
     }
     return 0;
@@ -231,16 +244,35 @@ static const struct device_ops console_devops =
     .devop_reclaim = con_reclaim,
 };
 
+static const struct device_ops console_exlusive_devops =
+{
+    .devop_eachopen = con_exclusive_eachopen,
+    .devop_io = con_io,
+    .devop_ioctl = con_ioctl,
+    .devop_reclaim = con_exclusive_reclaim,
+};
+
 static void attach_console_to_vfs()
 {
     struct device *dev = malloc(sizeof(struct device));
-    console_dev = dev;
+    /* console_dev = dev; */
     assert(dev != NULL);
     dev->d_ops = &console_devops;
     dev->d_blocks = 0;
     dev->d_blocksize = 1;
     dev->d_data = &_serial;
+
     assert(0 == vfs_adddev("console", dev, 0));
+
+    dev = malloc(sizeof(struct device));
+    excl_console_dev = dev;
+    assert(dev != NULL);
+    dev->d_ops = &console_exlusive_devops;
+    dev->d_blocks = 0;
+    dev->d_blocksize = 1;
+    dev->d_data = &_serial;
+
+    assert(0 == vfs_adddev("console_exclusive", dev, 0));
 }
 
 void init_console(void)
@@ -251,7 +283,7 @@ void init_console(void)
     _serial._read_buf_head = 0;
     assert(0 == serial_register_handler(_serial._serial_handler, handle_serial_input));
     _serial._read_exclusive_flag = 0;
-    _serial._coro = NULL;
+    /* _serial._coro = NULL; */
     _serial._read_sem = sem_create("serial_sem", 0, -1);
     assert(_serial._read_sem != NULL);
     attach_console_to_vfs();

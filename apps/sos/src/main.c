@@ -52,8 +52,8 @@
 
 volatile bool sos_init_flag = false;
 
-/* uint32_t dbflags = 0xFFFFFFFF &(~DB_VM); */
-uint32_t dbflags = 0xFFFFFFFF ;
+uint32_t dbflags = 0xFFFFFFFF &(~DB_VM);
+/* uint32_t dbflags = 0xFFFFFFFF ; */
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
 extern int test_coro();
@@ -96,9 +96,6 @@ extern fhandle_t mnt_point;
 // static struct serial * serial_handler = NULL;
 
 
-// this represent the process start by ourself.
-struct proc * test_process;
-// struct proc * tty_process;
 
 
 /* extern struct proc* proc_array[128]; */
@@ -138,7 +135,7 @@ void syscall_loop(seL4_CPtr ep)
         }
         else if(label == seL4_VMFault)
         {
-            dprintf(0, "badge : 0x%x\n", badge);
+            /* dprintf(0, "badge : 0x%x\n", badge); */
             /* Page fault */
             COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
                     seL4_GetMR(1),
@@ -149,7 +146,7 @@ void syscall_loop(seL4_CPtr ep)
         }
         else if(label == seL4_NoFault)
         {
-            dprintf(0, "badge : 0x%x\n", badge);
+            /* dprintf(0, "badge : 0x%x\n", badge); */
             /* System call */
 
             // TODO: under multiprocess circumstance, pass the corresponding
@@ -335,17 +332,9 @@ int main(void) {
 
     /* Start the user application */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
-    test_process = proc_create(SOSH_NAME, _sos_ipc_ep_cap);
-    assert(test_process != NULL);
-    assert(proc_load_elf(test_process, SOSH_NAME));
-    proc_attach_father(test_process, &kproc);
-    // FIXME put sosh in argv[0]
-    assert(0 == proc_start(test_process, 0, NULL));
-
+    assert(run_program(SOSH_NAME, _sos_ipc_ep_cap, 0, NULL) == 1);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating sosh...\n");
 
-    // tty_process = proc_create("tty_test", _sos_ipc_ep_cap);
-        // proc_activate(tty_process);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");

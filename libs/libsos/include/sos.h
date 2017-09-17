@@ -45,6 +45,7 @@
 #define SOS_SYSCALL_PROCESS_WAIT        (13)
 #define SOS_SYSCALL_PROCESS_STATUS      (14)
 #define SOS_SYSCALL_PROCESS_EXIT        (15)
+#define SOS_SYSCALL_PROCESS_MY_PID      (16)
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)
@@ -53,7 +54,7 @@
 /* Limits */
 #define PROCESS_MAX_FILES 16
 #define MAX_IO_BUF 0x1000
-#define N_NAME 32
+#define N_NAME 64
 
 /* file modes */
 #define FM_EXEC  1
@@ -104,6 +105,7 @@ int ipc_recv(struct ipc_buffer_ctrl_msg* ctrl, void* data, size_t count, struct 
 //
 static inline int serialize_exec_argv(char* buf, int buf_len, int argc, char** argv)
 {
+    // NULL for each argv, and another NULL in the end
     int total_len = argc + 1 + 4;
     for (int i = 0; i < argc; i ++)
     {
@@ -130,7 +132,6 @@ static inline int serialize_exec_argv(char* buf, int buf_len, int argc, char** a
 // argv is only shallow copy!!!
 static inline int unserialize_exec_argv(char* buf, int buf_len, int* argc, char** argv)
 {
-
     int tmp = *argc;
     assert(buf_len > 4);
     int idx = 0;
@@ -138,30 +139,19 @@ static inline int unserialize_exec_argv(char* buf, int buf_len, int* argc, char*
     idx += 4;
     if (*argc >= tmp)
     {
-        printf ("argc: %d\n", *argc);
+        printf ("please provide more argv to unserialize: %d -> %d\n", tmp, *argc);
         return -1;
     }
     argv[0] = buf + 4;
     int next = 1;
     for (int i = 4; i < buf_len - 1; i++)
     {
-        // if (has_str == 0 && i != 4  && buf[i] == 0)
-        // {
-        //     printf ("meet NUL\n");
-        //     if (next == *argc + 1)
-        //     {
-        //         next = *argc;
-        //     }
-        //     break;
-        // }
         if (next == tmp)
         {
-            printf ("why so many argc\n");
             break;
         }
         if (buf[i] == 0)
         {
-            printf ("%d\n", i);
             argv[next ++] = buf + i + 1;
             if (next == *argc + 1 && buf[i + 1] == 0)
             {
@@ -172,7 +162,7 @@ static inline int unserialize_exec_argv(char* buf, int buf_len, int* argc, char*
     }
     if (next != *argc)
     {
-        printf ("%d %d\n", next, *argc);
+        printf ("argc count not correct: %d -> %d\n", next, *argc);
         return -1;
     }
     return 0;
@@ -192,9 +182,13 @@ typedef int pid_t;
 
 typedef struct {
   pid_t     pid;
-  unsigned  size;            /* in pages */
+  pid_t     ppid; // parent pid
+  unsigned  size;            /* in res pages */
+  unsigned  swap_size; // swap pages
   unsigned  stime;           /* start time in msec since booting */
+  char      status;  // the linux ps status
   char      command[N_NAME]; /* Name of exectuable */
+
 } sos_process_t;
 
 // move the m0 print to console system call, transform
@@ -252,6 +246,7 @@ pid_t sos_process_create(const char *path);
  */
 
 pid_t sos_process_exec(int argc, char** argv);
+// same as sos_process_create, but support argvs!
 
 int sos_process_delete(pid_t pid);
 /* Delete process (and close all its file descriptors).

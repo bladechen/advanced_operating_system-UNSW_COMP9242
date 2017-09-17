@@ -43,7 +43,8 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_delete_process, .will_block=false},
     {.syscall=&sos_syscall_wait_process, .will_block=false},
     {.syscall=&sos_syscall_process_status, .will_block=false},
-    {.syscall=&sos_syscall_exit_process, .will_block=false}};
+    {.syscall=&sos_syscall_exit_process, .will_block=false},
+    {.syscall=&sos_syscall_process_my_pid, .will_block=false}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -152,7 +153,17 @@ void sos_syscall_open(void* argv)
         ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
         return;
     }
+
+    if (strcmp(file_name, "console:") == 0)
+    {
+        if (proc->p_context.p_ipc_ctrl.mode == O_RDONLY ||
+            proc->p_context.p_ipc_ctrl.mode == O_RDWR)
+        {
+            strcpy(file_name, "console_exclusive:");
+        }
+    }
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_open proc: %u, file: [%s] flags: %d, mode: %d\n",proc->p_pid, file_name, proc->p_context.p_ipc_ctrl.mode, proc->p_context.p_ipc_ctrl.mode);
+
 
     int fd = 0;
     int ret = syscall_open(file_name, proc->p_context.p_ipc_ctrl.mode, proc->p_context.p_ipc_ctrl.mode, &fd);
@@ -369,6 +380,18 @@ void sos_syscall_brk(void* argv)
     ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
 }
 
+void sos_syscall_process_my_pid(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
+    ctrl.file_id = get_current_proc()->p_pid;
+    ctrl.ret_val = 0;
+    ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
+}
+
 void sos_syscall_create_process(void * args)
 {
     struct proc* proc = (struct proc*) args;
@@ -393,36 +416,27 @@ void sos_syscall_create_process(void * args)
         printf ("argc[%d]: %s\n", i, argv[i]);
     }
 
-    struct proc * new_proc = proc_create(argv[0], _sos_ipc_ep_cap);
-    if (new_proc == NULL)
+    ret = run_program(argv[0], _sos_ipc_ep_cap, argc, argv);
+    if (ret < 0)
     {
-        ctrl.ret_val = ENOMEM;
+        ctrl.ret_val = -ret;
         goto create_end;
     }
 
-    ret = proc_load_elf(new_proc, argv[0]);
-    if (!ret)
-    {
-        proc_destroy(new_proc);
-        ctrl.ret_val = ENOENT;
-        goto create_end;
-    }
-    ret = proc_start(new_proc, argc, argv);
-    if (ret != 0)
-    {
-        proc_destroy(new_proc);
-        ctrl.ret_val = ret;
-        goto create_end;
-    }
-    proc_attach_father(new_proc, get_current_proc());
     ctrl.ret_val = 0;
-    ctrl.file_id = new_proc->p_pid;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_create_process proc: %u\n",proc->p_pid);
+    ctrl.file_id = ret;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "%d create proc: [%d:%s:%s]\n", get_current_proc()->p_pid,
+                ret, pid_to_proc(ret)->p_status.name, pid_to_proc(ret)->p_status.argv_str);
 create_end:
+    if (ctrl.ret_val != 0)
+    {
+        ERROR_DEBUG("%d create proc failed: %d\n",  get_current_proc()->p_pid, ctrl.ret_val);
+    }
     ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
 }
 
 
+/* static void wait_for_childproc(struct processes) */
 // TODO handle pid = -1
 void sos_syscall_wait_process(void * argv)
 {
@@ -432,11 +446,43 @@ void sos_syscall_wait_process(void * argv)
     struct ipc_buffer_ctrl_msg ctrl;
     ctrl.offset = 0;
     pid_t pid = proc->p_context.p_ipc_ctrl.file_id;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %u wait for %u\n",proc->p_pid, pid);
-    struct proc* wait_proc = pid_to_proc(pid);
-    if (wait_proc == NULL
-        ||wait_proc->p_pid != pid || wait_proc->p_father_pid != get_current_proc()->p_pid)
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %d wait for %d\n",proc->p_pid, pid);
+    if (pid == -1)
+    {
+        if (is_list_empty(&proc->children_list)) // nothing to wait.
+        {
+            ERROR_DEBUG("nothing to wait\n");
+            ctrl.ret_val = ECHILD;
+            goto wait_end;
+        }
+        proc->p_wait_pid = WAIT_ALL_PID;
+        proc->p_waitchild = sem_create("waiting child", 0, -1);
+        if (proc->p_waitchild == NULL)
+        {
+            ERROR_DEBUG("no enough mem creating sem\n");
+            ctrl.ret_val = ENOMEM;
+            goto wait_end;
+        }
+        P(proc->p_waitchild);
+        COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %d now  wakes up by %d\n", proc->p_pid, proc->p_wait_pid);
+        struct proc* wait_proc = pid_to_proc(proc->p_wait_pid); // child process will set p_wait_pid to tell.
+        assert(wait_proc != NULL);
+        assert(!wait_proc->someone_wait);
+        assert(wait_proc->p_father_pid == proc->p_pid);
+        assert(wait_proc->p_status.status == PROC_STATUS_ZOMBIE);
+        proc->p_wait_pid = INVALID_WAIT_PID;
+        sem_destroy(proc->p_waitchild);
+        proc->p_waitchild = NULL;
+        proc_deattch(wait_proc);
+        ctrl.file_id = wait_proc->p_pid;
+        proc_destroy(wait_proc);
+        ctrl.ret_val = 0;
+        goto wait_end;
+    }
 
+    // waiting for specific child
+    struct proc* wait_proc = pid_to_proc(pid);
+    if (wait_proc == NULL ||  wait_proc->p_father_pid != proc->p_pid)
     {
         ERROR_DEBUG("not find the child proc\n");
         ctrl.ret_val = ECHILD;
@@ -444,15 +490,13 @@ void sos_syscall_wait_process(void * argv)
     }
     assert(!list_empty(&wait_proc->as_child_next));
     assert(!is_list_empty(&proc->children_list));
-    if (wait_proc->p_status.status == PROC_STATUS_ZOMBIE)
+    if (wait_proc->p_status.status == PROC_STATUS_ZOMBIE || wait_proc->p_status.status == PROC_STATUS_EXIT)
     {
+        ERROR_DEBUG("waiting for proc at zombie or exit could not happend\n");
         assert(0);
-        /* ERROR_DEBUG("zombie proc exit\n"); */
-        /* ctrl.ret_val = 0; */
-        /* proc_destroy(wait_proc); */
-        /* goto wait_end; */
     }
-    else if(wait_proc->p_status.status == PROC_STATUS_RUNNING)
+
+    else if(wait_proc->p_status.status == PROC_STATUS_RUNNING || wait_proc->p_status.status == PROC_STATUS_SLEEP)
     {
         proc->p_waitchild = sem_create("waiting child", 0, -1);
         if (proc->p_waitchild == NULL)
@@ -461,21 +505,26 @@ void sos_syscall_wait_process(void * argv)
             ctrl.ret_val = ENOMEM;
             goto wait_end;
         }
+        proc->p_wait_pid = pid;
         wait_proc->someone_wait = true;
         COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, " proc: %u now  blocks waiting for %u\n",proc->p_pid, pid);
 
         P(proc->p_waitchild);
+
         wait_proc->someone_wait = false;
         sem_destroy(proc->p_waitchild);
         proc->p_waitchild = NULL;
+        proc->p_wait_pid = INVALID_WAIT_PID;
         assert(wait_proc->p_status.status == PROC_STATUS_ZOMBIE);
         proc_deattch(wait_proc);
+        ctrl.file_id = wait_proc->p_pid;
         proc_destroy(wait_proc);
         ctrl.ret_val = 0;
     }
     else
     {
-        ERROR_DEBUG("pid %d wait pid %d, but it is in :%d\n", proc->p_pid, wait_proc->p_pid, proc->p_status.status);
+        ERROR_DEBUG("pid %d wait for pid %d, but it is waiting: %d\n", proc->p_pid, wait_proc->p_pid, proc->p_status.status);
+        /* assert(0); */
 
         ctrl.ret_val = EINVAL;
 
@@ -498,24 +547,34 @@ void sos_syscall_delete_process(void * argv)
     struct proc * proc_to_be_deleted = pid_to_proc(pid);
     if (!proc_to_be_deleted || pid == 0) // you can not kill kproc!
     {
+        ERROR_DEBUG("kill pid: %d ESRCH\n", pid);
         ctrl.ret_val = ESRCH;
         ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
         return;
     }
 
     // like linux D status, you can't kill it while blocked on nfs or something else
-    // TODO but for sleep, it can be killed.
-    if (coro_status(proc_to_be_deleted->p_coro) == COROUTINE_SUSPEND)
+    if (coro_status(proc_to_be_deleted->p_coro) == COROUTINE_SUSPEND && proc_to_be_deleted->p_status.status != PROC_STATUS_SLEEP)
     {
+
+        ERROR_DEBUG("kill pid: %d in D status, failed\n", pid);
         ctrl.ret_val = EPERM;
         ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
         return;
     }
+    // but for sleep, it can be killed.
+    if (proc_to_be_deleted->p_status.status == PROC_STATUS_SLEEP)
+    {
+
+        ERROR_DEBUG("kill pid: %d in S status\n", pid);
+        assert(coro_status(proc_to_be_deleted->p_coro) == COROUTINE_SUSPEND);
+        proc_to_be_deleted->p_status.status = PROC_STATUS_RUNNING; // proc_exit only can deal with PROC_STATUS_RUNNING
+    }
     proc_exit(proc_to_be_deleted);
 
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "end sos_syscall_delete_process proc\n");
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_delete_process pid: %d success\n", proc_to_be_deleted->p_pid);
 
-    // TODO we need write something on nc
+    // TODO we need write something on nc, it kills it self.
     if (proc_to_be_deleted != get_current_proc())
         ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
 }
@@ -523,46 +582,82 @@ void sos_syscall_delete_process(void * argv)
 
 void sos_syscall_process_status(void * argv)
 {
-    /* struct proc* proc = (struct proc*) argv; */
-    /* void* ipc_buf = (get_ipc_buffer(proc)); */
-    /* int ps_amount = *(int *)ipc_buf; */
-    /*  */
-    /* COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_process_status proc %u\n", proc->p_pid); */
+    struct proc* proc = (struct proc*) argv;
+    void* ipc_buf = (get_ipc_buffer(proc));
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
+    if (proc->p_context.p_ipc_ctrl.offset != 4)
+    {
+        ctrl.ret_val = EINVAL;
+        goto end_sos_syscall_process_status;
+    }
+    int ps_amount = *(int *)ipc_buf;
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_process_status proc %u\n", proc->p_pid);
     /*  */
     /* // Temporary array to hold return values */
-    /* // FIXME mem leak */
-    /* sos_process_t * processes = (sos_process_t *)malloc(ps_amount * sizeof(sos_process_t)); */
-    /* // loop through proc_array and try to find proper process pointer */
-    /* int i = 0; // If don't want to display the SOS and SOSH, start from 2 */
-    /* int j = 0; */
-    /* while (i < PROC_ARRAY_SIZE && j < ps_amount) */
-    /* { */
-    /*     if (proc_array[i] == NULL || proc_array[i]->p_status.status == PROC_STATUS_ZOMBIE) */
-    /*     { */
-    /*         i++; */
-    /*         continue; */
-    /*     } */
-    /*  */
-    /*     processes[j].pid = proc_array[i]->p_pid; */
-    /*     processes[j].size = 12345; // ??? maybe something like get_proc_size(proc_array[i]); */
-    /*     processes[j].stime = proc_array[i]->stime; */
-    /*     strcpy(processes[j].command, proc_array[i]->p_name); */
-    /*  */
-    /*     printf("~~~~~~~~~~~~~~processes[j].command: %s\n", processes[j].command); */
-    /*  */
-    /*     i++; */
-    /*     j++; */
-    /* } */
-    /*  */
-    /* // write processes array and ps_amount to share buffer, then reply */
-    /* memcpy((int *)ipc_buf, &j, sizeof(int)); */
-    /* memcpy((sos_process_t *)(ipc_buf + sizeof(int)), processes, j * sizeof(sos_process_t)); */
-    /*  */
-    /* struct ipc_buffer_ctrl_msg ctrl; */
-    /* ctrl.ret_val = 0; */
-    /* ctrl.offset = sizeof(int) + j * sizeof(sos_process_t); */
-    /*  */
-    /* ipc_reply(&ctrl, &(proc->p_context.p_reply_cap)); */
+    sos_process_t * processes = (sos_process_t *)(get_ipc_buffer(proc) + 4) ;
+    int left_length = seL4_PAGE_SIZE - 4;
+    int i = 1;
+    int j = 0;
+    while (i < PID_ARRAY_SIZE && j < ps_amount)
+    {
+        struct proc* tmp = index_to_proc(i);
+        if (tmp == NULL)
+        {
+            i++;
+            continue;
+        }
+        if (j * sizeof (sos_process_t) >= left_length)
+        {
+            ctrl.ret_val = EMSGSIZE;
+            goto end_sos_syscall_process_status;
+        }
+
+        processes[j].ppid = tmp->p_father_pid;
+        processes[j].pid = tmp->p_pid;
+        processes[j].status = proc_status_display(tmp);
+        proc_mem(tmp, &processes[j].size, &processes[j].swap_size);
+        processes[j].stime = tmp->p_status.stime;
+        // "name [argv0 argv1...]"
+        memset(processes[j].command, 0, N_NAME);
+        char* s= malloc(strlen(tmp->p_status.name) + 1 + 2 + 1 + strlen(tmp->p_status.argv_str));
+        if (s == NULL)
+        {
+            ctrl.ret_val = ENOMEM;
+            goto end_sos_syscall_process_status;
+        }
+        memcpy(s, tmp->p_status.name, strlen(tmp->p_status.name));
+        int idx = strlen(tmp->p_status.name);
+        s[idx ++] = ' ';
+        s[idx ++] = '[';
+        memcpy(s + idx, tmp->p_status.argv_str, strlen(tmp->p_status.argv_str));
+        printf ("fuck %s\n", tmp->p_status.argv_str);
+        idx += strlen(tmp->p_status.argv_str);
+        s[idx ++] = ']';
+        s[idx ++] = 0;
+        printf ("%s\n", s);
+        strncpy(processes[j].command, s, N_NAME - 1);
+        free(s);
+        processes[j].command[N_NAME - 1] = 0;
+
+        printf ("%d %d %c %d %d %d %s\n", processes[j].pid, processes[j].ppid,
+                processes[j].status,
+                processes[j].stime,
+                processes[j].size,
+                processes[j].swap_size,
+                processes[j].command);
+        i++;
+        j++;
+    }
+
+    // write processes array and ps_amount to share buffer, then reply
+    memcpy((int *)ipc_buf, &j, sizeof(int));
+
+    ctrl.ret_val = 0;
+    ctrl.offset = sizeof(int) + j * sizeof(sos_process_t);
+
+end_sos_syscall_process_status:
+    ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
 }
 
 // try to kill itself
@@ -570,8 +665,10 @@ void sos_syscall_exit_process(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
     assert(get_current_proc() == proc);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "sos_syscall_exit_process: %d\n", proc->p_pid);
     proc_exit(proc);
 }
+
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {
@@ -608,6 +705,3 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
     /* Invoke corresponding syscall */
     restart_coro(app_process->p_coro, syscall_func_arr[syscall_number].syscall, app_process);
 }
-
-
-

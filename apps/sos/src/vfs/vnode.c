@@ -85,7 +85,7 @@ vnode_incref(struct vnode *vn)
  * Called by VOP_DECREF.
  * Calls VOP_RECLAIM if the refcount hits zero.
  */
-extern struct device *console_dev;
+extern struct device *excl_console_dev;
 void
 vnode_decref(struct vnode *vn)
 {
@@ -108,12 +108,12 @@ vnode_decref(struct vnode *vn)
 
     // XXX very ugly way, because console dev's read is exlusive, so close should call its reclaim function to
     // release read perm.
-    if (vn->vn_data == console_dev)
+    if (vn->vn_data == excl_console_dev)
     {
         assert(0 == VOP_RECLAIM(vn));
     }
 
-    /* printf ("vnode ref: %d\n", vn->vn_refcount); */
+    /* printf ("vnode ref: %d, %d\n", vn->vn_refcount, destroy); */
 
 	if (destroy) {
 		result = VOP_RECLAIM(vn);

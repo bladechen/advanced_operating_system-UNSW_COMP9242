@@ -391,6 +391,8 @@ vfs_doadd(const char *dname, int mountable, struct device *dev, struct fs *fs)
 		dev->d_devnumber = index+1;
 	}
 
+
+    /* printf ("%p %d\n", vnode, vnode->vn_refcount); */
 	return 0;
 
  fail:

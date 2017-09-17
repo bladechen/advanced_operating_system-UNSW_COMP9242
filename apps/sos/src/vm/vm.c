@@ -54,8 +54,16 @@ static void vm_fault(void* argv)
 
     struct proc* cur_proc = get_current_proc();
     vaddr_t vaddr = (vaddr_t)(argv);
-
     assert (cur_proc != NULL);
+
+    int fault = sel4_fault_code_to_fault_type(cur_proc->p_context.vm_fault_code);
+    if (fault == FAULT_FATAL)
+    {
+        proc_exit(cur_proc);
+        return ;
+
+    }
+
     if (vaddr == 0) // dereference NULL pointer
     {
         ERROR_DEBUG("[SEGMENT FAULT] proc %d dereference NULL\n", cur_proc->p_pid);

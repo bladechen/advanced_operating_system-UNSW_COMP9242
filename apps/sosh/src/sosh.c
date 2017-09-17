@@ -148,11 +148,17 @@ static int ps(int argc, char **argv) {
 
     processes = sos_process_status(process, MAX_PROCESSES);
 
-    printf("TID SIZE   STIME   CTIME COMMAND\n");
+    printf("PID  PPID  STATUS   STIME     RES     SWAP   COMMAND\n");
 
     for (i = 0; i < processes; i++) {
-        printf("%3d %4d %7d %s\n", process[i].pid, process[i].size,
-               process[i].stime, process[i].command);
+        printf("%3d %5d %7c %7d %7d %8d    %s\n",
+               process[i].pid,
+               process[i].ppid,
+               process[i].status,
+               process[i].stime,
+               process[i].size,
+               process[i].swap_size,
+               process[i].command);
     }
 
     free(process);
@@ -160,7 +166,20 @@ static int ps(int argc, char **argv) {
     return 0;
 }
 
-//TODO support argc,argv running command
+static int exec_test(int argc, char **argv)
+{
+    for (int i =0; i < 3; i ++)
+    {
+        int pid = sos_process_create("my_app");
+        printf ("sos_process_create: %d\n", pid);
+    }
+    for (int i = 0; i < 3 ;i ++)
+    {
+        printf("wait return: %d\n", sos_process_wait(-1));
+    }
+    return 0;
+}
+
 static int exec(int argc, char **argv) {
     pid_t pid;
     int r;
@@ -191,6 +210,7 @@ static int exec(int argc, char **argv) {
 
     if (pid >= 0) {
         printf("Child pid=%d\n", pid);
+        /* sleep(1); */
         if (bg == 0) {
             sos_process_wait(pid);
         }
@@ -318,7 +338,10 @@ static int kill(int argc, char *argv[]) {
     }
 
     pid = atoi(argv[1]);
-    return sos_process_delete(pid);
+    if (0 != sos_process_delete(pid))
+    {
+        printf("kill %d failed\n", pid);
+    }
 }
 
 static int benchmark(int argc, char *argv[]) {
@@ -336,7 +359,14 @@ static int benchmark(int argc, char *argv[]) {
 
 static int die()
 {
-    *(int*)(0) =  1313;
+
+    printf ("bye!!\n");
+    int stack_addr = 4;
+
+    int (*functionPtr)(int,int);
+    functionPtr =  &stack_addr;
+    int sum = (*functionPtr)(1,1);
+    /* *(int*)(0) =  1313; */
 }
 
 static int thrash()
@@ -353,7 +383,7 @@ struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
     "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
                {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall},
-               {"thrash", thrash}, {"die", die}};
+               {"thrash", thrash}, {"exit", die}, {"exec_test", exec_test}};
 
 void simple_file_test()
 {
@@ -417,7 +447,8 @@ int main(void) {
     int i, r, done, found, new, argc;
     char *bp, *p;
     in = open("console", O_RDONLY);
-    assert(in >= 0);
+    /* ass */
+    assert(in == 0);
     bp = buf;
     done = 0;
     new = 1;
@@ -426,7 +457,7 @@ int main(void) {
     /* file_unittest(); */
 
     /* while (1){} */
-    printf("\n[SOS SHELL Starting]\n");
+    printf("\n[SOS SHELL Starting at PID: %d]\n", sos_my_id());
 
     while (!done) {
         if (new) {

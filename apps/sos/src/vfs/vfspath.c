@@ -68,6 +68,7 @@ vfs_open(char *path, int openflags, mode_t mode, struct vnode **ret)
     char name[NAME_MAX+1];
     strcpy(name, path);
     result = vfs_lookup(name, &vn); // not find the file, we need creat it if write flag is set
+    /* printf ("vnode %p, %d\n", vn, vn->vn_refcount); */
     if (result == ENOENT && ((openflags & O_CREAT) || canwrite) )
     {
         struct vnode *dir;

@@ -87,6 +87,7 @@ int close_kern_file(struct file* fs)
 
         if (v_tmp != NULL)
         {
+            printf ("vfs close: %p\n", v_tmp);
             vfs_close(v_tmp);
         }
 
@@ -120,11 +121,12 @@ static int __do_stdio_open(struct file** f, int fd)
     char con[10] = "console:";
     struct file* tmp;
     *f = NULL;
+    assert(fd != 0);
     int flags = (fd == 0? O_RDONLY: O_WRONLY);
     struct vnode* v;
 
     int ret = 0;
-    ret = vfs_open(con, flags, 0, &v);
+    ret = vfs_open(con, flags, flags, &v);
     if (ret != 0)
     {
         ERROR_DEBUG("vfs_open: std[%d] failed\n", fd);

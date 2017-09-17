@@ -28,6 +28,7 @@ enum fault_type
     FAULT_READ = 1,
     FAULT_WRITE = 2,
     FAULT_WRITE_ON_READONLY = 4,
+    FAULT_FATAL = 8,
 };
 
 static inline int sel4_fault_code_to_fault_type(int code)
@@ -73,7 +74,11 @@ static inline int sel4_fault_code_to_fault_type(int code)
     {
         return FAULT_READ;
     }
-    ERROR_DEBUG("need handle fault: %d\n", code);
+    else
+    {
+        ERROR_DEBUG("fatal error, unknown handle fault: %d\n", code);
+        return FAULT_FATAL;
+    }
     assert(0);
     return -1;
 

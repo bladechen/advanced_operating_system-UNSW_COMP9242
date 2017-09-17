@@ -235,9 +235,7 @@ void destroy_coro(struct coroutine* coro)
     }
     // you can't destroy yourself.
     assert(coro->_proc != get_current_proc());
-    assert(coro->_status !=  COROUTINE_SUSPEND &&
-           coro->_status != COROUTINE_SUSPEND &&
-           coro->_status != COROUTINE_RUNNING);
+    assert(coro->_status != COROUTINE_RUNNING);
     assert(list_empty(&(coro->_link)) == true);
     if (coro->_stack_addr != NULL)
     {
