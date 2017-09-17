@@ -27,6 +27,7 @@ struct proc kproc;
 extern char _cpio_archive[];
 
 
+
 static inline int get_proc_status(struct proc* proc)
 {
     return proc->p_status.status;
@@ -77,6 +78,7 @@ static void clear_proc_resource(struct proc* proc)
 
 static void clear_proc_status(struct proc* proc)
 {
+    proc->p_status.argv_str = NULL;
     proc->p_status.name = NULL;
     proc->p_status.status = PROC_STATUS_INVALID;
     proc->p_status.stime = (unsigned int)(time_stamp()/1000);
@@ -112,6 +114,7 @@ static void init_kproc(char* kname)
     set_kproc_coro(&kproc); //daemon coroutine
     kproc.p_pid = alloc_pid(&kproc);
     kproc.p_father_pid = -1; // i have no parent..
+    kproc.p_wait_pid = INVALID_WAIT_PID;
     assert(kproc.p_pid == 0);
 }
 
@@ -129,7 +132,13 @@ static void _free_proc_resource(struct proc* process)
 {
     /* assert(process->p_status.status == PROC_STATUS_INVALID ||process->p_status.status == PROC_STATUS_INIT  || process->p_status.status  == PROC_STATUS_EXIT); */
     /*  */
+    assert(process->p_wait_pid == INVALID_WAIT_PID);
     destroy_reply_cap(&process->p_context.p_reply_cap);
+    if (process->p_status.argv_str != NULL)
+    {
+        free(process->p_status.argv_str);
+        process->p_status.argv_str = NULL;
+    }
     if (process->p_resource.fs_struct != NULL)
     {
         destroy_fd_table(process->p_resource.fs_struct);
@@ -188,10 +197,10 @@ static void _free_proc_resource(struct proc* process)
 static void _free_proc_pid(struct proc* process)
 {
     assert(process->someone_wait == 0 && process->p_waitchild == NULL);
-    if (process->p_pid != 0)
+    if (process->p_pid != -1)
     {
         free_pid(process->p_pid);
-        process->p_pid = 0;
+        process->p_pid = -1;
     }
 }
 // free the resource the process hold, except for the process itself and its pid
@@ -202,19 +211,18 @@ static void _free_proc(struct proc * process)
     /*        process->p_status.status == PROC_STATUS_INIT  || process->p_status.status == PROC_STATUS_EXIT); */
     // must be father to clear child even it is attach to kproc!
     /* if (get_current_proc() != &kproc) */
-    {
-        assert(process->p_father_pid == -1 );// || process->p_father_pid == get_current_proc()->p_pid);
-        assert(process != get_current_proc());
-    }
-    /* assert(process->p_pid == -1); */
+    assert(process->p_father_pid == -1 );// || process->p_father_pid == get_current_proc()->p_pid);
+    assert(process != get_current_proc());
     assert(process->p_father_pid == -1);
     assert(is_list_empty(&process->children_list));
+    assert(process->p_wait_pid == INVALID_WAIT_PID);
     assert(!is_linked(&process->as_child_next));
     assert(process->someone_wait == false);
     assert(process->p_waitchild == NULL);
     _free_proc_resource(process);
+    int tmp = process->p_pid;
     _free_proc_pid(process);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process 0x%x ok!\n", process);
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "destroy process %d 0x%x ok!\n",tmp, process);
     free(process);
 
     return;
@@ -227,6 +235,7 @@ int _init_proc(struct proc* process, char* name, seL4_CPtr fault_ep_cap)
     assert(process->p_pid > 0); // 0 is for kproc!
     int ret = 0;
     process->p_status.name = strdup(name);
+    process->p_wait_pid = INVALID_WAIT_PID;
 
     // begin init p_resource
     process->p_resource.p_pagetable = create_pagetable();
@@ -344,13 +353,6 @@ int _init_proc(struct proc* process, char* name, seL4_CPtr fault_ep_cap)
     return 0;
 }
 
-/* static void _free_proc_pid(struct proc* proc) */
-/* { */
-/*     assert(proc->p_pid != 0); */
-/*     free_pid(pid); */
-/*     process->p_pid = 0; */
-/* } */
-
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
 {
     struct proc * process = (struct proc *)malloc(sizeof(struct proc));
@@ -370,14 +372,12 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     if (ret != 0)
     {
         ERROR_DEBUG("try to init proc '%s' with pid: %d error\n", name, pid);
-        _free_proc_pid(process);
         _free_proc(process);
         return NULL;
     }
     return process;
 }
 
-// should in coroutine, because we need block loading elf from nfs later in m8 XXX
 bool proc_load_elf(struct proc * process, char* file_name)
 {
     assert(get_proc_status(process) == PROC_STATUS_INIT);
@@ -417,9 +417,9 @@ static int _init_proc_argv_on_stack(struct proc* proc, int argc, char** argv, ui
         total_argv_len += strlen(argv[0]);
     }
     // XXX to make problem easy, we only support less than 1 pages argv.
-    if (total_argv_len >= 2048)
+    if (total_argv_len >= 4000)
     {
-        ERROR_DEBUG("sos can't support the argv len larger than 2048\n");
+        ERROR_DEBUG("sos can't support the argv len larger than 4000\n");
         return -1;
     }
     struct  as_region_metadata *region = as_get_region(proc->p_resource.p_addrspace, APP_PROCESS_STACK_TOP - seL4_PAGE_SIZE);
@@ -441,14 +441,13 @@ static int _init_proc_argv_on_stack(struct proc* proc, int argc, char** argv, ui
     virt_addr += 4 * argc;
     for (int i = 0; i < argc; ++ i)
     {
-        memcpy((char*)(tmp) + 4 * i, &virt_addr, 4);
-        memcpy(phy_addr, argv[i], strlen(argv[i]));
+        memcpy((char*)(tmp) + 4 * i, &virt_addr, 4); // **argv
+        memcpy(phy_addr, argv[i], strlen(argv[i])); // argv[0....]
         phy_addr[strlen(argv[i])] = 0;
         phy_addr += strlen(argv[i]) + 1;
         printf ("argv[%d] %s inapp viraddr: 0x%08x len: %d\n", i, argv[i], virt_addr, strlen(argv[i]));
         virt_addr += strlen(argv[i]) + 1;
     }
-    /* printf ("%u\n", virt_addr); */
     *phy_addr = 0;
     return 0;
 }
@@ -461,6 +460,32 @@ int proc_start(struct proc* proc, int argc, char** argv)
         return 0;
     }
     assert(get_proc_status(proc) ==  PROC_STATUS_INIT);
+    int len = 0;
+    for (int i = 0; i < argc; i ++)
+    {
+        len += strlen(argv[i]);
+    }
+    assert(proc->p_status.argv_str == NULL);
+    if (len != 0)
+    {
+        proc->p_status.argv_str = malloc(len + argc);
+        int idx = 0;
+        for (int i = 0; i < argc; i ++)
+        {
+            memcpy(proc->p_status.argv_str + idx, argv[i], strlen(argv[i]));
+            idx += strlen(argv[i]);
+            if (i != argc -1)
+                proc->p_status.argv_str[idx ++] = ' ';
+        }
+        proc->p_status.argv_str[idx] = 0;
+        assert(idx == len + argc - 1);
+    }
+    else
+    {
+        proc->p_status.argv_str = strdup(proc->p_status.name);
+    }
+    printf ("proc argv [%s]\n", proc->p_status.argv_str);
+
     seL4_UserContext context;
     memset(&context, 0, sizeof(context));
     uint32_t argv_stack_addr = 0;
@@ -485,16 +510,17 @@ int proc_start(struct proc* proc, int argc, char** argv)
 static void _recycle_child(struct proc* proc)
 {
     assert(!is_linked(&proc->as_child_next));
-    if (get_proc_status(proc) == PROC_STATUS_RUNNING) //place under kproc
+    if (get_proc_status(proc) == PROC_STATUS_RUNNING || get_proc_status(proc) == PROC_STATUS_SLEEP) //place under kproc
     {
         COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "place pid: %d under kproc\n", proc->p_pid);
 
         list_add_tail(&(proc->as_child_next), &(kproc.children_list.head));
+        proc->someone_wait = false;
         proc->p_father_pid = kproc.p_pid;
     }
     else if(get_proc_status(proc) == PROC_STATUS_ZOMBIE) // destroy it
     {
-        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "clear zombie pid: %d \n", proc->p_pid);
+        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "free zombie pid: %d \n", proc->p_pid);
         proc_destroy(proc);
     }
     else
@@ -524,44 +550,57 @@ static void proc_handle_children_process(struct proc * process)
 }
 
 
-bool proc_wakeup_father(struct proc* child)
+static bool proc_wakeup_father(struct proc* child)
 {
     assert(child != NULL);
     assert(get_proc_status(child) == PROC_STATUS_ZOMBIE);
+    struct proc* father = pid_to_proc(child->p_father_pid);
+    assert(father != NULL);
+    if (child->p_father_pid == kproc.p_pid) // sosh shell die...
+    {
+        ERROR_DEBUG("already under kproc, kproc will collect : %d\n", child->p_pid);
+        return false;
+    }
+    // father exactly wait this process, wait(child->p_pid)
     if (child->someone_wait)
     {
-        struct proc* father = pid_to_proc(child->p_father_pid);
-        // father killed by someone...
-        if (father == NULL)
-        {
-            ERROR_DEBUG("proc_wakeup_father failed\n");
-            return false;
-        }
-        if (child->p_father_pid == kproc.p_pid) // sosh shell die...
-        {
-            ERROR_DEBUG("proc_wakeup_father wake up kproc ?????\n");
-            return true;
-        }
         if (get_proc_status(father) == PROC_STATUS_RUNNING)
         {
-            COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "proc_wakeup_father wake up: %d\n", father->p_pid);
+            assert(father->p_wait_pid == child->p_pid);
+            COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "proc %d wake up: %d\n", child->p_pid, father->p_pid);
             assert(father->p_waitchild != NULL);
             V(father->p_waitchild);
             return true;
         }
         else
         {
-            ERROR_DEBUG("wake up father in status: %d\n", get_proc_status(father));
+            assert(get_proc_status(father) != PROC_STATUS_SLEEP);
+            ERROR_DEBUG("wake up father failed pid: %d is in status: %d\n", father->p_pid, get_proc_status(father));
+            return false;
         }
     }
-    // father exec this child in background
-    ERROR_DEBUG("proc_wakeup_father nothing????\n");
-    return false;
+    else
+    {
+        if (father->p_wait_pid == WAIT_ALL_PID )//&& get_proc_status(father) == PROC_STATUS_RUNNING)
+        {
+            assert(get_proc_status(father) == PROC_STATUS_RUNNING);
+            COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "proc %d (waitall) wake up: %d\n", child->p_pid, father->p_pid);
+            father->p_wait_pid = child->p_pid; //tell father who you are waiting for.
+            assert(father->p_waitchild != NULL);
+            V(father->p_waitchild);
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
 }
 
 
 void proc_attach_father(struct proc* child, struct proc* father)
 {
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "pid: %d attach to pid: %d as a child\n", child->p_pid, father->p_pid);
     assert(!is_linked(&(child->as_child_next)));
     assert(child->p_father_pid == -1);;
     list_del(&(child->as_child_next));
@@ -571,6 +610,7 @@ void proc_attach_father(struct proc* child, struct proc* father)
 
 void proc_destroy(struct proc * process)
 {
+    /* if (process) */
     assert(process != &kproc);
     int status = get_proc_status(process);
     if (status == PROC_STATUS_INIT || status == PROC_STATUS_INVALID)
@@ -586,22 +626,20 @@ void proc_destroy(struct proc * process)
     {
         assert(get_current_proc() == &kproc);
         proc_handle_children_process(process);
-        if (!process->someone_wait)
+        _free_proc_resource(process);
+        set_proc_status(process, PROC_STATUS_ZOMBIE);
+        // if its father not waiting for this process, we destroyed it immediately!
+        // XXX which is a little different from POSIX waitpid
+        // because sosh do not explicit collect its spawned background process.
+        assert(process->p_waitchild == NULL && process->p_wait_pid == INVALID_WAIT_PID);
+        bool wake_success = proc_wakeup_father(process);
+        if (!wake_success)
         {
+            ERROR_DEBUG("no one wait to collect pid: %d, just destroy now\n", process->p_pid);
+            process->someone_wait = false;
             proc_deattch(process);
-            assert(process->p_waitchild == NULL);
             _free_proc(process);
-
-        }
-        else// become zombie
-        {
-            _free_proc_resource(process);
-            set_proc_status(process, PROC_STATUS_ZOMBIE);
-            bool wake_success = proc_wakeup_father(process);
-            if (!wake_success)
-            {
-                _free_proc(process);
-            }
+            dump_vm_state();
         }
     }
     else if(status == PROC_STATUS_ZOMBIE)
@@ -626,11 +664,12 @@ void proc_exit(struct proc* proc)
 
     struct proc* father = pid_to_proc(proc->p_father_pid);
     assert(father != NULL); // except for kproc, but it should not exit
-    assert(get_proc_status(father) == PROC_STATUS_RUNNING);
+    assert(get_proc_status(father) == PROC_STATUS_RUNNING || get_proc_status(father) == PROC_STATUS_SLEEP);
     if (proc->p_waitchild != NULL)
     {
         sem_destroy(proc->p_waitchild);
         proc->p_waitchild = NULL;
+        proc->p_wait_pid = INVALID_WAIT_PID;
     }
     /* assert(!list_empty(&proc->as_child_next)); */
 }
@@ -660,9 +699,10 @@ void recycle_process()
         if (p != NULL && get_proc_status(p) == PROC_STATUS_EXIT)
         {
             assert(p->p_father_pid != -1);
-            /* printf ("%d\n", p->p_coro); */
-            assert(p->p_coro->_status == COROUTINE_INIT);
+            // INIT is kill or exit, SUSPEND is killed while sleeping
+            assert(p->p_coro->_status == COROUTINE_INIT || p->p_coro->_status == COROUTINE_SUSPEND);
             proc_destroy(p);
+            assert(p->p_status.status == PROC_STATUS_ZOMBIE);
         }
     }
 }
@@ -672,4 +712,38 @@ void* get_ipc_buffer(struct proc* proc)
     // XXX must be 4k, otherwise it will not continuous!!!!
     return (void*)( page_phys_addr(proc->p_resource.p_pagetable, APP_PROCESS_IPC_SHARED_BUFFER));
 
+}
+
+char proc_status_display(struct proc* proc)
+{
+    int status = get_proc_status(proc);
+    if (status == PROC_STATUS_INIT)
+    {
+        return 'I';
+    }
+    else if (status == PROC_STATUS_RUNNING)
+    {
+        if (proc->p_coro->_status == COROUTINE_SUSPEND)
+            return 'D';
+        else
+            return 'R';
+    }
+    else if (status == PROC_STATUS_SLEEP)
+    {
+        return 'S';
+    }
+    else if(status == PROC_STATUS_EXIT)
+    {
+        return 'E';
+    }
+    else if(status == PROC_STATUS_ZOMBIE)
+    {
+        return 'Z';
+    }
+    else if(status == PROC_STATUS_INVALID)
+    {
+        return 'V';
+    }
+    assert(0);
+    return 'X';
 }

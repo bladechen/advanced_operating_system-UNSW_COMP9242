@@ -11,18 +11,23 @@
 #include "comm/list.h"
 #include "pid.h"
 #include <sos.h>
+#define INVALID_WAIT_PID (-10000)
+#define WAIT_ALL_PID (-1)
 
 
 enum PROC_STATUS
 {
-
     PROC_STATUS_INIT = 0,
     PROC_STATUS_RUNNING = 1,
     PROC_STATUS_EXIT   = 2, // we should mark proc exit, then destroy in the main coroutine loop
     PROC_STATUS_ZOMBIE = 3, // all the resource of the proc has been destroyed except for the proc itself
 
-    PROC_STATUS_INVALID = 100
+    PROC_STATUS_SLEEP = 4,
+    PROC_STATUS_INVALID = 100,
+
 };
+
+
 
 struct proc_context
 {
@@ -52,14 +57,9 @@ struct proc_status
 
     unsigned int stime; // start time in second
 
-};
+    char* argv_str;
 
-// struct proc_exec_argv
-// {
-//     int argc;
-//     char** argv;
-//     char* elf_base; // replace it futher more
-// };
+};
 
 struct proc
 {
@@ -75,8 +75,11 @@ struct proc
     int p_father_pid;
     struct list children_list; // for managing the child proc
     struct list_head as_child_next; // used as child link node for the parent proc
-    bool someone_wait;
+    bool someone_wait; // waited process, set by parent process while calling waiting, exactly waiting for this process
+    // following is for the waiting processs
     struct semaphore* p_waitchild;
+    int p_wait_pid;
+
 };
 
 
@@ -84,24 +87,19 @@ void proc_bootstrap();
 /* create all the resource of proc, then activate it. i.e make it running */
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap);
 
-/* make the proc running */
 void proc_destroy(struct proc* proc); // XXX we may no need proc_exit
 
 
-
+char proc_status_display(struct proc* proc);
+/* make the proc running */
 int proc_start(struct proc* proc, int argc, char** argv);
-
 
 bool proc_load_elf(struct proc * process, char* file_name);
 
 void proc_exit(struct proc* proc);
 
-/* resume the proc TODO later in M8 */
-
 void recycle_process();
 
-
-bool proc_wakeup_father(struct proc* child);
 
 void proc_attach_father(struct proc* child, struct proc* father);
 
@@ -119,19 +117,17 @@ struct addrspace *proc_getas(void);
 struct addrspace *proc_setas(struct addrspace *);
 
 
-// struct proc* proc_get_child(int pid);
-
-// inline static void proc_to_be_killed(struct proc* proc)
-// {
-//     proc->p_status = PROC_STATUS_ZOMBIE;
-// }
-
 void* get_ipc_buffer(struct proc* proc);
 
 static inline struct pagetable* proc_pagetable(struct proc* proc)
 {
     return proc->p_resource.p_pagetable;
 }
+static inline void proc_mem(struct proc* proc, uint32_t* res, uint32_t* swap)
+{
+    page_statistic(proc->p_resource.p_pagetable, res, swap);
+}
+int run_program(const char* name,int fault_cap,  int argc, char** argv);
 
 #endif
 
