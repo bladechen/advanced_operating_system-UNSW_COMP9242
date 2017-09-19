@@ -31,7 +31,7 @@ struct context
 };
 
 // therefore the total stack size is 16K including the surrounded guards
-#define STACK_SIZE (4096 * 2) // 16K
+#define STACK_SIZE (4096 * 3) // 16K
 #define STACK_GUARD_SIZE (4096)
 #define MAX_COROUTINE_NUM (10)
 typedef void (*coroutine_func)(void * argv);

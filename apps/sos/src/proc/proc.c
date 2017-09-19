@@ -28,11 +28,6 @@ extern char _cpio_archive[];
 
 
 
-static inline int get_proc_status(struct proc* proc)
-{
-    return proc->p_status.status;
-}
-
 static inline bool proc_status_check(int from_status, int to_status)
 {
     if (from_status == PROC_STATUS_INVALID)
@@ -378,29 +373,6 @@ struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap)
     return process;
 }
 
-bool proc_load_elf(struct proc * process, char* file_name)
-{
-    assert(get_proc_status(process) == PROC_STATUS_INIT);
-    unsigned long elf_size;
-    char * elf_base = cpio_get_file(_cpio_archive, file_name, &elf_size);
-    if (elf_base == NULL)
-    {
-        ERROR_DEBUG("cpio_get_file NULL\n");
-        return false;
-    }
-    /* conditional_panic(!elf_base, "Unable to locate cpio header"); */
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, " elf_base: 0x%x, entry point: 0x%x   %s\n", (unsigned int)elf_base, (unsigned int)elf_getEntryPoint(elf_base), file_name);
-
-    /*** load the elf image info, set up addrspace ***/
-    // DATA and CODE region is set up by `vm_elf_load`
-    //  in parent coroutine!
-    int err = vm_elf_load(process->p_resource.p_addrspace, process->p_resource.p_pagetable->vroot.cap, elf_base);
-    if (err != 0)
-    {
-        return false;
-    }
-    return true;
-}
 
 
 static int _init_proc_argv_on_stack(struct proc* proc, int argc, char** argv, uint32_t* argv_addr, uint32_t* stack_top)
@@ -498,7 +470,7 @@ int proc_start(struct proc* proc, int argc, char** argv)
     }
     context.r5 = argc;
     context.r6 = argv_stack_addr;
-    context.pc = elf_getEntryPoint(proc->p_resource.p_addrspace->elf_base);
+    context.pc = proc->p_resource.p_addrspace->entry_point;
     context.sp = stack_top;
     set_proc_status(proc, PROC_STATUS_RUNNING);
     seL4_TCB_WriteRegisters(proc->p_resource.p_tcb->cap, 1, 0, 16, &context);

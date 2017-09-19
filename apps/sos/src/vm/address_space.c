@@ -19,6 +19,8 @@
 #include "address_space.h"
 #include "comm/comm.h"
 #include "frametable.h"
+#include "vfs/uio.h"
+#include "vfs/vfs.h"
 
 const char REGION_NAME[10][20] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "OTHER"};
 static void dump_region(struct as_region_metadata* region);
@@ -41,7 +43,7 @@ struct addrspace *as_create(struct pagetable* pt)
     {
         return NULL;
     }
-    as->elf_base = NULL;
+    as->entry_point = 0;
     as->list = NULL;
     as->list = malloc(sizeof(struct list));
     if (as->list == NULL)
@@ -87,7 +89,7 @@ static struct as_region_metadata* as_create_region(void)
     temp->type = 100000; // invalid value
     temp->npages = 0;
     temp->region_vaddr = 0;
-    temp->p_elfbase = NULL;
+    temp->region_vnode = NULL;
     temp->elf_vaddr = 0;
     temp->elf_offset = 0;
     temp->elf_size = 0;
@@ -157,7 +159,7 @@ static struct as_region_metadata* as_get_region_by_type(struct addrspace* as, in
 }
 int as_define_region(struct addrspace *as,
                      vaddr_t vaddr,
-                     char* elf_base,
+                     struct vnode* elf,
                      size_t elf_region_offset,
                      size_t memsz,
                      size_t filesz,
@@ -182,10 +184,14 @@ int as_define_region(struct addrspace *as,
     region->region_vaddr = vaddr;
     region->npages = convert_to_pages(memsz); //ceiling
     region->rwxflag =  readable | writeable | executable;
-    region->p_elfbase = elf_base;
+    region->region_vnode = elf;
     region->elf_offset = elf_region_offset;
     region->elf_size = filesz;
     region->type = type;
+    if (region->region_vnode != NULL)
+    {
+        VOP_INCREF(region->region_vnode);
+    }
 
     as_add_region_to_list(as, region);
     return 0;
@@ -311,6 +317,11 @@ void  as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
 {
     assert(as != NULL && to_del != NULL);
     list_del_init(&(to_del->link));
+    if (to_del->region_vnode != NULL)
+    {
+        VOP_DECREF(to_del->region_vnode);
+        to_del->region_vnode = NULL;
+    }
     as_destroy_region_pages(as_get_page_table(as), to_del, to_del->region_vaddr, to_del->npages);
 
 }
@@ -349,41 +360,46 @@ static seL4_CapRights as_region_caprights(struct as_region_metadata* region)
 /*
 *   Load elf info from .elf file, set up address space but does not load contents into memory.
 */
-int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, char* elf_file)
+int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, char* elf_header, struct vnode* elf)
 {
     /* Ensure that the ELF file looks sane. */
-    if (elf_checkFile(elf_file))
+    if (elf_checkFile(elf_header) != 0)
+    {
+        ERROR_DEBUG("elf_checkFile failed\n");
+        return EINVAL;
+    }
+    dest_as->entry_point = (uint32_t )elf_getEntryPoint(elf_header);
+    if (dest_as->entry_point == 0)
     {
         return EINVAL;
     }
-    dest_as->elf_base = elf_file;
+    assert(elf != NULL);
 
-    int num_headers = elf_getNumProgramHeaders(elf_file);
-    int i;
-    for (i = 0; i < num_headers; i++)
+    int num_headers = elf_getNumProgramHeaders(elf_header);
+    for (int i = 0; i < num_headers; ++ i)
     {
 
         /* Skip non-loadable segments (such as debugging data). */
-        if (elf_getProgramHeaderType(elf_file, i) != PT_LOAD)
+        if (elf_getProgramHeaderType(elf_header, i) != PT_LOAD)
             continue;
 
         /* Fetch information about this segment. */
-        uint32_t off = elf_getProgramHeaderOffset(elf_file, i);
-        /* source_addr = elf_file + elf_getProgramHeaderOffset(elf_file, i); */
-        uint32_t file_size = elf_getProgramHeaderFileSize(elf_file, i);
-        uint32_t segment_size = elf_getProgramHeaderMemorySize(elf_file, i);
-        uint32_t vaddr = elf_getProgramHeaderVaddr(elf_file, i);
-        uint32_t flags = elf_getProgramHeaderFlags(elf_file, i);
-        char * name = elf_getSectionName(elf_file, i);
-
+        uint32_t off = elf_getProgramHeaderOffset(elf_header, i);
+        uint32_t file_size = elf_getProgramHeaderFileSize(elf_header, i);
+        uint32_t segment_size = elf_getProgramHeaderMemorySize(elf_header, i);
+        uint32_t vaddr = elf_getProgramHeaderVaddr(elf_header, i);
+        uint32_t flags = elf_getProgramHeaderFlags(elf_header, i);
+        /* char * name = elf_getSectionName(elf_header, i); */
+        /* printf ("addr name %p  head %p\n", name , elf_header); */
+        /* printf ("%x %x %x %x %x %s\n", off, file_size, segment_size, vaddr, flags, name); */
 
         // fill in corresponding region infos
-        if (strcmp(name, ".text") == 0)
+        if (PF_X & flags)
         {
             COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define CODE region offset from elf at %u\n", off);
             int err = as_define_region(dest_as,
                     vaddr,
-                    elf_file,
+                    elf,
                     off,
                     segment_size,
                     file_size,
@@ -391,13 +407,13 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
                     CODE);
             conditional_panic(err != 0, "Fail to create and define CODE Region\n");
         }
-        else if (strcmp(name, ".rodata") == 0)
+        else
         {
 
             COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, " Try to create and define DATA region offset from elf at %u\n", off);
             int err = as_define_region(dest_as,
                     vaddr,
-                    elf_file,
+                    elf,
                     off,
                     segment_size,
                     file_size,
@@ -405,10 +421,12 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
                     DATA);
             conditional_panic(err != 0, "Fail to create and define DATA Region\n");
         }
-        else
-        {
-            ERROR_DEBUG( "the section %s need load, but not handled\n", name);
-        }
+        /* // FIXME show stop Assuming ELF files only have two sections. */
+        /* else */
+        /* { */
+        /*     ERROR_DEBUG("the section %s need load, but not handled\n", name); */
+        /*     #<{(| assert(0); |)}># */
+        /* } */
 
         dprintf(0, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
     }
@@ -419,10 +437,9 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
 static void dump_region(struct as_region_metadata* region)
 {
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "region type: %s\n", REGION_NAME[(region->type)]);
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u, elf_base: 0x%x, filesz: %u, file_offset: %u, elf vaddr:0x%x, permission: %x\n",
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* vaddr start at: 0x%x with pages: %u,  filesz: %u, file_offset: %u, elf vaddr:0x%x, permission: %x\n",
                 region->region_vaddr,
                 region->npages,
-                region->p_elfbase,
                 region->elf_size,
                 region->elf_offset,
                 region->elf_vaddr,
@@ -432,7 +449,7 @@ static void dump_region(struct as_region_metadata* region)
 
 int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, vaddr_t fault_addr, int fault_type)
 {
-    assert(pt != NULL && r != NULL &&r->p_elfbase != NULL);
+    assert(pt != NULL && r != NULL &&r->region_vnode != NULL);
     assert(!(fault_addr &(~seL4_PAGE_MASK)));
     assert(r->npages * seL4_PAGE_SIZE >= r->elf_size);
     const struct as_region_metadata region = *r;
@@ -499,20 +516,26 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
     }
 
     paddr_t paddr = page_phys_addr(pt, fault_addr);
-    if (!is_page_loaded(pt, fault_addr))
+    if (!is_page_loaded(pt, fault_addr) && file_copy_bytes)
     {
         assert(paddr != 0);
-        // calculate the copy region
-
         /* COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm off: %u, file addr: %u, bytes: %d\n", vm_copied_addr_offset, file_copy_addr,file_copy_bytes ); */
 
-        file_copy_addr += (uint32_t) r->p_elfbase;
+        char elf_page[seL4_PAGE_SIZE] ; // coroutine stack size is at leat 2 pages!
+        memset(elf_page, 0, seL4_PAGE_SIZE);
+        struct iovec iov;
+        struct uio u;
+        uio_kinit(&iov, &u, (void*)elf_page, file_copy_bytes, file_copy_addr, UIO_READ);
+        ret = VOP_READ(r->region_vnode, &u);
+        if (ret != 0 || u.uio_resid != 0)
+        {
+            ERROR_DEBUG("load from elf file failed, err: %d, uio_resid: %d", ret, (int)(u.uio_resid));
+            return EFAULT;
+        }
+        /* file_copy_addr += (uint32_t) r->p_elfbase; */
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "alloc vaddr: 0x%x at paddr: 0x%x\n", fault_addr, paddr);
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "* copy file at 0x%x to physical mem 0x%x with %d bytes\n", file_copy_addr, paddr + vm_copied_addr_offset, file_copy_bytes);
-        if (file_copy_bytes)
-        {
-            memcpy((void*)(paddr + vm_copied_addr_offset), (void*)file_copy_addr, file_copy_bytes);
-        }
+        memcpy((void*)(paddr + vm_copied_addr_offset), (void*)elf_page, file_copy_bytes);
         set_page_already_load(pt, fault_addr);
     }
     flush_sos_frame(paddr);

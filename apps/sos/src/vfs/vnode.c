@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
- *	The President and Fellows of Harvard College.
+ *    The President and Fellows of Harvard College.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,16 +40,16 @@
  */
 int
 vnode_init(struct vnode *vn, const struct vnode_ops *ops,
-	   struct fs *fs, void *fsdata)
+       struct fs *fs, void *fsdata)
 {
-	assert(vn != NULL);
-	assert(ops != NULL);
+    assert(vn != NULL);
+    assert(ops != NULL);
 
-	vn->vn_ops = ops;
-	vn->vn_refcount = 1;
-	vn->vn_fs = fs;
-	vn->vn_data = fsdata;
-	return 0;
+    vn->vn_ops = ops;
+    vn->vn_refcount = 1;
+    vn->vn_fs = fs;
+    vn->vn_data = fsdata;
+    return 0;
 }
 
 /*
@@ -58,13 +58,13 @@ vnode_init(struct vnode *vn, const struct vnode_ops *ops,
 void
 vnode_cleanup(struct vnode *vn)
 {
-	assert(vn->vn_refcount == 1);
+    assert(vn->vn_refcount == 1);
 
 
-	vn->vn_ops = NULL;
-	vn->vn_refcount = 0;
-	vn->vn_fs = NULL;
-	vn->vn_data = NULL;
+    vn->vn_ops = NULL;
+    vn->vn_refcount = 0;
+    vn->vn_fs = NULL;
+    vn->vn_data = NULL;
 }
 
 
@@ -75,9 +75,9 @@ vnode_cleanup(struct vnode *vn)
 void
 vnode_incref(struct vnode *vn)
 {
-	assert(vn != NULL);
+    assert(vn != NULL);
 
-	vn->vn_refcount++;
+    vn->vn_refcount++;
 }
 
 /*
@@ -89,21 +89,21 @@ extern struct device *excl_console_dev;
 void
 vnode_decref(struct vnode *vn)
 {
-	bool destroy;
-	int result;
+    bool destroy;
+    int result;
 
-	assert(vn != NULL);
+    assert(vn != NULL);
 
 
-	assert(vn->vn_refcount > 0);
-	if (vn->vn_refcount > 1) {
-		vn->vn_refcount--;
-		destroy = false;
-	}
-	else {
-		/* Don't decrement; pass the reference to VOP_RECLAIM. */
-		destroy = true;
-	}
+    assert(vn->vn_refcount > 0);
+    if (vn->vn_refcount > 1) {
+        vn->vn_refcount--;
+        destroy = false;
+    }
+    else {
+        /* Don't decrement; pass the reference to VOP_RECLAIM. */
+        destroy = true;
+    }
 
 
     // XXX very ugly way, because console dev's read is exlusive, so close should call its reclaim function to
@@ -113,16 +113,16 @@ vnode_decref(struct vnode *vn)
         assert(0 == VOP_RECLAIM(vn));
     }
 
-    /* printf ("vnode ref: %d, %d\n", vn->vn_refcount, destroy); */
 
-	if (destroy) {
-		result = VOP_RECLAIM(vn);
-		if (result != 0 && result != EBUSY) {
-			// XXX: lame.
-			ERROR_DEBUG("vfs: Warning: VOP_RECLAIM: %s\n",
-				strerror(result));
-		}
-	}
+    if (destroy) {
+        printf ("vnode destroyed: %p\n", vn);
+        result = VOP_RECLAIM(vn);
+        if (result != 0 && result != EBUSY) {
+            // XXX: lame.
+            ERROR_DEBUG("vfs: Warning: VOP_RECLAIM: %s\n",
+                strerror(result));
+        }
+    }
 }
 
 /*
@@ -132,57 +132,57 @@ vnode_decref(struct vnode *vn)
 void
 vnode_check(struct vnode *v, const char *opstr)
 {
-	/* not safe, and not really needed to check constant fields */
-	/*vfs_biglock_acquire();*/
+    /* not safe, and not really needed to check constant fields */
+    /*vfs_biglock_acquire();*/
 
-	if (v == NULL) {
-		ERROR_DEBUG("vnode_check: vop_%s: null vnode\n", opstr);
+    if (v == NULL) {
+        ERROR_DEBUG("vnode_check: vop_%s: null vnode\n", opstr);
         assert(0);
-	}
-	if (v == (void *)0xdeadbeef) {
-		ERROR_DEBUG("vnode_check: vop_%s: deadbeef vnode\n", opstr);
+    }
+    if (v == (void *)0xdeadbeef) {
+        ERROR_DEBUG("vnode_check: vop_%s: deadbeef vnode\n", opstr);
         assert(0);
-	}
+    }
 
-	if (v->vn_ops == NULL) {
-		ERROR_DEBUG("vnode_check: vop_%s: null ops pointer\n", opstr);
+    if (v->vn_ops == NULL) {
+        ERROR_DEBUG("vnode_check: vop_%s: null ops pointer\n", opstr);
         assert(0);
-	}
-	if (v->vn_ops == (void *)0xdeadbeef) {
-		ERROR_DEBUG("vnode_check: vop_%s: deadbeef ops pointer\n", opstr);
+    }
+    if (v->vn_ops == (void *)0xdeadbeef) {
+        ERROR_DEBUG("vnode_check: vop_%s: deadbeef ops pointer\n", opstr);
         assert(0);
-	}
+    }
 
-	if (v->vn_ops->vop_magic != VOP_MAGIC) {
-		ERROR_DEBUG("vnode_check: vop_%s: ops with bad magic number %lx\n",
-		      opstr, v->vn_ops->vop_magic);
+    if (v->vn_ops->vop_magic != VOP_MAGIC) {
+        ERROR_DEBUG("vnode_check: vop_%s: ops with bad magic number %lx\n",
+              opstr, v->vn_ops->vop_magic);
         assert(0);
-	}
+    }
 
-	// Device vnodes have null fs pointers.
-	//if (v->vn_fs == NULL) {
-	//	panic("vnode_check: vop_%s: null fs pointer\n", opstr);
-	//}
-	if (v->vn_fs == (void *)0xdeadbeef) {
-		ERROR_DEBUG("vnode_check: vop_%s: deadbeef fs pointer\n", opstr);
+    // Device vnodes have null fs pointers.
+    //if (v->vn_fs == NULL) {
+    //    panic("vnode_check: vop_%s: null fs pointer\n", opstr);
+    //}
+    if (v->vn_fs == (void *)0xdeadbeef) {
+        ERROR_DEBUG("vnode_check: vop_%s: deadbeef fs pointer\n", opstr);
         assert(0);
-	}
+    }
 
 
-	if (v->vn_refcount < 0) {
-		ERROR_DEBUG("vnode_check: vop_%s: negative refcount %d\n", opstr,
-		      v->vn_refcount);
+    if (v->vn_refcount < 0) {
+        ERROR_DEBUG("vnode_check: vop_%s: negative refcount %d\n", opstr,
+              v->vn_refcount);
         assert(0);
-	}
-	else if (v->vn_refcount == 0) {
-		ERROR_DEBUG("vnode_check: vop_%s: zero refcount\n", opstr);
+    }
+    else if (v->vn_refcount == 0) {
+        ERROR_DEBUG("vnode_check: vop_%s: zero refcount\n", opstr);
         assert(0);
-	}
-	else if (v->vn_refcount > 0x100000) {
-		ERROR_DEBUG("vnode_check: vop_%s: warning: large refcount %d\n",
-			opstr, v->vn_refcount);
+    }
+    else if (v->vn_refcount > 0x100000) {
+        ERROR_DEBUG("vnode_check: vop_%s: warning: large refcount %d\n",
+            opstr, v->vn_refcount);
         assert(0);
-	}
+    }
 
-	/*vfs_biglock_release();*/
+    /*vfs_biglock_release();*/
 }

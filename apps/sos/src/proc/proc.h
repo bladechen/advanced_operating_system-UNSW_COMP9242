@@ -127,6 +127,13 @@ static inline void proc_mem(struct proc* proc, uint32_t* res, uint32_t* swap)
 {
     page_statistic(proc->p_resource.p_pagetable, res, swap);
 }
+
+static inline int get_proc_status(struct proc* proc)
+{
+    return proc->p_status.status;
+}
+
+
 int run_program(const char* name,int fault_cap,  int argc, char** argv);
 
 #endif
