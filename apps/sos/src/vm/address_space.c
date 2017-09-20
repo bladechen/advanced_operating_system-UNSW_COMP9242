@@ -64,14 +64,18 @@ void as_destroy(struct addrspace * as)
     struct list_head *current = NULL;
     struct list_head *tmp_head = NULL;
 
-    list_for_each_safe(current, tmp_head, &(as->list->head))
+    if (as->list != NULL)
     {
-        struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
-        /* as_flush_region(as, tmp); XXX we may need it if we do paging(mmap)!*/
-        as_destroy_region(as, tmp);
-        free(tmp);
+        list_for_each_safe(current, tmp_head, &(as->list->head))
+        {
+            struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
+            /* as_flush_region(as, tmp); XXX we may need it if we do paging(mmap)!*/
+            as_destroy_region(as, tmp);
+            free(tmp);
+        }
+        free(as->list);
+        as->list = NULL;
     }
-    free(as->list);
     free(as);
     return;
 }

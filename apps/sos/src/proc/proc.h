@@ -20,7 +20,7 @@ enum PROC_STATUS
     PROC_STATUS_INIT = 0,
     PROC_STATUS_RUNNING = 1,
     PROC_STATUS_EXIT   = 2, // we should mark proc exit, then destroy in the main coroutine loop
-    PROC_STATUS_ZOMBIE = 3, // all the resource of the proc has been destroyed except for the proc itself
+    PROC_STATUS_ZOMBIE = 3, // all the resource of the proc has been destroyed except for the proc itself, because parent process need to wait this proc
 
     PROC_STATUS_SLEEP = 4,
     PROC_STATUS_INVALID = 100,
@@ -87,19 +87,18 @@ void proc_bootstrap();
 /* create all the resource of proc, then activate it. i.e make it running */
 struct proc* proc_create(char* name, seL4_CPtr fault_ep_cap);
 
-void proc_destroy(struct proc* proc); // XXX we may no need proc_exit
+void proc_destroy(struct proc* proc);
 
 
 char proc_status_display(struct proc* proc);
 /* make the proc running */
 int proc_start(struct proc* proc, int argc, char** argv);
 
-bool proc_load_elf(struct proc * process, char* file_name);
+bool proc_load_elf(struct proc * process, const char* file_name);
 
 void proc_exit(struct proc* proc);
 
 void recycle_process();
-
 
 void proc_attach_father(struct proc* child, struct proc* father);
 
@@ -134,7 +133,8 @@ static inline int get_proc_status(struct proc* proc)
 }
 
 
-int run_program(const char* name,int fault_cap,  int argc, char** argv);
+// negative return indicate error, otherwise it will return pid
+int run_program(const char* name, int fault_cap, int argc, char** argv);
 
 #endif
 

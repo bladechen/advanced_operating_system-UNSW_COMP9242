@@ -2,14 +2,12 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
-
 #include <sel4/types.h>
 #include <cspace/cspace.h>
 #include <mapping.h>
 #include <ut_manager/ut.h>
 #include <vm/vmem_layout.h>
 #include <elf/elf.h>
-#include <cpio/cpio.h>
 #include "comm/comm.h"
 #include "comm/list.h"
 #include <sys/panic.h>
@@ -22,11 +20,6 @@
 #include "syscall/handle_syscall.h"
 
 struct proc kproc;
-
-// TODO remove it in m8
-extern char _cpio_archive[];
-
-
 
 static inline bool proc_status_check(int from_status, int to_status)
 {
@@ -91,6 +84,7 @@ static void clear_proc(struct proc* proc)
     proc->p_father_pid =  -1;
     proc->p_coro = NULL;
     proc->someone_wait = false;
+    proc->p_wait_pid = INVALID_WAIT_PID;
 
     proc->p_waitchild = NULL;
     list_init(&(proc->children_list));
@@ -122,7 +116,6 @@ void proc_bootstrap()
     kproc.p_status.status = PROC_STATUS_RUNNING;
 }
 
-
 static void _free_proc_resource(struct proc* process)
 {
     /* assert(process->p_status.status == PROC_STATUS_INVALID ||process->p_status.status == PROC_STATUS_INIT  || process->p_status.status  == PROC_STATUS_EXIT); */
@@ -146,18 +139,22 @@ static void _free_proc_resource(struct proc* process)
         process->p_status.name = NULL;
     }
 
+    // FIXME no need double free:
+    /* printf ("fuck\n"); */
+    if (process->p_resource.p_pagetable != NULL)
+    {
+        destroy_pagetable(process->p_resource.p_pagetable);
+        process->p_resource.p_pagetable = NULL;
+    }
+
+
+
     if (process->p_resource.p_addrspace != NULL)
     {
         as_destroy(process->p_resource.p_addrspace);
         process->p_resource.p_addrspace = NULL;
     }
 
-    // FIXME no need double free:
-    if (process->p_resource.p_pagetable != NULL)
-    {
-        destroy_pagetable(process->p_resource.p_pagetable);
-        process->p_resource.p_pagetable = NULL;
-    }
 
     if (process->p_resource.p_tcb != NULL)
     {
@@ -477,22 +474,18 @@ int proc_start(struct proc* proc, int argc, char** argv)
     return 0;
 }
 
-
-
 static void _recycle_child(struct proc* proc)
 {
     assert(!is_linked(&proc->as_child_next));
     if (get_proc_status(proc) == PROC_STATUS_RUNNING || get_proc_status(proc) == PROC_STATUS_SLEEP) //place under kproc
     {
         COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "place pid: %d under kproc\n", proc->p_pid);
-
-        list_add_tail(&(proc->as_child_next), &(kproc.children_list.head));
         proc->someone_wait = false;
-        proc->p_father_pid = kproc.p_pid;
+        proc_attach_father(proc, &kproc);
     }
-    else if(get_proc_status(proc) == PROC_STATUS_ZOMBIE) // destroy it
+    else if(get_proc_status(proc) == PROC_STATUS_ZOMBIE) // recycle the proc id
     {
-        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "free zombie pid: %d \n", proc->p_pid);
+        COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "free zombie pid: %d\n", proc->p_pid);
         proc_destroy(proc);
     }
     else
@@ -569,20 +562,17 @@ static bool proc_wakeup_father(struct proc* child)
     }
 }
 
-
 void proc_attach_father(struct proc* child, struct proc* father)
 {
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "pid: %d attach to pid: %d as a child\n", child->p_pid, father->p_pid);
     assert(!is_linked(&(child->as_child_next)));
-    assert(child->p_father_pid == -1);;
-    list_del(&(child->as_child_next));
+    assert(child->p_father_pid == -1);
     list_add_tail(&(child->as_child_next), &(father->children_list.head));
     child->p_father_pid = father->p_pid;
 }
 
 void proc_destroy(struct proc * process)
 {
-    /* if (process) */
     assert(process != &kproc);
     int status = get_proc_status(process);
     if (status == PROC_STATUS_INIT || status == PROC_STATUS_INVALID)
@@ -617,7 +607,6 @@ void proc_destroy(struct proc * process)
     else if(status == PROC_STATUS_ZOMBIE)
     {
         assert(process->p_father_pid == -1 || get_current_proc() == &kproc ||get_current_proc()->p_pid == process->p_father_pid);
-        /* _free_proc_pid(); */
         _free_proc(process);
     }
     else

@@ -44,7 +44,7 @@
 #define APP_CODE_DATA_END            (0x200000000)
 
 
-// maximum (256M - 4K * 2) for heap
+// maximum (32- 4K * 2) for heap
 #define APP_PROCESS_HEAP_START        (0x20001000)
 // #define APP_PROCESS_HEAP_END          (0x2FFFE000)
 #define APP_PROCESS_HEAP_END          (0x21FFE000)

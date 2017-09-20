@@ -154,7 +154,7 @@ void destroy_pagetable(struct pagetable* pt )
                 {
                     if (l1[j].entity != 0)
                     {
-                        free_page(pt, seL4_PAGE_MASK & (l1[j].entity));
+                        free_page(pt, (i << 22) | (j << 12));
                     }
                 }
                 kframe_free((sos_vaddr_t)pt->page_dir[i]);

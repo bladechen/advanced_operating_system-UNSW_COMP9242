@@ -83,41 +83,35 @@ static struct coroutine* new_coro()
 }
 
 
-// alloc 2 guard + 3 stack , total 5 * 4k
-// FIXME remove assert 0
-static vaddr_t alloc_stack_mem()
-{
-    struct pagetable* pt = proc_pagetable(schedule_obj._daemon->_proc);
-    int ret = alloc_page(pt, schedule_obj._stack_base, seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead );
-
-    assert( 0 == ret);
-    ret = alloc_page(pt, schedule_obj._stack_base + STACK_GUARD_SIZE,  seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead | seL4_CanWrite);
-    vaddr_t stack_base = schedule_obj._stack_base + STACK_GUARD_SIZE;
-    assert (0 == ret);
-
-    ret = alloc_page(pt, schedule_obj._stack_base + STACK_GUARD_SIZE + STACK_GUARD_SIZE,  seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead | seL4_CanWrite);
-    assert (0 == ret);
-
-    /* vaddr_t stack_base = schedule_obj._stack_base + STACK_GUARD_SIZE + STACK_GUARD_SIZE; */
-    ret = alloc_page(pt, schedule_obj._stack_base + STACK_GUARD_SIZE + STACK_GUARD_SIZE + STACK_GUARD_SIZE,  seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead | seL4_CanWrite);
-    assert (0 == ret);
-
-
-    ret = alloc_page(pt, schedule_obj._stack_base +  STACK_SIZE + STACK_GUARD_SIZE , seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead );
-    assert (0 == ret);
-    schedule_obj._stack_base += 2 * STACK_GUARD_SIZE + STACK_SIZE;
-
-    return stack_base;
-}
-
 static void free_stack_mem(vaddr_t vaddr)
 {
     struct pagetable* pt = proc_pagetable(schedule_obj._daemon->_proc);
-    free_page(pt, vaddr - seL4_PAGE_SIZE);
-    free_page(pt, vaddr );
-    free_page(pt, vaddr + seL4_PAGE_SIZE);
-    free_page(pt, vaddr + 2 * seL4_PAGE_SIZE);
-    free_page(pt, vaddr + 3 * seL4_PAGE_SIZE);
+    int pages = PAGE_SHIFT(STACK_GUARD_SIZE * 2 + STACK_SIZE);
+    uint32_t base = vaddr - seL4_PAGE_SIZE;
+    for (int i = 0; i < pages; ++ i)
+    {
+        free_page(pt, base + PAGE_UNSHIFT(i));
+    }
+}
+
+// alloc 2 guard + 3 stack , total 5 * 4k
+static vaddr_t alloc_stack_mem()
+{
+    struct pagetable* pt = proc_pagetable(schedule_obj._daemon->_proc);
+    int pages = PAGE_SHIFT(STACK_GUARD_SIZE * 2 + STACK_SIZE);
+    vaddr_t stack_base = schedule_obj._stack_base + STACK_GUARD_SIZE;
+    for (int i = 0; i < pages; ++ i)
+    {
+        int can_write = (i == 0 || i == pages - 1) ? 0 : seL4_CanWrite;
+        int ret = alloc_page(pt, schedule_obj._stack_base + PAGE_UNSHIFT(i) , seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever, seL4_CanRead | can_write);
+        if (ret != 0)
+        {
+            free_stack_mem(schedule_obj._stack_base);
+            return 0;
+        }
+    }
+    schedule_obj._stack_base += 2 * STACK_GUARD_SIZE + STACK_SIZE;
+    return stack_base;
 }
 
 static bool init_stack(struct coroutine* coro)
@@ -200,7 +194,7 @@ static void init_context(struct coroutine* coro)
     /* } */
     assert(coro->_stack_top != NULL);
     // then we put our created stack into ctx
-    if (coro->_stack_top )
+    if (coro->_stack_top)
     {
         replace_esp(&(coro->_ctx), (coro->_stack_top));
     }

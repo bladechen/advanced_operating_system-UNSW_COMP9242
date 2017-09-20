@@ -26,25 +26,24 @@
 // used to replace the long switch case in `handle_syscall`
 #define NUMBER_OF_SYSCALL   100
 
-// .will_block is not used actually
 syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
-    {.syscall=&sos_syscall_print_to_console, .will_block=false},
-    {.syscall=&sos_syscall_read, .will_block=true},
-    {.syscall=&sos_syscall_write, .will_block=false},
-    {.syscall=&sos_syscall_open, .will_block=false},
-    {.syscall=&sos_syscall_usleep, .will_block=true},
-    {.syscall=&sos_syscall_time_stamp, .will_block=false},
-    {.syscall=&sos_syscall_brk, .will_block=false},
-    {.syscall=&sos_syscall_close, .will_block=false},
-    {.syscall=&sos_syscall_stat, .will_block=false},
-    {.syscall=&sos_syscall_get_dirent, .will_block=false},
-    {.syscall=&sos_syscall_remove, .will_block=false},
-    {.syscall=&sos_syscall_create_process, .will_block=false},
-    {.syscall=&sos_syscall_delete_process, .will_block=false},
-    {.syscall=&sos_syscall_wait_process, .will_block=false},
-    {.syscall=&sos_syscall_process_status, .will_block=false},
-    {.syscall=&sos_syscall_exit_process, .will_block=false},
-    {.syscall=&sos_syscall_process_my_pid, .will_block=false}};
+    {.syscall=&sos_syscall_print_to_console},
+    {.syscall=&sos_syscall_read},
+    {.syscall=&sos_syscall_write},
+    {.syscall=&sos_syscall_open},
+    {.syscall=&sos_syscall_usleep},
+    {.syscall=&sos_syscall_time_stamp},
+    {.syscall=&sos_syscall_brk},
+    {.syscall=&sos_syscall_close},
+    {.syscall=&sos_syscall_stat},
+    {.syscall=&sos_syscall_get_dirent},
+    {.syscall=&sos_syscall_remove},
+    {.syscall=&sos_syscall_create_process},
+    {.syscall=&sos_syscall_delete_process},
+    {.syscall=&sos_syscall_wait_process},
+    {.syscall=&sos_syscall_process_status},
+    {.syscall=&sos_syscall_exit_process},
+    {.syscall=&sos_syscall_process_my_pid}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -123,18 +122,24 @@ void sos_syscall_remove(void * argv) {
     assert(proc == get_current_proc());
     struct ipc_buffer_ctrl_msg* msg = &(proc->p_context.p_ipc_ctrl);
 
+    struct ipc_buffer_ctrl_msg reply_cmsg;
     char* file_name = (get_ipc_buffer(proc));
-    path_transfer(file_name, msg->offset);
+    if (path_transfer(file_name, msg->offset) == false)
+    {
+        reply_cmsg.ret_val = EINVAL;
+        ERROR_DEBUG("sos_syscall_remove proc: %u err\n",proc->p_pid);
+        ipc_reply(&reply_cmsg, &(proc->p_context.p_reply_cap));
+        return;
+
+    }
     COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_remove: [%s]\n", file_name);
 
     int err = 0;
     int ret = syscall_remove(file_name, &err);
 
-    conditional_panic(ret, "Fail to remove files from nfs\n");
-    // assert(ret == 0);
-    struct ipc_buffer_ctrl_msg reply_cmsg;
     reply_cmsg.offset = 0;
     reply_cmsg.ret_val = ret;
+
     ipc_reply(&reply_cmsg, &(proc->p_context.p_reply_cap));
 }
 
@@ -407,6 +412,7 @@ void sos_syscall_create_process(void * args)
     int ret = unserialize_exec_argv(ipc_buf, 4096, &argc, argv);
     if (ret != 0)
     {
+        ERROR_DEBUG("proc: %d, unserialize_exec_argv err\n", proc->p_pid);
         ctrl.ret_val = EINVAL;
         goto create_end;
     }
@@ -425,7 +431,7 @@ void sos_syscall_create_process(void * args)
 
     ctrl.ret_val = 0;
     ctrl.file_id = ret;
-    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "%d create proc: [%d:%s:%s]\n", get_current_proc()->p_pid,
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "%d create proc:%d -> %s [%s]\n", get_current_proc()->p_pid,
                 ret, pid_to_proc(ret)->p_status.name, pid_to_proc(ret)->p_status.argv_str);
 create_end:
     if (ctrl.ret_val != 0)

@@ -6,7 +6,6 @@ int run_program(const char* name, int fault_cap, int argc, char** argv)
     if (process == NULL)
     {
         ERROR_DEBUG("proc_create %s failed\n", name);
-        /* proc_destroy(process); */
         return -ENOMEM;
     }
     if (!proc_load_elf(process, (char*)name))
@@ -16,7 +15,6 @@ int run_program(const char* name, int fault_cap, int argc, char** argv)
         return -EINVAL;
     }
     proc_attach_father(process, get_current_proc());
-    // FIXME put sosh in argv[0]
     int ret = proc_start(process, argc, argv);
     if (ret != 0)
     {

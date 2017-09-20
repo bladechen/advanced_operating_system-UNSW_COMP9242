@@ -56,7 +56,6 @@ static void wchan_wakeone(struct wchan* wc)
     /*         wc->_size, wc->_head); */
     free(tmp);
     make_coro_runnable(coro);
-    /* resume_coro(coro); // XXX? put into running queue, or wake up? */
     return;
 }
 

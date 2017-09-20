@@ -13,24 +13,19 @@
 #include <assert.h>
 #include <string.h>
 #include "setjmp.h"
-
 #include <cspace/cspace.h>
-
-#include <cpio/cpio.h>
 #include <nfs/nfs.h>
 #include <elf/elf.h>
 #include <serial/serial.h>
 #include <clock/clock.h>
-
 #include "network.h"
 #include "elf.h"
 #include "comm/comm.h"
-
 #include "ut_manager/ut.h"
 #include "vm/vmem_layout.h"
+#include <cpio/cpio.h>
 #include "mapping.h"
 #include "vfs/vfs.h"
-
 #include <autoconf.h>
 
 #define verbose 5
@@ -70,8 +65,6 @@ extern int test_coro();
  * distinguish interrupt sources */
 
 #define SOSH_NAME             CONFIG_SOS_STARTUP_APP
-#define TTY_PRIORITY         (0)
-#define TTY_EP_BADGE         (101)
 
 /* The linker will link this symbol to the start address  *
  * of an archive of attached applications.                */
@@ -80,11 +73,6 @@ extern char _cpio_archive[];
 const seL4_BootInfo* _boot_info;
 
 
-/*
- * A dummy starting syscall
- */
-// #define SOS_SYSCALL0 0
-
 seL4_CPtr _sos_ipc_ep_cap;
 seL4_CPtr _sos_interrupt_ep_cap;
 
@@ -92,13 +80,6 @@ seL4_CPtr _sos_interrupt_ep_cap;
  * NFS mount point
  */
 extern fhandle_t mnt_point;
-
-// static struct serial * serial_handler = NULL;
-
-
-
-
-/* extern struct proc* proc_array[128]; */
 
 void update_timestamp(void);
 void handle_epit1_irq(void);
@@ -126,33 +107,42 @@ void syscall_loop(seL4_CPtr ep)
                 assert(0);
                 handle_epit1_irq();
             }
-
             if (badge & IRQ_GPT_BADGE)
             {
                 handle_gpt_irq();
             }
-
         }
         else if(label == seL4_VMFault)
         {
-            /* dprintf(0, "badge : 0x%x\n", badge); */
-            /* Page fault */
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "pid[%d] vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
                     seL4_GetMR(1),
                     seL4_GetMR(0),
-                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault", seL4_GetMR(3));
-            handle_vm_fault(pid_to_proc(badge), seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
-
+                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault", badge, seL4_GetMR(3));
+            struct proc* p = pid_to_proc(badge);
+            if (p != NULL)
+            {
+                handle_vm_fault(pid_to_proc(badge), seL4_GetMR(0), seL4_GetMR(1), seL4_GetMR(3));
+            }
+            else
+            {
+                ERROR_DEBUG("non-existing proc id: %d !\n", badge);
+                // there should be bug in sos itself.
+                assert(0);
+            }
         }
         else if(label == seL4_NoFault)
         {
-            /* dprintf(0, "badge : 0x%x\n", badge); */
-            /* System call */
-
-            // TODO: under multiprocess circumstance, pass the corresponding
-            // APP process.
             assert(badge >= 1);
-            handle_syscall(badge, pid_to_proc(badge));
+            struct proc* p = pid_to_proc(badge);
+            if (p != NULL)
+            {
+                handle_syscall(badge, pid_to_proc(badge));
+            }
+            else
+            {
+                ERROR_DEBUG("non-existing proc id: %d !\n", badge);
+                assert(0);
+            }
         }
         else
         {
@@ -209,6 +199,7 @@ static void print_bootinfo(const seL4_BootInfo* info) {
     dprintf(1,"-----------------------------------------\n\n");
 
     /* Print cpio data */
+    /* not delete, because we need to ensure every time the elf file got compiled if modified. */
     dprintf(1,"Parsing cpio data:\n");
     dprintf(1,"--------------------------------------------------------\n");
     dprintf(1,"| index |        name      |  address   | size (bytes) |\n");
@@ -246,7 +237,6 @@ static void _sos_ipc_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     err = seL4_TCB_BindAEP(seL4_CapInitThreadTCB, *async_ep);
     conditional_panic(err, "Failed to bind ASync EP to TCB");
 
-
     /* Create an endpoint for user application IPC */
     ep_addr = ut_alloc(seL4_EndpointBits);
     conditional_panic(!ep_addr, "No memory for endpoint");
@@ -268,7 +258,7 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
     /* Retrieve boot info from seL4 */
     _boot_info = seL4_GetBootInfo();
     conditional_panic(!_boot_info, "Failed to retrieve boot info\n");
-    if(verbose > 0){
+    if(verbose > 0) {
         print_bootinfo(_boot_info);
     }
 
@@ -302,8 +292,6 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
 /*
  * Main entry point - called by crt.
  */
-extern struct fhandle mnt_point;
-extern struct proc kproc;
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -319,7 +307,7 @@ int main(void) {
 
     assert(0 == start_timer(_sos_interrupt_ep_cap));
 
-    m1_test();
+    m1_test(); // will dump timestamp on minicom every second.
     vfs_bootstrap();
     init_kern_file_table();
     init_console();
@@ -330,17 +318,16 @@ int main(void) {
 
     /* init_test_coro(); */
 
-    /* Start the user application */
+    /* Start the sos shell */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
+    // pid should be 1
     assert(run_program(SOSH_NAME, _sos_ipc_ep_cap, 0, NULL) == 1);
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "finish creating sosh...\n");
-
-    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "start sosh success\n");
+    COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh success...\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");
     sos_init_flag = true;
     syscall_loop(_sos_ipc_ep_cap);
-    dprintf(0, "\nSOS exits loop\n");
+    ERROR_DEBUG("\nSOS exits loop\n");
 
     return 0;
 }

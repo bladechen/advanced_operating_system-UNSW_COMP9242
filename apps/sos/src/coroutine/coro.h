@@ -33,11 +33,9 @@ struct context
 // therefore the total stack size is 16K including the surrounded guards
 #define STACK_SIZE (4096 * 3) // 16K
 #define STACK_GUARD_SIZE (4096)
-#define MAX_COROUTINE_NUM (10)
 typedef void (*coroutine_func)(void * argv);
 struct coroutine
 {
-    // bool _exit_flag;
     struct context _ctx;
     void*          _stack_top;
     void*          _stack_addr;
@@ -60,7 +58,7 @@ struct schedule
 
     struct coroutine* _daemon;
 
-    uint32_t _stack_base;
+    uint32_t _stack_base; // FIXME up tp limit
 };
 
 struct coroutine* current_running_coro();
@@ -74,19 +72,18 @@ static inline int coro_status(struct coroutine* coro)
     return coro->_status;
 }
 
-static inline void coro_stop(struct coroutine* coro)
-{
-    // XXX some assert?
-    assert(coro->_status != COROUTINE_RUNNING);
-    assert(coro->_proc != get_current_proc()); // you could not stop your self
-    coro->_status = COROUTINE_SUSPEND;
-    list_del(&coro->_link);
-}
+// static inline void coro_stop(struct coroutine* coro)
+// {
+//     // XXX some assert?
+//     assert(coro->_status != COROUTINE_RUNNING);
+//     assert(coro->_proc != get_current_proc()); // you could not stop your self
+//     coro->_status = COROUTINE_SUSPEND;
+//     list_del(&coro->_link);
+// }
 
 void bootstrap_coro_env();
 void set_kproc_coro(struct proc* proc);
 void shutdown_coro_env();
-// void schedule_coro();
 void schedule_loop();
 
 struct coroutine* create_coro(coroutine_func func, void* argv);
@@ -97,8 +94,5 @@ void resume_coro(struct coroutine* coro);
 void make_coro_runnable(struct coroutine* coro);
 
 void restart_coro(struct coroutine* coro,  coroutine_func func, void* argv);
-
-
-
 
 #endif
