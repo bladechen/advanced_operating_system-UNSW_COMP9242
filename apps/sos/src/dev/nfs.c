@@ -1313,5 +1313,8 @@ void init_nfs(const struct fhandle* mnt_point)
     _nfs_handler.ef_fs.fs_ops = & _nfs_ops;
     assert(0 ==  _nfs_loadvnode(&_nfs_handler, mnt_point, 1, &(_nfs_handler.ef_root)));
     assert(_nfs_handler.ef_root != NULL);
+
     assert(0 == vfs_addfs(NFS_DEVICE_NAME, &(_nfs_handler.ef_fs)));
+
+
 }

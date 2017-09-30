@@ -370,12 +370,12 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
     if (elf_checkFile(elf_header) != 0)
     {
         ERROR_DEBUG("elf_checkFile failed\n");
-        return EINVAL;
+        return ENOEXEC;
     }
     dest_as->entry_point = (uint32_t )elf_getEntryPoint(elf_header);
     if (dest_as->entry_point == 0)
     {
-        return EINVAL;
+        return ENOEXEC;
     }
     assert(elf != NULL);
 
@@ -409,7 +409,11 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
                     file_size,
                     flags & PF_R, flags & PF_W, flags &PF_X,
                     CODE);
-            conditional_panic(err != 0, "Fail to create and define CODE Region\n");
+            if (err)
+            {
+                return ENOEXEC;
+            }
+            /* conditional_panic(err != 0, "Fail to create and define CODE Region\n"); */
         }
         else
         {
@@ -423,7 +427,11 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
                     file_size,
                     flags & PF_R, flags & PF_W, flags & PF_X,
                     DATA);
-            conditional_panic(err != 0, "Fail to create and define DATA Region\n");
+            if (err)
+            {
+                return ENOEXEC;
+            }
+            /* conditional_panic(err != 0, "Fail to create and define DATA Region\n"); */
         }
         /* // FIXME show stop Assuming ELF files only have two sections. */
         /* else */

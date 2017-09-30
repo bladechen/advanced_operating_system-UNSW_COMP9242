@@ -448,7 +448,7 @@ int main(void) {
     char *bp, *p;
     in = open("console", O_RDONLY);
     /* ass */
-    assert(in == 0);
+    /* assert(in == 0); */
     bp = buf;
     done = 0;
     new = 1;
