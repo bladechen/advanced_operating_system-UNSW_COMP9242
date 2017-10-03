@@ -93,7 +93,29 @@ int main(void){
     char a[4];
     char b[4];
     memcpy(a, b, 4);
+
     printf("task:\tHello world, I'm\ttty_test!\n");
+    char* large_mem = malloc(1024 * 1024);
+    assert(large_mem);
+
+
+
+    void *p[10000] = {0};
+    for (int i = 0; i < 2000;i ++)
+    {
+        p[i] = malloc(i);
+        tty_debug_print("malloc return: %p\n", p[i]);
+        assert(p[i] != 0);
+    }
+    for (int i = 0; i < 2000; i ++)
+    {
+        free(p[i]);
+    }
+    for (int i =0 ;i < 3000; i ++)
+    {
+        p[i] = malloc(i);
+        memset(p[i], 0, i);
+    }
     // 50000 maybe too large to udp lost packet
     /* for (int i = 0; i < 10000; i ++) */
     /* { */

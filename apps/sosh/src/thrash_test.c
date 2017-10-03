@@ -42,7 +42,7 @@ void thrash_test()
 
     printf("thrash_test random\n");
     srand(sos_sys_time_stamp());
-    test_loops = 10000;
+    test_loops = 1000;
     for(int i = 0; i < test_loops; i++)
     {
         j = rand() % LARGE_SIZE;

@@ -46,6 +46,9 @@
 #define SOS_SYSCALL_PROCESS_STATUS      (14)
 #define SOS_SYSCALL_PROCESS_EXIT        (15)
 #define SOS_SYSCALL_PROCESS_MY_PID      (16)
+#define SOS_SYSCALL_MMAP                (17)
+#define SOS_SYSCALL_MUNMAP              (18)
+#define SOS_SYSCALL_VM_SHARED           (19)
 
 /* Endpoint for talking to SOS */
 #define SOS_IPC_EP_CAP     (0x1)
@@ -190,6 +193,17 @@ typedef struct {
   char      command[N_NAME]; /* Name of exectuable */
 
 } sos_process_t;
+
+
+typedef struct
+{
+    uint32_t addr;
+    size_t length;
+    int prot;
+    int flags;
+    int fd;
+    off_t offset;
+} sos_mmap_t ;
 
 // move the m0 print to console system call, transform
 // and apply to current work flow, to see if it works.

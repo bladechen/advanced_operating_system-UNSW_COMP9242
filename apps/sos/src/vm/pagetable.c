@@ -182,7 +182,6 @@ void destroy_pagetable(struct pagetable* pt )
     return;
 }
 
-
 static struct pagetable_entry* _get_pt_entry_addr(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
@@ -271,6 +270,17 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     {
         return;
     }
+
+    // no real frame, only the cap reference to sos frame.
+    if (entity & PAGE_SHARED_BIT)
+    {
+        seL4_CPtr cap = entity >> 12;
+        // TODO merge with _unmap_page_frame
+        assert(0 == seL4_ARM_Page_Unmap(cap));
+        cspace_delete_cap(cur_cspace, cap); //
+        e->entity = 0;
+        return;
+    }
     // two case, one is in frame, another is in swap
     // you should mark entity to zero, while finish free page
     sos_vaddr_t paddr = _get_page_frame(entity);
@@ -298,16 +308,12 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
 }
 
 // FIXME maybe we need handle error case.
-int _map_page_frame(struct pagetable* pt,
-                    vaddr_t vaddr,
-                    paddr_t paddr,
-                    seL4_ARM_VMAttributes vm_attr,
-                    seL4_CapRights cap_right)
+static int _map_page(struct pagetable* pt,
+                     seL4_CPtr app_cap,
+                     uint32_t vaddr,
+                     seL4_ARM_VMAttributes vm_attr,
+                     seL4_CapRights cap_right)
 {
-    assert(IS_PAGE_ALIGNED(vaddr) && IS_PAGE_ALIGNED(paddr));
-    seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
-    assert(sos_cap != 0);
-    seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
     assert(app_cap != 0);
     int ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr);
     if(ret == seL4_FailedLookup)
@@ -325,7 +331,44 @@ int _map_page_frame(struct pagetable* pt,
         }
         _insert_sel4_pt(pt, &sel4_pt);
     }
-    assert(ret == 0);
+    return ret;
+}
+
+static int _map_page_frame(struct pagetable* pt,
+                    vaddr_t vaddr,
+                    paddr_t paddr,
+                    seL4_ARM_VMAttributes vm_attr,
+                    seL4_CapRights cap_right)
+{
+    assert(IS_PAGE_ALIGNED(vaddr) && IS_PAGE_ALIGNED(paddr));
+    seL4_CPtr sos_cap = get_frame_sos_cap(paddr);
+    assert(sos_cap != 0);
+    seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, sos_cap, seL4_AllRights);
+    int ret = _map_page(pt, app_cap, vaddr, vm_attr, cap_right);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("_map_page ERROR\n");
+        cspace_delete_cap(cur_cspace, app_cap);
+        return ret;
+    }
+    /* assert(app_cap != 0); */
+    /* int ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr); */
+    /* if(ret == seL4_FailedLookup) */
+    /* { */
+    /*     #<{(| Assume the error was because we have no page table in sel4 kernel.|)}># */
+    /*     struct sos_object sel4_pt; */
+    /*     clear_sos_object(&sel4_pt); */
+    /*     ret = map_page_table(pt->vroot.cap, vaddr, &sel4_pt); */
+    /*  */
+    /*     assert(ret == 0); */
+    /*     if(!ret) */
+    /*     { */
+    /*         ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr); */
+    /*         assert(ret == 0); */
+    /*     } */
+    /*     _insert_sel4_pt(pt, &sel4_pt); */
+    /* } */
+    /* assert(ret == 0); */
     assert(0 == set_frame_app_cap(paddr, app_cap));
     return 0;
 }
@@ -337,7 +380,6 @@ int set_page_writable(struct pagetable* pt,
                            seL4_CapRights cap_right)
 {
     // XXX we assume the page is mmaped in frametable
-    // may cause bug in multi proc.
     assert(pt != NULL);
     assert(pt->free_func == uframe_free);
     vaddr &= seL4_PAGE_MASK;
@@ -365,6 +407,41 @@ int set_page_writable(struct pagetable* pt,
     return 0;
 }
 
+int page_map(struct pagetable* pt,
+             seL4_CPtr cap,
+             vaddr_t vaddr,
+             seL4_ARM_VMAttributes vm_attr,
+             seL4_CapRights cap_right)
+{
+    assert(pt != NULL && cap != 0 && IS_PAGE_ALIGNED(vaddr));
+    // caller is responsible for sanity check.
+    uint32_t entity =  _get_pagetable_entry(pt, vaddr);
+    assert(entity == 0);
+    entity |= PAGE_SHARED_BIT;
+
+    seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, cap, seL4_AllRights);
+    assert(app_cap != 0);
+    int ret = _map_page(pt, app_cap, vaddr, cap_right, vm_attr);
+    /* int ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr); */
+    /* if(ret == seL4_FailedLookup) */
+    /* { */
+    /*     struct sos_object sel4_pt; */
+    /*     clear_sos_object(&sel4_pt); */
+    /*     ret = map_page_table(pt->vroot.cap, vaddr, &sel4_pt); */
+    /*  */
+    /*     assert(ret == 0); */
+    /*     if(!ret) */
+    /*     { */
+    /*         ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr); */
+    /*         assert(ret == 0); */
+    /*     } */
+    /*     _insert_sel4_pt(pt, &sel4_pt); */
+    /* } */
+    assert(!ret);
+    entity |= (app_cap << 12); // maximum cap also 1024 * 1024, so 20 bits
+    assert(0 == _insert_pagetable_entry(pt, vaddr, entity));
+    return ret;
+}
 
 int alloc_page(struct pagetable* pt,
                vaddr_t vaddr,
@@ -383,33 +460,40 @@ int alloc_page(struct pagetable* pt,
     // case 3. page marks as invalid, but frame still in mem
     if (entity != 0 && !_is_page_valid(entity) && !_is_page_swap(entity) )
     {
+        // if pinned frame, still in swapping, so skip this step
         paddr_t paddr = _get_page_frame(entity);
         assert(paddr != 0);
-        assert(get_uframe_owner(paddr) == (void*)(_get_pt_entry_addr(pt, vaddr)));
-        assert(get_uframe_dirty(paddr) == _is_page_dirty(_get_pt_entry_addr(pt, vaddr)->entity));
-        // current fault on write, previous is readonly, now mark it writable
-        if ((cap_right & seL4_CanWrite) && !get_uframe_dirty(paddr))
+        if (!get_uframe_pinned(paddr))
         {
-            set_uframe_dirty(paddr, 1);
-            _set_page_dirty(&(_get_pt_entry_addr(pt, vaddr)->entity));
+            /* goto alloc_process; */
+            assert(get_uframe_owner(paddr) == (void*)(_get_pt_entry_addr(pt, vaddr)));
+            assert(get_uframe_dirty(paddr) == _is_page_dirty(_get_pt_entry_addr(pt, vaddr)->entity));
+            // current fault on write, previous is readonly, now mark it writable
+            if ((cap_right & seL4_CanWrite) && !get_uframe_dirty(paddr))
+            {
+                set_uframe_dirty(paddr, 1);
+                _set_page_dirty(&(_get_pt_entry_addr(pt, vaddr)->entity));
+            }
+            // previous is writable, we should make it writable also, although current fault is read
+            else if (!(cap_right & seL4_CanWrite) && get_uframe_dirty(paddr))
+            {
+                cap_right |= seL4_CanWrite;
+            }
+            assert(0 == _map_page_frame(pt, vaddr, paddr, vm_attr, cap_right));
+            _set_page_valid(&(_get_pt_entry_addr(pt, vaddr)->entity));
+            clock_set_frame(paddr);
+            return 0;
         }
-        // previous is writable, we should make it writable also, although current fault is read
-        else if (!(cap_right & seL4_CanWrite) && get_uframe_dirty(paddr))
-        {
-            cap_right |= seL4_CanWrite;
-        }
-        _map_page_frame(pt, vaddr, paddr, vm_attr, cap_right);
-        _set_page_valid(&(_get_pt_entry_addr(pt, vaddr)->entity));
-        clock_set_frame(paddr);
-        return 0;
     }
 
+/* alloc_process: */
     paddr_t paddr = pt->alloc_func(NULL);
     if (paddr == 0)
     {
         ERROR_DEBUG( "frame_alloc return NULL\n");
         return ENOMEM;
     }
+    /* printf ("alloc page vaddr: %x, at paddr %x\n", vaddr, paddr); */
 
     // case 2. we need firstly swap in, and the remaining process in same as case 1
     if (_is_page_swap(entity))
@@ -539,6 +623,7 @@ void invalid_page_frame(struct pagetable_entry* page)
     assert(ret & seL4_PAGE_MASK);
     assert(!_is_page_swap(page->entity) );
     assert(get_uframe_dirty(page->entity & seL4_PAGE_MASK) == _is_page_dirty(page->entity));
+    printf ("invalid_page_frame -> ");
     _unmap_page_frame(_get_page_frame(page->entity));
     _reset_page_valid(&page->entity);
 }

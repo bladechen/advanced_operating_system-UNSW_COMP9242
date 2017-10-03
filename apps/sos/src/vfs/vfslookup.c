@@ -34,6 +34,7 @@
 #include "vfs.h"
 #include "vnode.h"
 #include "fs.h"
+#include "sys/mman.h"
 
 static struct vnode *bootfs_vnode = NULL;
 
@@ -65,7 +66,7 @@ change_bootfs(struct vnode *newvn)
 int
 vfs_setbootfs(const char *fsname)
 {
-	char tmp[NAME_MAX+1];
+	char tmp[NAME_MAX];
 	char *s;
 	int result;
 	struct vnode *newguy;

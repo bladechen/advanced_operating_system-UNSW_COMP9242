@@ -4,9 +4,12 @@
 #include <sel4/sel4.h>
 #include "vm.h"
 
-#define DEFAULT_UMEM_BYTES (2 * 1024 * 1024)
+#define DEFAULT_UMEM_BYTES (1 * 1024 * 1024)
 #define MAX_UMEM_BYTES (200 * 1024 * 1024)
-#define DEFAULT_KMEM_BYTES (50 * 1024 * 1024)
+#define DEFAULT_KMEM_BYTES (1 * 1024 * 1024)
+
+#define MAX_SHARED_KMEM_BYTES (DEFAULT_KMEM_BYTES/2)
+// #define MAX_SHARED_KMEM_BYTES (10 * 4096)
 
 /* Integer division, rounded up (rather than truncating) */
 
@@ -92,6 +95,7 @@ int frame_swapin(uint32_t swap_number, sos_vaddr_t vaddr);
 void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty);
 bool get_uframe_dirty(sos_vaddr_t vaddr);
 void clock_set_frame(sos_vaddr_t vaddr);
+bool get_uframe_pinned(sos_vaddr_t vaddr);
 
 void dump_frame_status();
 

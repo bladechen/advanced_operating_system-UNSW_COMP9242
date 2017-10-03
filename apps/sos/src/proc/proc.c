@@ -140,21 +140,19 @@ static void _free_proc_resource(struct proc* process)
     }
 
     // FIXME no need double free:
-    /* printf ("fuck\n"); */
-    if (process->p_resource.p_pagetable != NULL)
-    {
-        destroy_pagetable(process->p_resource.p_pagetable);
-        process->p_resource.p_pagetable = NULL;
-    }
 
-
-
+    // need free address space first, then page_table.
     if (process->p_resource.p_addrspace != NULL)
     {
         as_destroy(process->p_resource.p_addrspace);
         process->p_resource.p_addrspace = NULL;
     }
 
+    if (process->p_resource.p_pagetable != NULL)
+    {
+        destroy_pagetable(process->p_resource.p_pagetable);
+        process->p_resource.p_pagetable = NULL;
+    }
 
     if (process->p_resource.p_tcb != NULL)
     {

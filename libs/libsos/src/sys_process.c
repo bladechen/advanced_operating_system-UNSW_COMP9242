@@ -103,7 +103,7 @@ int sos_process_status(sos_process_t *processes, unsigned max)
     int ps_amount = *(int *)(APP_PROCESS_IPC_SHARED_BUFFER);
 
     seL4_Word processes_start_addr = APP_PROCESS_IPC_SHARED_BUFFER + sizeof(int);
-    memcpy(processes, processes_start_addr, ps_amount * sizeof(sos_process_t));
+    memcpy(processes, (void*)processes_start_addr, ps_amount * sizeof(sos_process_t));
 
     return ps_amount;
 }

@@ -10,6 +10,8 @@
 #define PAGE_SWAP_BIT  (1 << 1)
 #define PAGE_NOT_FIRST_LOAD (1 << 2)
 #define PAGE_VALID_BIT (1 << 3)
+
+#define PAGE_SHARED_BIT (1 << 4)
 // define more here if needed
 
 
@@ -44,10 +46,26 @@ struct pagetable* create_pagetable(void);
 void              destroy_pagetable(struct pagetable* pt );
 void              free_page(struct pagetable* pt, vaddr_t vaddr);
 
+static inline void free_pages(struct pagetable* pt, vaddr_t vaddr, int npages)
+{
+    for (int i = 0; i < npages; ++ i)
+    {
+        free_page(pt, vaddr +( i << 12));
+    }
+}
+
 int               alloc_page(struct pagetable* pt,
                              vaddr_t vaddr,
                              seL4_ARM_VMAttributes vm_attr,
                              seL4_CapRights cap_right);
+
+
+// used for shared vmem, the frame is already allocated
+int               page_map(struct pagetable* pt,
+                           seL4_CPtr cap,
+                           vaddr_t vaddr,
+                           seL4_ARM_VMAttributes vm_attr,
+                           seL4_CapRights cap_right);
 
 
 int               set_page_writable(struct pagetable* pt,

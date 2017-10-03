@@ -32,6 +32,26 @@ void vm_shutdown(void);
 // int vm_fault(struct proc* cur_proc, vaddr_t vaddr);
 void handle_vm_fault(struct proc* proc, vaddr_t restart_pc, vaddr_t fault_addr, int fault_code);
 
+struct shared_vmem
+{
+    vaddr_t app_vaddr;
+    size_t  npages;
+
+    vaddr_t sos_vaddr;
+    // bool writable;
+
+    int ref_count;
+
+    struct shared_vmem* next;
+};
+
+struct addrspace;
+int vm_share(struct addrspace* as,
+             uint32_t addr, uint32_t size,
+             bool writable);
+
+void remove_vm_share(uint32_t addr, uint32_t size);
+
 void dump_vm_state();
 
 static inline uint32_t shift_swapnumber(uint32_t swap_number)
@@ -46,7 +66,6 @@ static inline uint32_t unshift_swapnumber(uint32_t frame_num)
     // assert(ret != 0);
     return ret;
 }
-
 
 
 #endif

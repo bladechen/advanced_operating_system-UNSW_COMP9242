@@ -47,7 +47,7 @@
 
 volatile bool sos_init_flag = false;
 
-uint32_t dbflags = 0xFFFFFFFF &(~DB_VM);
+uint32_t dbflags = 0xFFFFFFFF | (DB_VM);
 /* uint32_t dbflags = 0xFFFFFFFF ; */
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
@@ -114,10 +114,11 @@ void syscall_loop(seL4_CPtr ep)
         }
         else if(label == seL4_VMFault)
         {
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "pid[%d] vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "pid[%d] vm fault at 0x%08x, pc = 0x%08x [%s, %d]\n",
+                    badge,
                     seL4_GetMR(1),
                     seL4_GetMR(0),
-                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault", badge, seL4_GetMR(3));
+                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault", seL4_GetMR(3));
             struct proc* p = pid_to_proc(badge);
             if (p != NULL)
             {
