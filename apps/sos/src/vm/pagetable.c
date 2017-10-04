@@ -645,7 +645,7 @@ uint32_t set_page_swapout(struct pagetable_entry* page, uint32_t swap_frame, uin
     // so there is no information about this frame in this page now.
     if (ret != paddr)
     {
-        ERROR_DEBUG("%x dangle frame: 0x%x\n",ret paddr);
+        ERROR_DEBUG("%x dangle frame: 0x%x\n",ret, paddr);
         return 0;
     }
     /* ERROR_DEBUG("set_page_swapout 0x%x 0x%x\n", paddr, ret); */
@@ -693,9 +693,10 @@ void page_statistic(struct pagetable* pt, uint32_t* res, uint32_t* swap)
                         {
                             (*swap) ++;
                         }
-                        else if(_get_page_frame(l1[j].entity))
+                        else if(_get_page_frame(l1[j].entity) && _is_page_valid(l1[j].entity))
                         {
-                            (*res) ++;
+                            if (get_uframe_owner(_get_page_frame(l1[j].entity)) == &(l1[j].entity))
+                                (*res) ++;
                         }
                     }
                 }

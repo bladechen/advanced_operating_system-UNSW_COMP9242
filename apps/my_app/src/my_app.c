@@ -248,9 +248,6 @@ void thrash_test()
 
 }
 
-
-
-
 int main(int argc, char** argv){
     /* initialise communication */
     /* int * p = (int*)(0x20001000U); */

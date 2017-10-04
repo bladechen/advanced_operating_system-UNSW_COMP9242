@@ -476,9 +476,7 @@ uint32_t register_timer(uint64_t delay, timer_callback_t callback, void *data)
         /* color_print(ANSI_COLOR_GREEN, "rettach_timer: %d\n", ret); */
     }
     return (ret != 0) ? 0: id;
-
 }
-
 
 int remove_timer(uint32_t id)
 {
@@ -488,8 +486,6 @@ int remove_timer(uint32_t id)
     }
     return (dettach_timer(g_timer, id) == 0) ? CLOCK_R_OK: CLOCK_R_FAIL;
 }
-
-
 
 int timer_interrupt(void)
 {

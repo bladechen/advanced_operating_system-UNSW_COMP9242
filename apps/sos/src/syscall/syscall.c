@@ -701,7 +701,6 @@ void sos_syscall_process_status(void * argv)
         s[idx ++] = ' ';
         s[idx ++] = '[';
         memcpy(s + idx, tmp->p_status.argv_str, strlen(tmp->p_status.argv_str));
-        printf ("fuck %s\n", tmp->p_status.argv_str);
         idx += strlen(tmp->p_status.argv_str);
         s[idx ++] = ']';
         s[idx ++] = 0;
