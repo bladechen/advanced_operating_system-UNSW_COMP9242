@@ -76,7 +76,7 @@ int               set_page_writable(struct pagetable* pt,
 
 
 // called by frame table, while swap out.
-uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame);
+uint32_t set_page_swapout(struct pagetable_entry* page,   uint32_t swap_frame, uint32_t paddr);
 
 // app_cap stored in frametable.
 seL4_CPtr         fetch_page_cap(struct pagetable* pt, vaddr_t vaddr);

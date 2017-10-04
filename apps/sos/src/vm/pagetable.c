@@ -182,6 +182,7 @@ void destroy_pagetable(struct pagetable* pt )
     return;
 }
 
+
 static struct pagetable_entry* _get_pt_entry_addr(struct pagetable* pt, vaddr_t vaddr)
 {
     assert(pt != NULL);
@@ -199,6 +200,7 @@ static struct pagetable_entry* _get_pt_entry_addr(struct pagetable* pt, vaddr_t 
     }
     return &(pt->page_dir[l1_index][l2_index]);
 }
+
 
 static uint32_t _get_pagetable_entry(struct pagetable* pt, vaddr_t vaddr)
 {
@@ -301,8 +303,21 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
     else
     {
         // invalid via second tick, but still using the frame.
-        assert(0 == get_frame_app_cap(paddr));
-        pt->free_func(paddr);
+        // if is pinned, means this frame is using by other process, skip it.
+        if (!get_uframe_pinned(paddr))
+        {
+        /* assert(0 == get_frame_app_cap(paddr)); */
+            assert(get_uframe_owner(paddr) == e);
+            pt->free_func(paddr);
+        }
+        else
+        {
+            /* assert(get_uframe_owner(paddr) != e); */
+            ERROR_DEBUG("vaddr is not owned by me: %x, skip it\n", paddr);
+            set_uframe_owner(paddr, NULL); // make sure the underneath not call this, because it will the mem will be freed.
+            // TODO
+            /* set */
+        }
     }
     e->entity = 0;
 }
@@ -457,10 +472,13 @@ int alloc_page(struct pagetable* pt,
     // 3. page second tick marks as invalid
     assert(entity == 0 || _is_page_swap(entity) || !_is_page_valid(entity));
 
+    char original_page[4096];
+    bool frame_is_pinned = false;
     // case 3. page marks as invalid, but frame still in mem
     if (entity != 0 && !_is_page_valid(entity) && !_is_page_swap(entity) )
     {
-        // if pinned frame, still in swapping, so skip this step
+        // XXX if the original frame is pinned,
+        // means it is still in swapping, so skip this step, but need copy the page content.
         paddr_t paddr = _get_page_frame(entity);
         assert(paddr != 0);
         if (!get_uframe_pinned(paddr))
@@ -484,10 +502,16 @@ int alloc_page(struct pagetable* pt,
             clock_set_frame(paddr);
             return 0;
         }
+        else
+        {
+            frame_is_pinned = true;
+            printf("original frame: 0x%x is pinned, now copy it to stack\n", paddr);
+            set_uframe_owner(paddr, NULL); // make sure the underneath not call this, because it will the mem will be freed.
+            memcpy(original_page, (void*)paddr, 4096);
+        }
     }
 
-/* alloc_process: */
-    paddr_t paddr = pt->alloc_func(NULL);
+    paddr_t paddr = pt->alloc_func(NULL); // may be switched out, if do swapping
     if (paddr == 0)
     {
         ERROR_DEBUG( "frame_alloc return NULL\n");
@@ -498,6 +522,7 @@ int alloc_page(struct pagetable* pt,
     // case 2. we need firstly swap in, and the remaining process in same as case 1
     if (_is_page_swap(entity))
     {
+        assert(frame_is_pinned == false);
         assert(pt->free_func == uframe_free);
         cap_right &= (~seL4_CanWrite); // if swap in, mark it readonly
         assert(!(cap_right & seL4_CanWrite)); // the page swap in is always readonly
@@ -513,6 +538,16 @@ int alloc_page(struct pagetable* pt,
         }
         _reset_page_swap(&entity);
     }
+    else if (frame_is_pinned)
+    {
+        struct pagetable_entry* e = _get_pt_entry_addr(pt, vaddr);
+        // old information, we need clear it fist. because the original frame is pinned by other process
+        // then used by other process
+        assert(e->entity != 0);
+        e->entity = 0;
+        memcpy((void*)paddr, original_page, 4096);
+    }
+
     _set_page_frame(&entity, paddr);
 
     if (cap_right & seL4_CanWrite)
@@ -600,10 +635,20 @@ void set_page_already_load(struct pagetable* pt, vaddr_t vaddr)
 
 // set the swap bit, and swap number
 // return the old frame number
-uint32_t set_page_swapout(struct pagetable_entry* page, uint32_t swap_frame)
+uint32_t set_page_swapout(struct pagetable_entry* page, uint32_t swap_frame, uint32_t paddr)
 {
     uint32_t ret = _get_page_frame(page->entity) ;// make sure it mapped.
     assert(ret & seL4_PAGE_MASK);
+    // XXX there is a special case that process A get this frame and set this frame swapout,
+    // but process B is also try to use the page mapped into this frame. because it is pinned.
+    // B alloc another frame, and left this one as dangle frame
+    // so there is no information about this frame in this page now.
+    if (ret != paddr)
+    {
+        ERROR_DEBUG("%x dangle frame: 0x%x\n",ret paddr);
+        return 0;
+    }
+    /* ERROR_DEBUG("set_page_swapout 0x%x 0x%x\n", paddr, ret); */
 
     assert(get_uframe_dirty(page->entity & seL4_PAGE_MASK) == _is_page_dirty(page->entity));
     assert(!_is_page_valid(page->entity)); // must invalid_page_frame first. previously first tick make it invalid
@@ -623,7 +668,7 @@ void invalid_page_frame(struct pagetable_entry* page)
     assert(ret & seL4_PAGE_MASK);
     assert(!_is_page_swap(page->entity) );
     assert(get_uframe_dirty(page->entity & seL4_PAGE_MASK) == _is_page_dirty(page->entity));
-    printf ("invalid_page_frame -> ");
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "invalid_page_frame entity: %x\n", page->entity);
     _unmap_page_frame(_get_page_frame(page->entity));
     _reset_page_valid(&page->entity);
 }

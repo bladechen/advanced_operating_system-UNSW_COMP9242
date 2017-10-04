@@ -49,9 +49,9 @@ typedef struct frame_table_entry
     uint32_t swap_frame_number;
 
     int ctrl;
-    seL4_CPtr   remap_cap;
+    volatile seL4_CPtr   remap_cap;
     enum frame_entry_status status;
-    void* owner; // the page entry belong to, only make sense when APP_FRAME
+    volatile void* owner; // the page entry belong to, only make sense when APP_FRAME
 
 
     uint32_t user_vaddr;

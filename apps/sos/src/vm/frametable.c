@@ -123,7 +123,7 @@ static struct frame_table_entry* _find_evict_uframe()
                 ret = tmp;
                 break;
             }
-            invalid_page_frame(tmp->owner);
+            invalid_page_frame((struct pagetable_entry*)(tmp->owner));
             tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
         }
 
@@ -641,8 +641,12 @@ sos_vaddr_t uframe_alloc()
         }
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame 0x%08x swapout vaddr 0x%08x to swapframe 0x%08x\n", frame_translate_index_to_vaddr(e->myself), e->user_vaddr, shift_swapnumber(swap_frame));
 
-        uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), shift_swapnumber(swap_frame));
-        assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+        if (e->owner != NULL)
+        {
+            uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), shift_swapnumber(swap_frame), frame_translate_index_to_vaddr(e->myself));
+            if (old_page != 0)
+                assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+        }
 
         _unpin_frame(e);
         _clear_uframe(e);
@@ -775,7 +779,7 @@ void* get_uframe_owner(sos_vaddr_t vaddr)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
     assert(e->status == FRAME_APP);
-    return e->owner;
+    return (void*)(e->owner);
 }
 
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
@@ -785,8 +789,16 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
     assert(e->status == FRAME_APP);
-    assert(e->owner == NULL);
-    e->owner = owner;
+    if (e->owner == NULL)
+    {
+        e->owner = owner;
+    }
+    else
+    {
+        assert(owner == NULL);
+        e->owner = owner;
+    }
+    /* assert(e->owner == NULL); */
 }
 
 void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t en)

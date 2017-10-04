@@ -115,6 +115,7 @@ static void vm_fault(void* argv)
             ret = as_handle_elfload_fault(cur_proc->p_resource.p_pagetable, region, vaddr, sel4_fault_code_to_fault_type(cur_proc->p_context.vm_fault_code));
         }
     }
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "handle pid[%d] vm fault finish: %d\n", cur_proc->p_pid, ret);
 
     if (ret == ENOMEM)
     {
