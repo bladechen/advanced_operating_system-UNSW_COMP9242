@@ -74,5 +74,8 @@
 
 #define APP_PROCESS_SCRATCH     (0xD0000000)
 
+// for time driver app
+#define APP_DEVICE_START        (0xB0000000)
+
 
 #endif /* _MEM_LAYOUT_H_ */

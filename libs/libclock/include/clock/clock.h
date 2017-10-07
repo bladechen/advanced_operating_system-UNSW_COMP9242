@@ -15,6 +15,18 @@
 
 
 #define MAX_REGISTERED_TIMER_CLOCK 100
+
+#ifndef APP_DEVICE_START
+    #define APP_DEVICE_START        (0xB0000000)
+#endif
+
+// following init in clock.c, and used in time_driver.c
+#define TIME_DRIVER_PID     (1)
+#define TIME_DRIVER_AEP     (2)
+#define TIME_DRIVER_EP      (3)
+#define TIME_DRIVER_IRQ_CAP (4)
+#define TIME_DRIVER_TCB_CAP (5)
+
 /*
  * Return codes for driver functions
  */

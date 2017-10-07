@@ -99,7 +99,7 @@ static void test_remove_later(void)
 void cb3(uint32_t id, void* data)
 {
     /* color_print(ANSI_COLOR_WHITE , "[%u, %llu], my timer: %llu \"%s\"\n",id, time_stamp(), time_stamp()/1000, (char*) data); */
-    color_print(ANSI_COLOR_WHITE , "timer: %llu\n", time_stamp()/1000);
+    color_print(ANSI_COLOR_WHITE , "timer: %llu, nfs: %u\n", time_stamp()/1000, nfs_current_time());
     assert(id == register_timer(1000, cb3, data));
     return;
 }

@@ -615,7 +615,7 @@ void sos_syscall_delete_process(void * argv)
     ctrl.file_id = 0;
     int pid = proc->p_context.p_ipc_ctrl.file_id;
     struct proc * proc_to_be_deleted = pid_to_proc(pid);
-    if (!proc_to_be_deleted || pid == 0) // you can not kill kproc!
+    if (!proc_to_be_deleted || pid == 0 || pid == TIME_DRIVER_PID) // you can not kill kproc(sos), and the time driver
     {
         ERROR_DEBUG("kill pid: %d ESRCH\n", pid);
         ctrl.ret_val = ESRCH;

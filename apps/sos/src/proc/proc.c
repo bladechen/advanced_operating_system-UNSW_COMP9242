@@ -280,8 +280,8 @@ int _init_proc(struct proc* process, char* name, seL4_CPtr fault_ep_cap)
         return -1;
     }
 
-    // Create a simple 1 level CSpace
-    process->p_resource.p_croot = cspace_create(1);
+    // we need 2 level cspace for time driver.
+    process->p_resource.p_croot = cspace_create(2);
     if (process->p_resource.p_croot == NULL)
     {
         ERROR_DEBUG("cspace_create error\n");
