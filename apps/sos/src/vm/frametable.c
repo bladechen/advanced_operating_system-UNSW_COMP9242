@@ -644,8 +644,13 @@ sos_vaddr_t uframe_alloc()
         if (e->owner != NULL)
         {
             uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), shift_swapnumber(swap_frame), frame_translate_index_to_vaddr(e->myself));
-            if (old_page != 0)
-                assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+            /* if (old_page != 0) */
+            assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+        }
+        else
+        {
+            do_free_swap_frame(swap_frame); // the original owner already reset the page. so simply free the swap
+
         }
 
         _unpin_frame(e);

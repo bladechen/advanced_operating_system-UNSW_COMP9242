@@ -643,6 +643,7 @@ uint32_t set_page_swapout(struct pagetable_entry* page, uint32_t swap_frame, uin
     // but process B is also try to use the page mapped into this frame. because it is pinned.
     // B alloc another frame, and left this one as dangle frame
     // so there is no information about this frame in this page now.
+    assert(ret == paddr);
     if (ret != paddr)
     {
         ERROR_DEBUG("%x dangle frame: 0x%x\n",ret, paddr);
