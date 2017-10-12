@@ -1,0 +1,34 @@
+																	Design Documentation
+
+################ System call dispatching ################
+Syscalls user may use are all defined in `libs/libsos/include/sos.h`, and implementations are defined in `libs/libsos/src/*.c`.
+
+
+The mechanism to dispatch infomation between user and kernel(sos) is as following:
+1. Separate the infomation needed to exchange between SOS and APPs as two classes, control info and actual data.
+
+2. The control info of messge is represented as a C structure:
+typedef struct ipc_buffer_ctrl_msg {
+    int   ret_val;
+    int         seq_num; //only for check purpose
+    int         syscall_number;
+    seL4_Word   start_app_buffer_addr;
+    int         offset;
+    int         file_id;
+    int mode;
+} ipc_buffer_ctrl_msg;
+It contains the control info of a message needed to exchange between SOS and APPs. And for the actual data of message will be put into the address specified as  `start_app_buffer_addr`, the `offset` indicate the size of actual data. In current edition, the `start_app_buffer_addr` will always point to `IPC_SHARED_BUFFER` defined in address space. Both SOS and APP can access this range of memory. In our design, there exists one 4k page, reserved for IPC communication, to be more specific, for system call data transmission between SOS and APPs. 
+
+3. To actually make the syscall in APP, it will call self-defined `ipc_call` to actually send out the message.  
+
+4. All syscall make use of `seL4_Call` defined in seL4. So it needs to wait for response.
+
+5. `serialize_ipc_ctrl_msg` and `unserialize_ipc_ctrl_msg` are used to copy data into and from `IPC_SHARED_BUFFER`.
+
+6. In SOS side, the most relevant files are under `aos-2017/apps/sos/src/syscall/`.
+
+7. In SOS main function, it will invoke `handle_syscall` to handle the syscall. There exists one function pointer array in `syscall.c`, and each slot correspond to one specific syscall number, so that it is able to find function in O(1) time complexity.
+
+8. Syscall functions in SOS side, will make use of `ipc_reply` to send back the message and process `reply_cap` properly.
+
+
