@@ -13,6 +13,7 @@
 #include <sys/panic.h>
 
 #include "frametable.h"
+#include "buffer_cache.h"
 #include "pagetable.h"
 #include "swaptable.h"
 #include "vm.h"
@@ -29,25 +30,11 @@ extern swap_table _swap_table;
 // point to the frame which is free-ed, but not deleted and unmaped
 /* static int _sos_free_index = -1; */
 
-struct frame_table_head
-{
-    int first;
-    int last;
-
-    size_t start_vaddr;
-    size_t end_vaddr;
-
-    int free_pages;
-    int total_pages;
-
-
-    int tick_index; // for second chance replacement algorithm
-    int tick_start;
-    int tick_end;
-};
 
 struct frame_table_head _app_free_index = {-1, -1, 0, 0};
 struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
+struct frame_table_head _buffer_cache = {-1, -1, 0, 0};
+
 
 static sos_vaddr_t frame_translate_index_to_vaddr(int index);
 static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr);
@@ -465,6 +452,7 @@ void frametable_init(size_t umem, size_t kmem)
         ERROR_DEBUG("reserve %u bytes %d pages for kmem failed\n", kmem, kpages);
         assert(0);
     }
+    assert(!_pre_alloc_frames(BUFFER_CACHE_SIZE >> 12, &_buffer_cache, FRAME_FREE_SOS));
 
     /* _free_frame_count =  0; */
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "Frame table init finish: ut_lo:0x%x ut_high:0x%x\n", _ut_lo, _ut_hi);
@@ -892,3 +880,52 @@ void clock_set_frame(sos_vaddr_t vaddr)
     e->ctrl |= FRAME_CLOCK_TICK_BIT;
 
 }
+
+
+uint32_t alloc_frame(struct frame_table_head* head)
+{
+    struct frame_table_entry* e = _grab_free_frame(head);
+    if (e == NULL)
+    {
+        /* assert(_is_empty_kframe()); */
+        return 0;
+    }
+    assert(FRAME_FREE_SOS == _frame_entry_status(e));
+    e->status = FRAME_SOS;
+    sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
+    /* assert(_valid_kvaddr(vaddr)); */
+    _zero_frame(vaddr);
+    return e->myself;
+}
+
+void free_frame(struct frame_table_head* head, uint32_t frame_num)
+{
+    conditional_panic((_frame_table == NULL), "Frame table uninitialised");
+
+    int index = (int)frame_num;
+    if (index < 0 || _frame_entry_status(_frame_table + index) != FRAME_SOS)
+    {
+        ERROR_DEBUG("invalid frame status 0x%x\n", vaddr);
+        return;
+    }
+    assert(index >= head->first && index <= head->last);
+
+    frame_table_entry* fte = _frame_table + index;
+    assert(fte->remap_cap == 0); // upper layer should make sure release the cap, then free it
+    fte->status = FRAME_FREE_SOS;
+    _put_back_frame(fte, head);
+}
+
+
+void* frame_addr(uint32_t frame_num)
+{
+    assert(frame_num > 0);
+    int index = (int)frame_num;
+    assert(_frame_entry_status(_frame_table + index) == FRAME_SOS);
+    return (void*)frame_translate_index_to_vaddr(frame_num);
+}
+/* int reserve_frames(struct frame_table_head* head, size_t pages) */
+/* { */
+/*     return _pre_alloc_frames(pages, head, FRAME_FREE_SOS); */
+/* } */
+

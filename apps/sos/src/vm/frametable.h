@@ -19,6 +19,23 @@
 typedef seL4_Word sos_paddr_t;
 typedef seL4_Word sos_vaddr_t;
 
+struct frame_table_head
+{
+    int first;
+    int last;
+
+    size_t start_vaddr;
+    size_t end_vaddr;
+
+    int free_pages;
+    int total_pages;
+
+
+    int tick_index; // for second chance replacement algorithm
+    int tick_start;
+    int tick_end;
+};
+
 
 enum frame_entry_status
 {
@@ -98,5 +115,12 @@ void clock_set_frame(sos_vaddr_t vaddr);
 bool get_uframe_pinned(sos_vaddr_t vaddr);
 
 void dump_frame_status();
+
+
+// following func only for internal use(like buffer cache)
+uint32_t alloc_frame(struct frame_table_head* head);
+void free_frame(struct frame_table_head* head, uint32_t frame_num);
+
+void* frame_addr(uint32_t frame_num);
 
 #endif

@@ -8,8 +8,6 @@ extern int sos_init_flag;
 extern void sos_usleep(int usecs);
 extern void rpc_timeout(int ms);
 
-
-
 static struct wchan* create_wchan()
 {
     struct wchan* wc = malloc(sizeof(struct wchan));
@@ -17,14 +15,16 @@ static struct wchan* create_wchan()
     {
         return NULL;
     }
-    wc->_head = NULL;
+    list_init(&(wc->_head));
+    /* wc->_head = NULL; */
+    /* wc->_tail = NULL; */
     wc->_size  = 0;
     return wc;
 }
 
 static bool empty_wchan(struct wchan* wc)
 {
-    return (wc->_head == NULL && wc->_size == 0);
+    return (wc->_size == 0 && is_list_empty(&wc->_head));
 }
 
 static void wchan_sleep(struct wchan* wc)
@@ -36,9 +36,9 @@ static void wchan_sleep(struct wchan* wc)
     //simply core the sos if not enough mem for it.....
     assert(obj != NULL);
     obj->_coro = coro;
-    obj->_next = wc->_head;
-    wc->_head = obj;
-
+    list_add_tail(&obj->_link_obj, &(wc->_head.head));
+    /* obj->_next = wc->_head; */
+    /* wc->_head = obj; */
     yield_coro();
     return;
 }
@@ -46,12 +46,15 @@ static void wchan_sleep(struct wchan* wc)
 static void wchan_wakeone(struct wchan* wc)
 {
     assert(wc != NULL);
-    assert(wc->_head != NULL && wc->_size > 0);
+    assert(!is_list_empty(&wc->_head) && wc->_size > 0);
     wc->_size --;
-    struct chan_obj* tmp = wc->_head;
-    struct coroutine* coro = wc->_head->_coro;
+    assert(list_front(&wc->_head) != NULL);
+    struct chan_obj* tmp = list_entry(list_front(&wc->_head), struct chan_obj, _link_obj);
+    struct coroutine* coro = tmp->_coro;
     assert(coro != NULL);
-    wc->_head = tmp->_next;
+    list_del(&tmp->_link_obj);
+
+    /* wc->_head = tmp->_next; */
     /* printf ("wchan_wakeone, size: %d, next: %p\n", */
     /*         wc->_size, wc->_head); */
     free(tmp);
@@ -59,13 +62,43 @@ static void wchan_wakeone(struct wchan* wc)
     return;
 }
 
+static void wchan_wakeall(struct wchan* wc)
+{
+    struct list_head *current = NULL;
+    struct list_head *tmp_head = NULL;
+
+    list_for_each_safe(current, tmp_head, &(wc->_head.head))
+    {
+        struct chan_obj* tmp = list_entry(current, struct chan_obj, _link_obj);
+        assert(tmp != NULL);
+        struct coroutine* coro = tmp->_coro;
+        assert(coro != NULL);
+        list_del(&tmp->_link_obj);
+        free(tmp);
+        make_coro_runnable(coro);
+    }
+    assert(empty_wchan(wc));
+}
+
 static bool check_valid_wchan(struct wchan* wc)
 {
     int t = 0;
-    for (struct chan_obj* i = wc->_head; i != NULL; i = i->_next)
+    struct list_head *current = NULL;
+    struct list_head *tmp_head = NULL;
+
+    list_for_each_safe(current, tmp_head, &(wc->_head.head))
     {
-        t ++;
+        struct chan_obj* tmp = list_entry(current, struct chan_obj, _link_obj);
+        assert(tmp != NULL);
+        /* (void)tmp; */
+        t ++ ;
+        /* dump_region(tmp); */
     }
+
+    /* for (struct chan_obj* i = wc->_head; i != NULL; i = i->_next) */
+    /* { */
+    /*     t ++; */
+    /* } */
     return t == wc->_size;
 }
 
@@ -158,3 +191,50 @@ void V(struct semaphore* sem)
     return;
 }
 
+struct cv *cv_create(const char *name)
+{
+    struct cv* cv = malloc(sizeof(struct cv));
+    if (cv== NULL)
+    {
+        return NULL;
+    }
+    (void)name;
+    cv->_cv_wchan = create_wchan();
+    if (cv->_cv_wchan == NULL)
+    {
+        cv_destroy(cv);
+        return NULL;
+    }
+    return cv;
+}
+
+void cv_destroy(struct cv* cv)
+{
+    if (cv != NULL)
+    {
+        if (cv->_cv_wchan != NULL)
+        {
+            assert(empty_wchan(cv->_cv_wchan));
+            free(cv->_cv_wchan);
+        }
+        free(cv);
+    }
+}
+
+void cv_wait(struct cv *cv)
+{
+    assert(cv != NULL);
+    wchan_sleep(cv->_cv_wchan);
+}
+
+void cv_signal(struct cv *cv)
+{
+    assert(cv != NULL);
+    wchan_wakeone(cv->_cv_wchan);
+}
+
+void cv_broadcast(struct cv *cv)
+{
+    assert(cv != NULL);
+    wchan_wakeall(cv->_cv_wchan);
+}

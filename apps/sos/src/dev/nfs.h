@@ -5,6 +5,9 @@
 #include "nfs/nfs.h"
 #include "vfs/fs.h"
 #include "vfs/vnode.h"
+#include "vm/vm.h"
+#include "vm/frame_table.h"
+#include "vm/buffer_cache.h"
 #define NFS_TIMEOUT (100)
 #define NFS_DEVICE_NAME "nfs"
 #define NFS_MAXIO 1000
@@ -26,13 +29,44 @@ struct nfs_cb_arg
 
 };
 
+// enum CACHE_NODE_STATUS_E
+// {
+//     CACHE_LOADING_BIT  = 0,
+//     CACHE_FLUSHING_BIT = 1,
+//     CACHE_DIRTY_BIT    = 2,
+// };
+//
+// // linux use radix tree, 6bit for each level.
+// // i am too lazy to make it dynamic, so make it only two levels.
+// struct cache_node
+// {
+//     struct semaphore* sem;
+//     uint32_t frame_num;
+//     uint32_t version;
+// };
+//
+// struct cache_dir
+// {
+//     struct cache_node* node;
+// };
+//
+// struct cache_root
+// {
+//     // first 10bit, second 8 bit. so the maximum is 1GB file
+//     struct cache_dir* dir; // two level radix tree,
+//     //
+// };
+
 struct nfs_vnode
 {
     struct vnode ev_v;
     // struct nfs_fs* ev_nfs;
     struct fhandle ev_handler;
     // struct semaphore* ev_sem;
+
     struct list_head ev_link;
+
+    struct cache_root* root; // if root is NULL, cache for this file is not enabled.
 };
 
 struct nfs_fs
@@ -46,5 +80,9 @@ struct nfs_fs
 
 
 void init_nfs(const struct fhandle* mnt_point);
+
+
+int nfs_read_func(struct vnode* vn, struct uio* uio);
+int nfs_write_func(struct vnode* vn, struct uio* uio);
 
 #endif

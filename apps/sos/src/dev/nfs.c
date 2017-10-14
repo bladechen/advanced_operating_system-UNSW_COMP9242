@@ -6,13 +6,15 @@
 #include "vfs/uio.h"
 #include "clock/clock.h"
 #include "coroutine/synch.h"
+#include "comm/list.h"
 
 
 static struct nfs_fs _nfs_handler;
 
+
 static
 int
-_nfs_close(const struct fhandle* handle);
+_nfs_close(struct nfs_vnode* nfs_vn);
 
 
 static int _nfs_loadvnode(struct nfs_fs *ef,
@@ -31,6 +33,13 @@ static void _dump_nfs_stat( fattr_t *fattr)
                 ,fattr->uid, fattr->gid);
     return;
 }
+
+static inline bool _use_buffer_cache(const char* filename)
+{
+    (void) filename; // XXX maybe we need make 'pagefile' non buff-cache
+    return true;
+}
+
 static inline int _rpc_stat2sos_err(enum rpc_stat stat)
 {
     if (stat == RPC_OK)
@@ -186,6 +195,7 @@ static struct nfs_vnode* _creat_nfs_vnode(void)
     {
         return NULL;
     }
+    v->root = NULL;
     link_init(&(v->ev_link));
     memset(&v->ev_handler, 0, sizeof (FHSIZE));
     memset(&v->ev_v, 0, sizeof (struct vnode));
@@ -336,12 +346,15 @@ int
 _nfs_read(struct vnode *v, struct uio *uio)
 {
     struct nfs_vnode *ev = v->vn_data;
-    /* uint32_t amt; */
     size_t oldresid;
-    /* int result; */
-    /*  */
     assert(uio->uio_rw == UIO_READ);
     assert(uio->uio_resid <= seL4_PAGE_SIZE);
+
+    if (ev->root != NULL)
+    {
+
+    }
+
     /*  */
     while (uio->uio_resid > 0)
     {
@@ -764,10 +777,10 @@ _nfs_creat_cb(uintptr_t token, enum nfs_stat stat, fhandle_t *fh, fattr_t *fattr
  */
 static
 int
-_nfs_close(const struct fhandle* handle)
+_nfs_close(struct nfs_vnode* nfs_vn)
 {
-    // nothing to do with nfs. XXX
-    (void) handle;
+    // TODO flush all the buffer cache
+    (void) nfs_vn;
     return 0;
 }
 
@@ -833,9 +846,12 @@ _nfs_creat(struct vnode *dir, const char *name, bool excl, mode_t mode,
     {
         ERROR_DEBUG("%p nfs_create load new vnode error\n", ev);
 
-        _nfs_close(&(cb_argv.handler));
+        _nfs_close(newguy);
         return rets;
     }
+    if (_use_buffer_cache(name))
+        init_buffer_cache(&(newguy->root)); //
+
     *ret = &newguy->ev_v;
     return 0;
 }
@@ -859,7 +875,7 @@ _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
         ERROR_DEBUG("sem_create error\n");
         return ENOMEM;
     }
-    int rets =  nfs_lookup(&(ev->ev_handler), pathname, &_nfs_creat_cb, (uintptr_t)&cb_argv);
+    int rets = nfs_lookup(&(ev->ev_handler), pathname, &_nfs_creat_cb, (uintptr_t)&cb_argv);
     if (rets != 0)
     {
         ERROR_DEBUG("%p nfs_lookup, rpc %d\n", ev, rets);
@@ -883,9 +899,12 @@ _nfs_lookup(struct vnode *dir, char *pathname, struct vnode **ret)
     {
         ERROR_DEBUG("%p nfs_lookup load new vnode error\n", ev);
 
-        _nfs_close(&(cb_argv.handler));
+        _nfs_close(newguy);
         return rets;
     }
+    if (_use_buffer_cache(name))
+        init_buffer_cache(&(newguy->root)); //
+
     *ret = &newguy->ev_v;
     return 0;
 }
@@ -1261,7 +1280,6 @@ static int _nfs_loadvnode(struct nfs_fs *ef,
 
         if (_is_same_handler(&(ev->ev_handler) , fh) )
         {
-
             VOP_INCREF(&ev->ev_v);
             *ret = ev;
             return 0;
@@ -1276,6 +1294,7 @@ static int _nfs_loadvnode(struct nfs_fs *ef,
         ERROR_DEBUG("create new vnode for nfs without enough mem\n");
         return ENOMEM;
     }
+
 
     _copy_handler(&ev->ev_handler, fh);
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "creating new nfs_vnode [%p] with handler: \n", ev);
@@ -1317,5 +1336,23 @@ void init_nfs(const struct fhandle* mnt_point)
 
     assert(0 == vfs_addfs(NFS_DEVICE_NAME, &(_nfs_handler.ef_fs)));
 
+}
+
+int nfs_read_func(struct vnode* vn, struct uio* uio)
+{
+    size_t l = uio->uio_resid;
+    struct nfs_vnode *ev = v->vn_data;
+    int result = _nfs_write_op(&(ev->ev_handler), uio);
+    return (result == 0) ? (l - uio->uio_resid) : -result;
+}
+
+int nfs_write_func(struct vnode* vn, struct uio* uio)
+{
+
+    size_t l = uio->uio_resid;
+    struct nfs_vnode *ev = v->vn_data;
+    int result = _nfs_write_op(&(ev->ev_handler), uio);
+    return (result == 0) ? (l - uio->uio_resid) : -result;
 
 }
+

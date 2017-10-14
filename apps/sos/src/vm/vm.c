@@ -14,6 +14,7 @@ void vm_bootstrap(void)
 {
     printf("initialise frametable...\n");
     frametable_init(0, 0);
+    buffer_cache_init();
     init_swapping();
 }
 
