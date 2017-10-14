@@ -1,0 +1,121 @@
+																	Design Documentation
+
+##################### System call ##############################
+Syscalls user may use are all defined in `libs/libsos/include/sos.h`, and implementations are defined in `libs/libsos/src/*.c`.
+
+The mechanism to dispatch infomation between user and kernel(sos) is as following:
+1. Separate the infomation needed to exchange between SOS and APPs as two classes, control info and actual data.
+
+2. The control info of messge is represented as a C structure:
+typedef struct ipc_buffer_ctrl_msg {
+    int   ret_val;
+    int         seq_num; //only for check purpose
+    int         syscall_number;
+    seL4_Word   start_app_buffer_addr;
+    int         offset;
+    int         file_id;
+    int mode;
+} ipc_buffer_ctrl_msg;
+It contains the control info of a message needed to exchange between SOS and APPs. And for the actual data of message will be put into the address specified as  `start_app_buffer_addr`, the `offset` indicate the size of actual data. In current edition, the `start_app_buffer_addr` will always point to `IPC_SHARED_BUFFER` defined in address space. Both SOS and APP can access this range of memory. In our design, there exists one 4k page, reserved for IPC communication, to be more specific, for system call data transmission between SOS and APPs. 
+
+3. To actually make the syscall in APP, it will call self-defined `ipc_call` to actually send out the message.  
+
+4. All syscall make use of `seL4_Call` defined in seL4. So it needs to wait for response.
+
+5. `serialize_ipc_ctrl_msg` and `unserialize_ipc_ctrl_msg` are used to copy data into and from `IPC_SHARED_BUFFER`.
+
+6. In SOS side, the most relevant files are under `apps/sos/src/syscall/`.
+
+7. In SOS main function, it will invoke `handle_syscall` to handle the syscall. There exists one function pointer array in `syscall.c`, and each slot correspond to one specific syscall number, so that it is able to find function in O(1) time complexity.
+
+8. Syscall functions in SOS side, will make use of `ipc_reply` to send back the message and process `reply_cap` properly.
+
+
+
+##################### File System ##############################
+Related source files are under `apps/sos/src/dev`, `apps/sos/src/fs` and `apps/sos/src/vfs`. This part primarily refers to OS161 FS implementation. This is a simplified flat directory structure, so the implementation of directory is merely a vanilla version. The file systems hosted under vfs are NFS and consle. 
+
+************** VFS ****************
+
+   proc1                 proc2
+-----------			  --------------
+|fdtable1	|        | fdtable2		|
+-------------		  --------------
+	|	|					|
+	|	|-------------------|	
+	|						|
+   \/                      \/
+------------------------------------------------
+|Global open file table   		|vnode ptr|		|
+------------------------------------------------
+
+Design thoughts:
+1. A struct vnode is an abstract representation of a file. There are some special vnode objects, such as the root vnode of NFS, which does not relate to a file. The struct vnode is quite critical, definition as following
+struct vnode {
+	int vn_refcount;                /* Reference count */
+	struct fs *vn_fs;               /* Filesystem vnode belongs to */
+	void *vn_data;                  /* Filesystem-specific data */
+	const struct vnode_ops *vn_ops; /* Functions on this vnode */
+};
+`vn_data` will be a pointer points to `console dev` or `nfs`.
+
+2. Each process has one fild descriptor table. And there exist a global file table, the corresponding struct is `struct files_table`, and is defined in `apps/sos/fs/kern_file.c` as `static struct files_table g_ftb;`.
+
+3. Different file system should instantiate their own `struct vnode_ops`, and set the corresponding function pointer when creating a new vnode. It's like an interface in OO perspective. For initialized vnode, it just call the corresponding function by the macro defined in `vnode.h` such as `VOP_READ(vn, uio)`.
+
+4. To walk through code, `syscall_open` defined in `file_syscall.c` could be a good entry point.
+
+
+************* I/O(console) and NFS subsystem ***********
+1. Both I/O and NFS add to FS by eventually invoking function `vfs_doadd`, attached to knowndevicearray through `knowndevarray_add`.
+
+2. In NFS, To provide a blocking file operation interface to clients without blocking the whole system, make use of semaphore, put semaphore object in call-back argument struct. There is trick that, when calling nfs-related functions need to pass an checksum like variable, and when nfs server reply to the function call, it will reply with the 'checksum', and we set the 'checksum' as the pointer to a cb_argv struct, so that every nfs-function call to remote server can always find the corresponding arguments.
+
+
+
+##################### Virtual Memory ###########################
+******** Frame table **********
+
+******** Addrss space *********
+
+******** Page-table structure *********
+
+******** Demand paging / Swapping ********
+
+
+
+#################### Process management ########################
+
+
+
+#################### Execution model ###########################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
