@@ -178,10 +178,21 @@ void map_timer_device(struct proc* proc, uint32_t phys)
 
 int start_timer(seL4_CPtr fault_cap)
 {
+    if (g_timer != NULL)
+    {
+        return 0;
+    }
     g_timer = init_timer_unit(MAX_REGISTERED_TIMER_CLOCK);
     assert(g_timer != NULL);
+
+    if (pid_to_proc(1) != NULL)
+    {
+        return 0;
+    }
+
     char* name = "time_driver";
     struct proc* process = proc_create((char*)(name), fault_cap);
+
     assert(process);
     assert(proc_load_elf(process, (char*)name));
     proc_attach_father(process, get_current_proc());
@@ -222,4 +233,5 @@ int start_timer(seL4_CPtr fault_cap)
     map_timer_device(process, EPIT2_MEMORY_MAP_START);
 
     assert(0 == proc_start(process, 0, NULL));
+    return 0;
 }

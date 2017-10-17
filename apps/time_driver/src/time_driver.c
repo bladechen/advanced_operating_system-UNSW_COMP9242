@@ -17,6 +17,7 @@
 #include "ttyout.h"
 
 int start_driver(seL4_CPtr interrupt_ep);
+void handle_gpt_irq();
 
 int main(int argc, char** argv)
 {
@@ -32,11 +33,8 @@ int main(int argc, char** argv)
     while (1)
     {
         seL4_Word badge;
-        seL4_Word label;
-        seL4_MessageInfo_t message;
 
-        message = seL4_Wait(TIME_DRIVER_EP, &badge);
-        label = seL4_MessageInfo_get_label(message);
+        seL4_Wait(TIME_DRIVER_EP, &badge);
         handle_gpt_irq();
     }
 

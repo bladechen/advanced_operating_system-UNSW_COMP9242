@@ -84,6 +84,7 @@ extern fhandle_t mnt_point;
 void update_timestamp(void);
 void handle_epit1_irq(void);
 void handle_gpt_irq(void);
+void handle_time_driver_cb(void);
 
 void syscall_loop(seL4_CPtr ep)
 {

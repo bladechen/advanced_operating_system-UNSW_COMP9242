@@ -7,13 +7,13 @@ extern uint32_t nfs_current_time();
 extern seL4_CPtr _sos_interrupt_ep_cap;
 
 
-static void delay(int count)
-{
-    int ret = 0;
-    for (int i = 0; i < count; i ++)
-        ret += i;
-    color_print(ANSI_COLOR_GREEN, "delay: %d\n", ret);
-}
+/* static void delay(int count) */
+/* { */
+/*     int ret = 0; */
+/*     for (int i = 0; i < count; i ++) */
+/*         ret += i; */
+/*     color_print(ANSI_COLOR_GREEN, "delay: %d\n", ret); */
+/* } */
 
 static void test_start_stop_timer(void)
 {
@@ -148,13 +148,13 @@ void m1_test(void)
     /* int count= 100; */
     /* while (count --) */
     {
-        /* test_start_stop_timer(); */
-        /* test_add_remove(); */
-        /* #<{(| test_one_register(); // 100ms |)}># */
-        /* test_remove_later(); */
-        /* test_move(); */
+        test_start_stop_timer();
+        test_add_remove();
+        test_one_register(); // 100ms
+        test_remove_later();
+        test_move();
         test_accuracy();
-        /* test_multi_timer(); */
+        test_multi_timer();
     }
 
     return;

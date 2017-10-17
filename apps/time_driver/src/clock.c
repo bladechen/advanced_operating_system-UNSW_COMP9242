@@ -276,7 +276,7 @@ volatile timestamp_t g_cur_timestamp_us = 0;
 // epit2 used for background tick
 static void _setup_regular_clock(seL4_CPtr interrupt_ep)
 {
-    tty_debug_print("_setup_regular_clock\n");
+    /* tty_debug_print("_setup_regular_clock\n"); */
     g_gpt.gpt_map = (void*)(APP_DEVICE_START+ GPT_MEMORY_MAP_STRAT);
 
 
@@ -350,7 +350,7 @@ static void _setup_regular_clock(seL4_CPtr interrupt_ep)
 
 static void _init_timedriver(seL4_CPtr interrupt_ep)
 {
-    tty_debug_print("_init_timedriver...\n");
+    /* tty_debug_print("_init_timedriver...\n"); */
     _setup_regular_clock(interrupt_ep);
     return;
 }
@@ -392,7 +392,7 @@ static int handle_timer_interrupt(void)
 
 static void _write_timestamp_to_sos_buffer()
 {
-    memcpy((void*)APP_PROCESS_IPC_SHARED_BUFFER, &g_cur_timestamp_us, sizeof (g_cur_timestamp_us));
+    memcpy((void*)APP_PROCESS_IPC_SHARED_BUFFER, (void*)&g_cur_timestamp_us, sizeof (g_cur_timestamp_us));
 }
 
 static void _update_timestamp(void)

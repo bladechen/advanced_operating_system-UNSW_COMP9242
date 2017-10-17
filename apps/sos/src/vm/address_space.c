@@ -736,9 +736,9 @@ bool find_available_mem_area(struct addrspace* as, uint32_t* addr, uint32_t leng
     {
         if (*addr == 0)
         {
-             proposed_addr = (rand() * rand()) & 0xfffff000;
+             proposed_addr = ((rand() * rand()) & 0x7ffff000); // TODO test me
              // overflow
-             if (proposed_addr + length < proposed_addr)
+             if (proposed_addr + length < proposed_addr || proposed_addr < APP_PROCESS_MMAP_START || APP_PROCESS_MMAP_START + length >= APP_PROCESS_MMAP_END)
              {
                  continue;
              }

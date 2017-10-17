@@ -4,9 +4,9 @@
 #include <sel4/sel4.h>
 #include "vm.h"
 
-#define DEFAULT_UMEM_BYTES (1 * 1024 * 1024)
+#define DEFAULT_UMEM_BYTES (8 * 1024 * 1024)
 #define MAX_UMEM_BYTES (200 * 1024 * 1024)
-#define DEFAULT_KMEM_BYTES (1 * 1024 * 1024)
+#define DEFAULT_KMEM_BYTES (32 * 1024 * 1024)
 
 #define MAX_SHARED_KMEM_BYTES (DEFAULT_KMEM_BYTES/2)
 // #define MAX_SHARED_KMEM_BYTES (10 * 4096)

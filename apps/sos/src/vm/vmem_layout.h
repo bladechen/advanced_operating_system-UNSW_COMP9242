@@ -54,6 +54,8 @@
 // #define APP_PROCESS_HEAP_END          (0x2FFFE000)
 #define APP_PROCESS_HEAP_END          (0x21FFE000)
 
+#define APP_PROCESS_MMAP_START        (0x30000000)
+#define APP_PROCESS_MMAP_END          (0x80000000)
 
 // maximum (32M - 4K * 2) for stack
 #define APP_PROCESS_STACK_BOTTOM      (0x8E001000)

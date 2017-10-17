@@ -31,11 +31,11 @@ static void _set_page_dirty(uint32_t* entity)
     *entity |= PAGE_DIRTY_BIT;
 }
 
-static void _reset_page_dirty(uint32_t* entity)
-{
-    assert((_is_page_dirty(*entity)));
-    *entity &= (~PAGE_DIRTY_BIT);
-}
+/* static void _reset_page_dirty(uint32_t* entity) */
+/* { */
+/*     assert((_is_page_dirty(*entity))); */
+/*     *entity &= (~PAGE_DIRTY_BIT); */
+/* } */
 
 static bool _is_page_valid(uint32_t entity)
 {
