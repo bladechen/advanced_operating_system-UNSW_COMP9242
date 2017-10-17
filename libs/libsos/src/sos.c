@@ -363,3 +363,19 @@ seL4_Word sos_sys_brk(seL4_Word newbrk)
     }
 }
 
+int sos_share_vm(void *adr, size_t size, int writable)
+{
+    struct ipc_buffer_ctrl_msg  ctrl_msg ;
+
+    ctrl_msg.syscall_number = SOS_SYSCALL_VM_SHARED;
+    ctrl_msg.start_app_buffer_addr = (seL4_Word) adr;
+
+    ctrl_msg.seq_num = writable;
+    ctrl_msg.file_id = (int)size;
+    ctrl_msg.offset = 0;
+
+    struct ipc_buffer_ctrl_msg ret;
+    assert (0 == ipc_call(&ctrl_msg, NULL, &ret));
+    tty_debug_print("ipc_call sos_share_vm return %d, at addr: 0x%p, size: %u\n", ret.ret_val, adr, size);
+    return ret.ret_val;
+}

@@ -1,6 +1,7 @@
 #ifndef _ADDRESS_SPACE_H_
 #define _ADDRESS_SPACE_H_
 #include "vfs/vnode.h"
+#include "sos.h"
 #include "elf/elf.h"
 #include "comm/comm.h"
 #include "comm/list.h"
@@ -20,6 +21,8 @@ enum region_type
     HEAP,
     IPC,
     IPC_SHARED_BUFFER,
+    MMAP,
+    SHARED_VM,
     OTHER,
 };
 
@@ -133,13 +136,12 @@ int               as_define_region(struct addrspace *as,
                                    int readable,
                                    int writeable,
                                    int executable,
-                                   enum region_type type);
+                                   enum region_type type, struct as_region_metadata** ret);
 
 int               as_define_stack(struct addrspace* as, vaddr_t* stack_pointer);
 int               as_define_heap (struct addrspace* as);
 int               as_define_ipc  (struct addrspace* as);
 int               as_define_ipc_shared_buffer(struct addrspace * as);
-int               as_define_mmap (struct addrspace* as); // TODO
 
 struct as_region_metadata* as_get_region(struct addrspace* as, vaddr_t vaddr);
 
@@ -173,5 +175,16 @@ void loop_through_region(struct addrspace *as);
 
 
 int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out);
+
+int as_define_mmap(struct addrspace* as, sos_mmap_t* argv, uint32_t* ret_addr);
+int as_destroy_mmap(struct addrspace* as, sos_mmap_t* argv);
+
+int as_define_shared_vm(struct addrspace* as, vaddr_t kaddr,  vaddr_t app_addr, int npages, int writable);
+
+bool find_available_mem_area(struct addrspace* as, uint32_t* addr, uint32_t length);
+
+
+bool overlap_mem_area(uint32_t first_addr, uint32_t first_length,
+                             uint32_t second_addr, uint32_t second_length);
 
 #endif

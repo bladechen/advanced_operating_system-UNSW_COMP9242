@@ -1,5 +1,12 @@
 #include <stdio.h>
 #include <errno.h>
+
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+#include <stdint.h>
+#include <errno.h>
+#include <sys/mman.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -17,12 +24,13 @@
 #include <sys/panic.h>
 
 #include "address_space.h"
+#include "proc/proc.h"
 #include "comm/comm.h"
 #include "frametable.h"
 #include "vfs/uio.h"
 #include "vfs/vfs.h"
 
-const char REGION_NAME[10][20] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "OTHER"};
+const char REGION_NAME[10][20] = {"CODE", "DATA", "STACK", "HEAP", "IPC", "IPC_SHARED_BUFFER", "MMAP", "SHARED_VM" , "OTHER"};
 static void dump_region(struct as_region_metadata* region);
 
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region);
@@ -69,7 +77,6 @@ void as_destroy(struct addrspace * as)
         list_for_each_safe(current, tmp_head, &(as->list->head))
         {
             struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
-            /* as_flush_region(as, tmp); XXX we may need it if we do paging(mmap)!*/
             as_destroy_region(as, tmp);
             free(tmp);
         }
@@ -170,8 +177,9 @@ int as_define_region(struct addrspace *as,
                      int readable,
                      int writeable,
                      int executable,
-                     enum region_type type)
+                     enum region_type type, struct as_region_metadata** ret)
 {
+
 
 
     struct as_region_metadata *region;
@@ -198,6 +206,10 @@ int as_define_region(struct addrspace *as,
     }
 
     as_add_region_to_list(as, region);
+    if (ret != NULL)
+    {
+        *ret = region;
+    }
     return 0;
 }
 
@@ -209,7 +221,7 @@ int as_define_stack(struct addrspace* as, vaddr_t* stack_pointer)
                             NULL, 0,
                             APP_PROCESS_STACK_TOP - APP_PROCESS_STACK_BOTTOM, 0,
                             /* APP_PROCESS_STACK_TOP - APP_PROCESS_STACK_BOTTOM, */
-                            PF_R, PF_W, 0, STACK);
+                            PF_R, PF_W, 0, STACK, NULL);
 
 }
 int as_define_heap (struct addrspace* as)
@@ -220,7 +232,7 @@ int as_define_heap (struct addrspace* as)
                             /* 0, 0, */
                             0, 0,
                             /* APP_PROCESS_HEAP_END- APP_PROCESS_HEAP_START, */
-                            PF_R, PF_W, 0, HEAP);
+                            PF_R, PF_W, 0, HEAP, NULL);
 
 }
 int as_define_ipc(struct addrspace* as)
@@ -229,7 +241,7 @@ int as_define_ipc(struct addrspace* as)
                             APP_PROCESS_IPC_BUFFER,
                             NULL, 0,
                             1 << seL4_PageBits, 0,
-                            PF_R, PF_W, 0, IPC);
+                            PF_R, PF_W, 0, IPC, NULL);
     if (ret != 0)
     {
         return ret;
@@ -241,6 +253,10 @@ int as_define_ipc(struct addrspace* as)
     {
         pin_frame(( page_phys_addr(as->pt, APP_PROCESS_IPC_BUFFER)));
     }
+    else
+    {
+        as_destroy_region(as, r);
+    }
     return ret;
 }
 
@@ -250,7 +266,7 @@ int as_define_ipc_shared_buffer(struct addrspace * as)
                                 APP_PROCESS_IPC_SHARED_BUFFER,
                                 NULL, 0,
                                 4 << seL4_PageBits, 0,
-                                PF_R, PF_W, 0, IPC_SHARED_BUFFER);
+                                PF_R, PF_W, 0, IPC_SHARED_BUFFER, NULL);
     if (ret != 0)
     {
         return ret;
@@ -262,6 +278,10 @@ int as_define_ipc_shared_buffer(struct addrspace * as)
     if (ret == 0)
     {
         pin_frame(( page_phys_addr(as->pt, APP_PROCESS_IPC_SHARED_BUFFER)));
+    }
+    else
+    {
+        as_destroy_region(as, r);
     }
 
     return ret;
@@ -301,6 +321,7 @@ static void as_destroy_region_pages(struct pagetable* pt,
     assert(pt != NULL &&  region != NULL);
     vaddr_t start = region->region_vaddr;
     vaddr_t end = region->region_vaddr  + ((region->npages) << 12);
+
     for (int i=0; i < npages; i++)
     {
         vaddr_t vaddr_del = begin_addr + i * (1 << seL4_PageBits);
@@ -314,10 +335,14 @@ static void as_destroy_region_pages(struct pagetable* pt,
             ERROR_DEBUG("invalid as_destroy_region_pages\n");
         }
     }
+    if (region->type == SHARED_VM)
+    {
+        remove_vm_share(region->region_vaddr , region->npages << 12);
+    }
     return;
 }
 
-void  as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
+void as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
 {
     assert(as != NULL && to_del != NULL);
     list_del_init(&(to_del->link));
@@ -327,7 +352,6 @@ void  as_destroy_region(struct addrspace *as, struct as_region_metadata *to_del)
         to_del->region_vnode = NULL;
     }
     as_destroy_region_pages(as_get_page_table(as), to_del, to_del->region_vaddr, to_del->npages);
-
 }
 
 static seL4_ARM_VMAttributes as_region_vmattrs(struct as_region_metadata* region)
@@ -408,13 +432,14 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
                     segment_size,
                     file_size,
                     flags & PF_R, flags & PF_W, flags &PF_X,
-                    CODE);
+                    CODE, NULL);
             if (err)
             {
                 return ENOEXEC;
             }
             /* conditional_panic(err != 0, "Fail to create and define CODE Region\n"); */
         }
+        // treat non-executable section as DATA if there are more than two loaded section
         else
         {
 
@@ -426,19 +451,13 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
                     segment_size,
                     file_size,
                     flags & PF_R, flags & PF_W, flags & PF_X,
-                    DATA);
+                    DATA, NULL);
             if (err)
             {
                 return ENOEXEC;
             }
             /* conditional_panic(err != 0, "Fail to create and define DATA Region\n"); */
         }
-        /* // FIXME show stop Assuming ELF files only have two sections. */
-        /* else */
-        /* { */
-        /*     ERROR_DEBUG("the section %s need load, but not handled\n", name); */
-        /*     #<{(| assert(0); |)}># */
-        /* } */
 
         dprintf(0, " * Loading segment %08x-->%08x\n", (int)vaddr, (int)(vaddr + segment_size));
     }
@@ -556,7 +575,6 @@ int as_handle_elfload_fault(struct pagetable* pt, struct as_region_metadata* r, 
 
 int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * region, vaddr_t fault_addr, int fault_type)
 {
-
     /* printf ("%x %x %x\n", fault_addr, region->region_vaddr, region->region_vaddr + (region->npages << 12)); */
     if (region->region_vaddr + (region->npages << 12)  <= fault_addr || fault_addr < region->region_vaddr)
     {
@@ -566,7 +584,11 @@ int as_handle_page_fault(struct pagetable* pt, struct as_region_metadata * regio
     assert(pt != NULL && region != NULL);
     assert((fault_addr &(~seL4_PAGE_MASK)) == 0);
     seL4_CapRights right = as_region_caprights(region);
-    assert(!((fault_type == FAULT_WRITE || fault_type == FAULT_WRITE_ON_READONLY) && !(right & seL4_CanWrite)));
+    // write on readonly page
+    if (((fault_type == FAULT_WRITE || fault_type == FAULT_WRITE_ON_READONLY) && !(right & seL4_CanWrite)))
+    {
+        return EFAULT;
+    }
     int ret = 0;
     if (fault_type != FAULT_WRITE_ON_READONLY)
     {
@@ -672,3 +694,185 @@ int as_get_heap_brk(struct addrspace* as, uint32_t brk_in, uint32_t* brk_out)
 
 }
 
+extern struct proc kproc;
+bool overlap_mem_area(uint32_t first_addr, uint32_t first_length,
+                             uint32_t second_addr, uint32_t second_length)
+{
+    -- first_length;
+    -- second_length;
+    /* printf ("overlap %x %u %x %u\n", first_addr, first_length, second_addr, second_length); */
+    return (first_addr <= second_addr && second_addr <= first_addr + first_length)
+        || (first_addr <= second_addr + second_length && second_addr + second_length <= first_addr + first_length);
+}
+
+static bool already_in_address_space(struct addrspace* as, uint32_t addr, uint32_t length)
+{
+    if (addr == 0)
+    {
+        return false;
+    }
+    struct list_head *current = NULL;
+    struct list_head *tmp_head = NULL;
+    list_for_each_safe(current, tmp_head, &(as->list->head))
+    {
+        struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
+        size_t region_length = tmp->npages << 12;
+        if (addr >= tmp->region_vaddr && addr + length <= tmp->region_vaddr + region_length)
+        {
+            printf ("already in %x %u %x %u\n", addr, length, tmp->region_vaddr, region_length);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool find_available_mem_area(struct addrspace* as, uint32_t* addr, uint32_t length)
+{
+    // TODO can overlap heap?
+    uint32_t proposed_addr = *addr;
+    uint32_t ret_addr = 0;
+    int count = (*addr == 0) ? 5 : 1;
+    while (count --)
+    {
+        if (*addr == 0)
+        {
+             proposed_addr = ((rand() * rand()) & 0x7ffff000); // TODO test me
+             // overflow
+             if (proposed_addr + length < proposed_addr || proposed_addr < APP_PROCESS_MMAP_START || APP_PROCESS_MMAP_START + length >= APP_PROCESS_MMAP_END)
+             {
+                 continue;
+             }
+             /* printf ("proposed addr: 0x%x\n", proposed_addr); */
+        }
+        struct list_head *current = NULL;
+        struct list_head *tmp_head = NULL;
+        bool find = 1;
+        list_for_each_safe(current, tmp_head, &(as->list->head))
+        {
+            struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
+            size_t region_length = tmp->npages << 12;
+            if (overlap_mem_area(proposed_addr, length, tmp->region_vaddr, region_length) ||
+                overlap_mem_area(tmp->region_vaddr, region_length, proposed_addr, length))
+            {
+                find = 0;
+                break;
+            }
+        }
+        if (find)
+        {
+            ret_addr = proposed_addr;
+            break;
+        }
+    }
+    *addr = ret_addr;
+    return (ret_addr != 0);
+}
+
+int as_define_mmap(struct addrspace* as, sos_mmap_t* argv, uint32_t* ret_addr)
+{
+    *ret_addr = 0;
+    if (argv->fd != -1 || (argv->flags & (MAP_PRIVATE | MAP_ANONYMOUS)) != ((MAP_PRIVATE | MAP_ANONYMOUS)))
+
+    {
+        ERROR_DEBUG("currently not support for fd: %d or flag: 0x%x\n", argv->fd, argv->flags);
+        return EINVAL;
+    }
+    if ((argv->length & 0xfff) || (argv->addr & 0xfff))
+    {
+        ERROR_DEBUG("must apply for aligned 4k mem\n");
+        return EINVAL;
+    }
+    if (argv->addr + argv->length < argv->addr)
+    {
+        ERROR_DEBUG("addr: 0x%x, length: %u invalid\n", argv->addr, argv->length);
+        return EINVAL;
+    }
+    if (argv->flags & MAP_FIXED) // sos not support mapping NULL!
+    {
+        if (argv->addr == 0)
+        {
+            return EINVAL;
+        }
+        *ret_addr = argv->addr;
+    }
+    int perm = (argv->prot & PROT_READ) ? PF_R: 0;
+    perm |=  (argv->prot & PROT_WRITE) ? PF_W: 0;
+    perm |=  (argv->prot & PROT_EXEC) ? PF_X: 0;
+
+    bool ok = already_in_address_space(as, argv->addr , argv->length);
+    if (ok)
+    {
+        // ignore the perm change.
+        *ret_addr = argv->addr;
+        return 0;
+    }
+
+    ok = find_available_mem_area(as, ret_addr, argv->length);
+    if (!ok)
+    {
+        ERROR_DEBUG("no available vm in address space\n");
+        return ENOMEM;
+    }
+    assert(*ret_addr != 0);
+
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "mmap addr: %x with perm: %x\n", *ret_addr, perm);
+    int err = as_define_region(as,
+                    *ret_addr,
+                    NULL,
+                    0,
+                    argv->length,
+                    0,
+                    perm & PF_R,  perm & PF_W, perm & PF_X,
+                    MMAP, NULL);
+    return err;
+
+}
+
+int as_destroy_mmap(struct addrspace* as, sos_mmap_t* argv)
+{
+    struct list_head *current = NULL;
+    struct list_head *tmp_head = NULL;
+    list_for_each_safe(current, tmp_head, &(as->list->head))
+    {
+        struct as_region_metadata* tmp = list_entry(current, struct as_region_metadata, link);
+        size_t region_length = tmp->npages << 12;
+        // currently only support fully munmap
+        if (tmp->region_vaddr == argv->addr && region_length == argv->length)
+        {
+            as_destroy_region(as, tmp);
+            return 0;
+        }
+    }
+    return EINVAL;
+}
+
+int as_define_shared_vm(struct addrspace* as, vaddr_t kaddr, vaddr_t app_addr, int npages, int writable)
+{
+    // grab cap from kmem, then map into proc'as
+    struct as_region_metadata* region = NULL;
+    int ret = as_define_region(as,
+                               app_addr,
+                               NULL, 0,
+                               npages << 12, 0,
+                               PF_R, writable ? PF_W : 0, 0, SHARED_VM, &region);
+    if (ret != 0)
+    {
+        ERROR_DEBUG("as_define_region for shared vm failed: %d\n", ret);
+        return ret;
+    }
+
+    for (int i = 0; i < npages; ++ i)
+    {
+        seL4_CPtr cap = fetch_page_cap(proc_pagetable(&kproc), kaddr + (i << 12) );
+        assert(cap != 0);
+        int ret = page_map(as->pt, cap, app_addr + (i << 12 ), seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever,  seL4_CanRead | (writable ? seL4_CanWrite : 0));
+        if (ret != 0)
+        {
+            as_destroy_region(as, region);
+            /* free_pages(as->pt, app_addr, i); */
+            ERROR_DEBUG("as_define_shared_vm at: 0x%x, length: %u, failed: %d\n", app_addr, npages << 12, ret);
+            return ret;
+        }
+    }
+    return 0;
+}

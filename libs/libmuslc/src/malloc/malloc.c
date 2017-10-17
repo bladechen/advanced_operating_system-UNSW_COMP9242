@@ -171,7 +171,7 @@ static struct chunk *expand_heap(size_t n)
 	w = MEM_TO_CHUNK(mal.brk);
 	w->csize = n | C_INUSE;
 	mal.brk = new;
-	
+
 	unlock(mal.brk_lock);
 
 	return w;
@@ -187,6 +187,7 @@ static int init_malloc(size_t n)
 	struct chunk *c;
 
 	if (init == 2) return 0;
+    /* printf ("init_malloc: %d\n", n); */
 
 	while ((state=a_swap(&init, 1)) == 1)
 		__wait(&init, &waiters, 1, 1);
@@ -331,8 +332,9 @@ void *malloc(size_t n)
 	struct chunk *c;
 	int i, j;
 
+
 	if (adjust_size(&n) < 0) return 0;
-	//printf("%s %d\n", __FILE__, __LINE__);
+	/* printf("%s %d, alloc: %d\n", __FILE__, __LINE__, n); */
 	if (n > MMAP_THRESHOLD) {
 		size_t len = n + OVERHEAD + PAGE_SIZE - 1 & -PAGE_SIZE;
 		char *base = __mmap(0, len, PROT_READ|PROT_WRITE,
@@ -342,8 +344,8 @@ void *malloc(size_t n)
 		c->csize = len - (SIZE_ALIGN - OVERHEAD);
 		c->psize = SIZE_ALIGN - OVERHEAD;
 		return CHUNK_TO_MEM(c);
-	}	
-	//printf("%s %d\n", __FILE__, __LINE__);
+	}
+	/* printf("%s %d\n", __FILE__, __LINE__); */
 	i = bin_index_up(n);
 	//printf("%s %d\n", __FILE__, __LINE__);
 	for (;;) {
@@ -480,6 +482,7 @@ void free(void *p)
 #if 0
 			__madvise((void *)a, b-a, MADV_DONTNEED);
 #else
+            /* printf("malloc make 0x%x len: %u\n", a, b - a); */
 			__mmap((void *)a, b-a, PROT_READ|PROT_WRITE,
 				MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, -1, 0);
 #endif

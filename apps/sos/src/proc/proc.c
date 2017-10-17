@@ -140,21 +140,19 @@ static void _free_proc_resource(struct proc* process)
     }
 
     // FIXME no need double free:
-    /* printf ("fuck\n"); */
-    if (process->p_resource.p_pagetable != NULL)
-    {
-        destroy_pagetable(process->p_resource.p_pagetable);
-        process->p_resource.p_pagetable = NULL;
-    }
 
-
-
+    // need free address space first, then page_table.
     if (process->p_resource.p_addrspace != NULL)
     {
         as_destroy(process->p_resource.p_addrspace);
         process->p_resource.p_addrspace = NULL;
     }
 
+    if (process->p_resource.p_pagetable != NULL)
+    {
+        destroy_pagetable(process->p_resource.p_pagetable);
+        process->p_resource.p_pagetable = NULL;
+    }
 
     if (process->p_resource.p_tcb != NULL)
     {
@@ -282,8 +280,8 @@ int _init_proc(struct proc* process, char* name, seL4_CPtr fault_ep_cap)
         return -1;
     }
 
-    // Create a simple 1 level CSpace
-    process->p_resource.p_croot = cspace_create(1);
+    // we need 2 level cspace for time driver.
+    process->p_resource.p_croot = cspace_create(2);
     if (process->p_resource.p_croot == NULL)
     {
         ERROR_DEBUG("cspace_create error\n");

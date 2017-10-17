@@ -43,7 +43,10 @@ syscall_func syscall_func_arr[NUMBER_OF_SYSCALL] = {
     {.syscall=&sos_syscall_wait_process},
     {.syscall=&sos_syscall_process_status},
     {.syscall=&sos_syscall_exit_process},
-    {.syscall=&sos_syscall_process_my_pid}};
+    {.syscall=&sos_syscall_process_my_pid},
+    {.syscall=&sos_syscall_mmap},
+    {.syscall=&sos_syscall_munmap},
+    {.syscall=&sos_syscall_vm_shared}};
 
 extern timestamp_t g_cur_timestamp_us;
 /* extern struct serial * serial_handler = NULL; */
@@ -385,6 +388,67 @@ void sos_syscall_brk(void* argv)
     ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
 }
 
+void sos_syscall_mmap(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
+    if (proc->p_context.p_ipc_ctrl.offset != sizeof (sos_mmap_t))
+    {
+        ctrl.ret_val = EINVAL;
+        goto end_sos_syscall_mmap;
+    }
+
+    struct addrspace *as = proc->p_resource.p_addrspace;
+    sos_mmap_t mmap_argv;
+    memcpy(&mmap_argv, get_ipc_buffer(proc), proc->p_context.p_ipc_ctrl.offset);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_mmap proc %u, addr: 0x%x, size: %u\n",
+                proc->p_pid, mmap_argv.addr, mmap_argv.length);
+
+    uint32_t ret_addr = 0;
+    int ret = as_define_mmap(as, &mmap_argv, &ret_addr);
+    ctrl.ret_val = ret;
+    ctrl.offset = 4;
+    if (ret == 0)
+    {
+        memcpy(get_ipc_buffer(proc), &ret_addr, 4);
+    }
+    COLOR_DEBUG(DB_SYSCALL, ret == 0 ? ANSI_COLOR_GREEN : ANSI_COLOR_RED, "end  sos_syscall_map, proc %u, return addr: 0x%x, length: %u ret: %d\n", proc->p_pid, ret_addr, mmap_argv.length, ret);
+
+end_sos_syscall_mmap:
+    ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
+}
+
+void sos_syscall_munmap(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(proc == get_current_proc());
+
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
+    if (proc->p_context.p_ipc_ctrl.offset != sizeof (sos_mmap_t))
+    {
+        ctrl.ret_val = EINVAL;
+        goto end_sos_syscall_munmap;
+    }
+
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "begin sos_syscall_munmap proc %u\n", proc->p_pid);
+
+    struct addrspace *as = proc->p_resource.p_addrspace;
+    sos_mmap_t mmap_argv;
+    memcpy(&mmap_argv, get_ipc_buffer(proc), proc->p_context.p_ipc_ctrl.offset);
+
+    int ret = as_destroy_mmap(as, &mmap_argv);
+    ctrl.ret_val = ret;
+    COLOR_DEBUG(DB_SYSCALL, ret == 0 ? ANSI_COLOR_GREEN : ANSI_COLOR_RED, "end sos_syscall_munmap, proc %u, munmap addr: 0x%x, length: %u, ret: %d\n", proc->p_pid, mmap_argv.addr, mmap_argv.length, ret);
+
+end_sos_syscall_munmap:
+    ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
+}
+
+
 void sos_syscall_process_my_pid(void* argv)
 {
     struct proc* proc = (struct proc*) argv;
@@ -551,7 +615,7 @@ void sos_syscall_delete_process(void * argv)
     ctrl.file_id = 0;
     int pid = proc->p_context.p_ipc_ctrl.file_id;
     struct proc * proc_to_be_deleted = pid_to_proc(pid);
-    if (!proc_to_be_deleted || pid == 0) // you can not kill kproc!
+    if (!proc_to_be_deleted || pid == 0 || pid == TIME_DRIVER_PID) // you can not kill kproc(sos), and the time driver
     {
         ERROR_DEBUG("kill pid: %d ESRCH\n", pid);
         ctrl.ret_val = ESRCH;
@@ -637,7 +701,6 @@ void sos_syscall_process_status(void * argv)
         s[idx ++] = ' ';
         s[idx ++] = '[';
         memcpy(s + idx, tmp->p_status.argv_str, strlen(tmp->p_status.argv_str));
-        printf ("fuck %s\n", tmp->p_status.argv_str);
         idx += strlen(tmp->p_status.argv_str);
         s[idx ++] = ']';
         s[idx ++] = 0;
@@ -675,6 +738,22 @@ void sos_syscall_exit_process(void* argv)
     proc_exit(proc);
 }
 
+
+void sos_syscall_vm_shared(void* argv)
+{
+    struct proc* proc = (struct proc*) argv;
+    assert(get_current_proc() == proc);
+    COLOR_DEBUG(DB_SYSCALL, ANSI_COLOR_GREEN, "sos_syscall_vm_shared: %d, addr: 0x%x, length: %u, writable: %d\n", proc->p_pid, proc->p_context.p_ipc_ctrl.start_app_buffer_addr, proc->p_context.p_ipc_ctrl.file_id, proc->p_context.p_ipc_ctrl.seq_num);
+    struct ipc_buffer_ctrl_msg ctrl;
+    ctrl.offset = 0;
+    struct addrspace *as = proc->p_resource.p_addrspace;
+
+    ctrl.ret_val = vm_share(as, proc->p_context.p_ipc_ctrl.start_app_buffer_addr,
+                            proc->p_context.p_ipc_ctrl.file_id, proc->p_context.p_ipc_ctrl.seq_num);
+    COLOR_DEBUG(DB_SYSCALL,  ctrl.ret_val == 0 ? ANSI_COLOR_GREEN : ANSI_COLOR_RED, "end sos_syscall_vm_shared, proc %u, return addr: 0x%x, length: %u ret: %d\n", proc->p_pid, proc->p_context.p_ipc_ctrl.start_app_buffer_addr,  proc->p_context.p_ipc_ctrl.file_id, ctrl.ret_val);
+
+    ipc_reply(&ctrl, &(proc->p_context.p_reply_cap));
+}
 
 void handle_syscall(seL4_Word badge, struct proc * app_process)
 {

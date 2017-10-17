@@ -47,9 +47,10 @@ struct frame_table_head
 };
 
 struct frame_table_head _app_free_index = {-1, -1, 0, 0};
- struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
+struct frame_table_head _sos_free_index = {-1, -1, 0, 0};
 
-
+static sos_vaddr_t frame_translate_index_to_vaddr(int index);
+static int frame_translate_vaddr_to_index(sos_vaddr_t vaddr);
 void dump_frame_status()
 {
      printf("frame table for app, total pages: %d, free pages: %d\n",
@@ -57,6 +58,12 @@ void dump_frame_status()
 
      printf("frame table for sos, total pages: %d, free pages: %d\n",
                  _sos_free_index.total_pages, _sos_free_index.free_pages);
+
+     /* for (int i = 0; i < _sos_free_index.total_pages; i ++) */
+     /* { */
+     /*     printf ("paddr 0x%x has cap %d %d status: %d\n",(_sos_free_index.start_vaddr + i * 4096), _frame_table[frame_translate_vaddr_to_index(_sos_free_index.start_vaddr + i * 4096)].remap_cap,_frame_table[frame_translate_vaddr_to_index(_sos_free_index.start_vaddr + i * 4096)].frame_cap, _frame_table[frame_translate_vaddr_to_index(_sos_free_index.start_vaddr + i * 4096)].status); */
+     /*  */
+     /* } */
 }
 
 // used for the pool limitation
@@ -80,7 +87,6 @@ static void _clock_set_frame(struct frame_table_entry* e)
 
 }
 
-static sos_vaddr_t frame_translate_index_to_vaddr(int index);
 static void _dump_frame_table_entry(struct frame_table_entry* e)
 {
     COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame id: %d[%d:%d]\n", e->myself, e->prev, e->next);
@@ -117,7 +123,7 @@ static struct frame_table_entry* _find_evict_uframe()
                 ret = tmp;
                 break;
             }
-            invalid_page_frame(tmp->owner);
+            invalid_page_frame((struct pagetable_entry*)(tmp->owner));
             tmp->ctrl &= (~FRAME_CLOCK_TICK_BIT);
         }
 
@@ -589,6 +595,7 @@ sos_vaddr_t kframe_alloc()
     sos_vaddr_t vaddr = frame_translate_index_to_vaddr(e->myself);
     assert(_valid_kvaddr(vaddr));
     _zero_frame(vaddr);
+    /* printf ("kframe alloc: %x\n", vaddr); */
     return vaddr;
 }
 
@@ -634,8 +641,17 @@ sos_vaddr_t uframe_alloc()
         }
         COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "frame 0x%08x swapout vaddr 0x%08x to swapframe 0x%08x\n", frame_translate_index_to_vaddr(e->myself), e->user_vaddr, shift_swapnumber(swap_frame));
 
-        uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), shift_swapnumber(swap_frame));
-        assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+        if (e->owner != NULL)
+        {
+            uint32_t old_page = set_page_swapout((struct pagetable_entry*)(e->owner), shift_swapnumber(swap_frame), frame_translate_index_to_vaddr(e->myself));
+            /* if (old_page != 0) */
+            assert((old_page & seL4_PAGE_MASK) == frame_translate_index_to_vaddr(e->myself));
+        }
+        else
+        {
+            do_free_swap_frame(swap_frame); // the original owner already reset the page. so simply free the swap
+
+        }
 
         _unpin_frame(e);
         _clear_uframe(e);
@@ -701,11 +717,11 @@ void uframe_free(sos_vaddr_t vaddr)
 // the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
-    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "set_frame_app_cap 0x:%x, cap: %d\n", vaddr, cap);
     assert(cap <= MAX_CAP_ID);
     assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);
+    COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "set_frame_app_cap paddr 0x%x, vaddr 0x%x cap: %d\n", vaddr, e->user_vaddr, cap);
     if (status == FRAME_FREE_SOS || status == FRAME_FREE_APP)
     {
         assert(0);
@@ -768,7 +784,7 @@ void* get_uframe_owner(sos_vaddr_t vaddr)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
     assert(e->status == FRAME_APP);
-    return e->owner;
+    return (void*)(e->owner);
 }
 
 void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
@@ -778,8 +794,16 @@ void set_uframe_owner(sos_vaddr_t vaddr, void* owner)
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(e != NULL);
     assert(e->status == FRAME_APP);
-    assert(e->owner == NULL);
-    e->owner = owner;
+    if (e->owner == NULL)
+    {
+        e->owner = owner;
+    }
+    else
+    {
+        assert(owner == NULL);
+        e->owner = owner;
+    }
+    /* assert(e->owner == NULL); */
 }
 
 void set_uframe_user_vaddr(sos_vaddr_t vaddr, uint32_t en)
@@ -833,6 +857,16 @@ bool get_uframe_dirty(sos_vaddr_t vaddr)
     assert(e->status == FRAME_APP);
     assert(e->owner != NULL);
     return (e->ctrl & FRAME_DIRTY_BIT);
+}
+
+bool get_uframe_pinned(sos_vaddr_t vaddr)
+{
+    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+    struct frame_table_entry* e  = &(_frame_table[frame_translate_vaddr_to_index(vaddr)]);
+    assert(e->status == FRAME_APP);
+    assert(e->owner != NULL);
+    return (e->ctrl & FRAME_PIN_BIT);
+
 }
 
 void set_uframe_dirty(sos_vaddr_t vaddr, bool dirty)

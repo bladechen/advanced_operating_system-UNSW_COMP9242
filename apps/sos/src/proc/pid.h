@@ -9,7 +9,7 @@
 #include "coroutine/coro.h"
 #include "comm/list.h"
 #include <sos.h>
-#define PID_ARRAY_SIZE 6
+#define PID_ARRAY_SIZE 20
 #define MAX_SUPPORTED_PID (1 << 20) // if allocted pid reach this number (not include this!!), it will then  wrap around.
 
 struct proc;

@@ -197,6 +197,7 @@ static void _destroy_nfs_vnode(struct nfs_vnode* v)
     COLOR_DEBUG(DB_DEVICE, ANSI_COLOR_GREEN, "destroy_nfs_vnode: %p\n", v);
     vnode_cleanup(&v->ev_v);
     list_del(&(v->ev_link));
+    free(v);
 }
 
 

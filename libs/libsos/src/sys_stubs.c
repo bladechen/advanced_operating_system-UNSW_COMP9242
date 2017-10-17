@@ -453,11 +453,11 @@ long sys_mmap(va_list ap)
     assert(!"sys_mmap not implemented");
     return 0;
 }
-long sys_munmap(va_list ap)
-{
-    assert(!"sys_munmap not implemented");
-    return 0;
-}
+/* long sys_munmap(va_list ap) */
+/* { */
+/*     assert(!"sys_munmap not implemented"); */
+/*     return 0; */
+/* } */
 long sys_truncate(va_list ap)
 {
     assert(!"sys_truncate not implemented");
@@ -2020,11 +2020,6 @@ long sys_swapon(va_list ap)
 long sys_reboot(va_list ap)
 {
     assert(!"sys_reboot not implemented");
-    return 0;
-}
-long sys_munmap(va_list ap)
-{
-    assert(!"sys_munmap not implemented");
     return 0;
 }
 long sys_truncate(va_list ap)

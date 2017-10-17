@@ -15,6 +15,7 @@ weak_alias(dummy0, __vm_unlock);
 void *__mmap(void *start, size_t len, int prot, int flags, int fd, off_t off)
 {
 	void *ret;
+    /* printf ("start: %p, off: %llu\n", start, off); */
 	if (sizeof(off_t) > sizeof(long))
 		if (((long)off & 0xfff) | ((long)((unsigned long long)off>>(12 + 8*(sizeof(off_t)-sizeof(long))))))
 			start = (void *)-1;

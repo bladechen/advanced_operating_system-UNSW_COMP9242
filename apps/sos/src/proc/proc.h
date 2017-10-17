@@ -4,7 +4,7 @@
 #include "comm/list.h"
 #include "coroutine/synch.h"
 #include "comm/comm.h"
-#include "vm/pagetable.h"
+#include "vm/vm.h"
 #include "fs/fdtable.h"
 #include "vm/address_space.h"
 #include "coroutine/coro.h"
@@ -29,6 +29,7 @@ enum PROC_STATUS
 
 
 
+struct pagetable;
 struct proc_context
 {
     seL4_CPtr           p_reply_cap;

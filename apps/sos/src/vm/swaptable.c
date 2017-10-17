@@ -30,7 +30,7 @@ static char* FILE_PATH = "nfs:pagefile";
 
 
 // unit test for queue data structure
-static void self_test();
+/* static void self_test(); */
 
 
 static bool valid_swap_number(uint32_t swap_num)

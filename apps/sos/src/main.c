@@ -47,7 +47,7 @@
 
 volatile bool sos_init_flag = false;
 
-uint32_t dbflags = 0xFFFFFFFF &(~DB_VM);
+uint32_t dbflags = 0xFFFFFFFF | (DB_VM);
 /* uint32_t dbflags = 0xFFFFFFFF ; */
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 
@@ -84,6 +84,7 @@ extern fhandle_t mnt_point;
 void update_timestamp(void);
 void handle_epit1_irq(void);
 void handle_gpt_irq(void);
+void handle_time_driver_cb(void);
 
 void syscall_loop(seL4_CPtr ep)
 {
@@ -94,6 +95,7 @@ void syscall_loop(seL4_CPtr ep)
 
         message = seL4_Wait(ep, &badge);
         label = seL4_MessageInfo_get_label(message);
+
         if(badge & IRQ_EP_BADGE)
         {
             /* Interrupt */
@@ -105,19 +107,21 @@ void syscall_loop(seL4_CPtr ep)
             if (badge & IRQ_EPIT1_BADGE)
             {
                 assert(0);
-                handle_epit1_irq();
+                /* handle_epit1_irq(); */
             }
-            if (badge & IRQ_GPT_BADGE)
+            if (badge & IRQ_GPT_BADGE) // move to seperate process
             {
-                handle_gpt_irq();
+                assert(0);
+                /* handle_gpt_irq(); */
             }
         }
         else if(label == seL4_VMFault)
         {
-            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "pid[%d] vm fault at 0x%08x, pc = 0x%08x, %s, %d\n",
-                    seL4_GetMR(1),
-                    seL4_GetMR(0),
-                    seL4_GetMR(2) ? "Instruction Fault" : "Data fault", badge, seL4_GetMR(3));
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN, "pid[%d] vm fault at 0x%08x, pc = 0x%08x [%s, %d]\n",
+                        badge,
+                        seL4_GetMR(1),
+                        seL4_GetMR(0),
+                        seL4_GetMR(2) ? "Instruction Fault" : "Data fault", seL4_GetMR(3));
             struct proc* p = pid_to_proc(badge);
             if (p != NULL)
             {
@@ -132,16 +136,23 @@ void syscall_loop(seL4_CPtr ep)
         }
         else if(label == seL4_NoFault)
         {
-            assert(badge >= 1);
-            struct proc* p = pid_to_proc(badge);
-            if (p != NULL)
+            if (badge == 1) // pid(1) is time driver, and sos forbid all its syscall
             {
-                handle_syscall(badge, pid_to_proc(badge));
+                handle_time_driver_cb();
             }
             else
             {
-                ERROR_DEBUG("non-existing proc id: %d !\n", badge);
-                assert(0);
+                assert(badge >= 1);
+                struct proc* p = pid_to_proc(badge);
+                if (p != NULL)
+                {
+                    handle_syscall(badge, pid_to_proc(badge));
+                }
+                else
+                {
+                    ERROR_DEBUG("non-existing proc id: %d !\n", badge);
+                    assert(0);
+                }
             }
         }
         else
@@ -292,6 +303,8 @@ static void _sos_init(seL4_CPtr* ipc_ep, seL4_CPtr* async_ep){
 /*
  * Main entry point - called by crt.
  */
+
+void start_time_driver(seL4_CPtr);
 int main(void) {
 
 #ifdef SEL4_DEBUG_KERNEL
@@ -305,9 +318,6 @@ int main(void) {
     /* Initialise the network hardware */
     network_init(badge_irq_ep(_sos_interrupt_ep_cap, IRQ_BADGE_NETWORK));
 
-    assert(0 == start_timer(_sos_interrupt_ep_cap));
-
-    m1_test(); // will dump timestamp on minicom every second.
     vfs_bootstrap();
     init_kern_file_table();
     init_console();
@@ -318,10 +328,13 @@ int main(void) {
 
     /* init_test_coro(); */
 
+    start_timer(_sos_ipc_ep_cap); // because we load time driver as seperate process, so _sos_ipc_ep_cap is needed instead of _sos_interrupt_ep_cap
+    m1_test(); // will dump timestamp on minicom every second.
+
     /* Start the sos shell */
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh process...\n");
     // pid should be 1
-    assert(run_program(SOSH_NAME, _sos_ipc_ep_cap, 0, NULL) == 1);
+    assert(run_program(SOSH_NAME, _sos_ipc_ep_cap, 0, NULL) >= 1);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh success...\n");
 
     dprintf(0, "\nSOS entering syscall loop\n");
