@@ -101,6 +101,7 @@ void syscall_loop(seL4_CPtr ep)
             /* Interrupt */
             if (badge & IRQ_BADGE_NETWORK)
             {
+                /* printf ("handle net irq\n"); */
                 network_irq();
             }
             // currently no use for epit1, should not here
@@ -337,6 +338,7 @@ int main(void) {
     assert(run_program(SOSH_NAME, _sos_ipc_ep_cap, 0, NULL) >= 1);
     COLOR_DEBUG(DB_THREADS, ANSI_COLOR_GREEN, "create sosh success...\n");
 
+    /* m2_test(); */
     dprintf(0, "\nSOS entering syscall loop\n");
     sos_init_flag = true;
     syscall_loop(_sos_ipc_ep_cap);

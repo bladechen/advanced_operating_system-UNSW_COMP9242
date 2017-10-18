@@ -99,7 +99,7 @@ static void test_remove_later(void)
 void cb3(uint32_t id, void* data)
 {
     /* color_print(ANSI_COLOR_WHITE , "[%u, %llu], my timer: %llu \"%s\"\n",id, time_stamp(), time_stamp()/1000, (char*) data); */
-    color_print(ANSI_COLOR_WHITE , "timer: %llu, nfs: %u\n", time_stamp()/1000, nfs_current_time());
+    color_print(ANSI_COLOR_WHITE , "timer: %llu\n", time_stamp()/1000);
     assert(id == register_timer(1000, cb3, data));
     return;
 }
@@ -148,13 +148,13 @@ void m1_test(void)
     /* int count= 100; */
     /* while (count --) */
     {
-        test_start_stop_timer();
-        test_add_remove();
-        test_one_register(); // 100ms
-        test_remove_later();
-        test_move();
+        /* test_start_stop_timer(); */
+        /* test_add_remove(); */
+        /* test_one_register(); // 100ms */
+        /* test_remove_later(); */
+        /* test_move(); */
         test_accuracy();
-        test_multi_timer();
+        /* test_multi_timer(); */
     }
 
     return;

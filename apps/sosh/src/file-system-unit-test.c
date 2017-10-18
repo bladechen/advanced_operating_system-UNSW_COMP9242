@@ -56,7 +56,7 @@ static char buf[BUF_SIZE] = {0};
         printf( CYAN "\n################ TASSERT ############\n ");\
         write(1, __FILE__, sizeof(__FILE__));\
         write(1, "(",1 );\
-        printf("%d", (int)__LINE__);\
+        printf("line: %d\n", (int)__LINE__);\
         write(1, "):",2 );\
         write(1, __func__, sizeof(__func__));\
         write(1, "--------->", 10);\
@@ -84,7 +84,7 @@ static char buf[BUF_SIZE] = {0};
 #define END_FUNCTION return 0
 
 /*
-*   No lseek function, so we have to close and open agian to 
+*   No lseek function, so we have to close and open agian to
 *   refresh the pointer
 */
 static int update_internal_file_ptr(int fd, const char * filename, mode_t mode) {
@@ -98,7 +98,7 @@ static int update_internal_file_ptr(int fd, const char * filename, mode_t mode) 
 // {
 //     time_t tt;
 //     time(&tt);
-//      printf ("time: %lld\n", tt); 
+//      printf ("time: %lld\n", tt);
 //     srandom(tt);
 //     /* printf ("random: %ld\n", random()); */
 //     return (int)(random());
@@ -185,7 +185,7 @@ static int test_limited_open_fd(void)
     int how_many_fd_generate_each_time[loop_times];
     memset(how_many_fd_generate_each_time, 0, loop_times*sizeof(int) );
 
-    for (int a = 0; a < loop_times; a++) 
+    for (int a = 0; a < loop_times; a++)
     {
         int fd_generate_counter = 0;
         int ret = 0;
@@ -194,7 +194,7 @@ static int test_limited_open_fd(void)
          */
         int fd = 0 ;
         int upper_fd = 0;
-        for (int i = 4; i < MAX_FDNUM_PER_PROCESS+1; i++)
+        for (int i = 3; i < MAX_FDNUM_PER_PROCESS+1; i++)
         {
             char tmp[80] = {0};
             sprintf(tmp, "test_limited_open_fd_%d", i);
@@ -202,7 +202,7 @@ static int test_limited_open_fd(void)
             // printf("in open file loop, fd: %d\n", fd);
             if (fd >= 3)
             {
-                // printf("in open file loop, fd: %d\n", fd);
+                /* printf("in open file loop, fd: %d, i: %d\n", fd,i); */
                 TASSERT(fd == i, i);
                 upper_fd = i;
                 fd_generate_counter++;
@@ -219,7 +219,7 @@ static int test_limited_open_fd(void)
         // fd = open("test_limited_open_fd", O_CREAT);
         // TASSERT(fd == -1, fd);
         /* TASSERT(errno == EMFILE, errno); */
-        for (int i = 4; i < upper_fd; i++)
+        for (int i = 3; i < upper_fd; i++)
         {
             ret = sos_sys_close(i);
             TASSERT(ret == 0, ret);
@@ -234,12 +234,12 @@ static int test_limited_open_fd(void)
         how_many_fd_generate_each_time[a] = fd_generate_counter;
     }
 
-    for (int i=1 ; i < loop_times; i++) 
+    for (int i=1 ; i < loop_times; i++)
     {
         // printf("i: %d, i-1: %d .\n", how_many_fd_generate_each_time[i -1] ,how_many_fd_generate_each_time[i]);
         TASSERT(how_many_fd_generate_each_time[i -1] == how_many_fd_generate_each_time[i], how_many_fd_generate_each_time[i]);
     }
-    
+
     END_FUNCTION;
 }
 
@@ -276,13 +276,13 @@ static int test_write_multiple_consecutive_times(void)
 
     fd = update_internal_file_ptr(fd, "test_write", O_RDWR|O_CREAT);
 
-    int i = 0; 
+    int i = 0;
     int loop_times = 5;
     for(i = 0; i < loop_times; i++) {
         ret = sos_sys_write(fd, "hello world", 11);
-        TASSERT(ret == 11, ret);    
+        TASSERT(ret == 11, ret);
     }
-    
+
     fd = update_internal_file_ptr(fd, "test_write", O_RDWR|O_CREAT);
 
     memset(buf, 0, BUF_SIZE);
@@ -310,11 +310,11 @@ static int test_write_multiple_consecutive_times(void)
     return 0;
 }
 
-static int test_read_write_large_file(void) 
+static int test_read_write_large_file(void)
 {
     char tmp[BUF_SIZE] = {0};
     int i;
-    for(i = 0; i < BUF_SIZE - 1; i++) 
+    for(i = 0; i < BUF_SIZE - 1; i++)
     {
         tmp[i] = (char) (i%26 + 65);
     }
@@ -323,7 +323,7 @@ static int test_read_write_large_file(void)
     TASSERT(fd >= 0, fd);
 
     int ret = sos_sys_write(fd, tmp, BUF_SIZE - 1);
-    TASSERT(ret == BUF_SIZE - 1, ret);    
+    TASSERT(ret == BUF_SIZE - 1, ret);
 
     fd = update_internal_file_ptr(fd, "test_read_write_large_file", O_RDWR|O_CREAT);
 
@@ -338,7 +338,7 @@ static int test_read_write_large_file(void)
 
     ret = sos_sys_remove("test_read_write_large_file");
     TASSERT( ret == 0, 0);
-    return 0;   
+    return 0;
 }
 
 // static int test_invalid_read(void)
@@ -442,6 +442,57 @@ static int test_read_write_large_file(void)
 //     return;
 // }
 
+#define SMALL_BUF_SZ 2
+#define BUF_SZ 5000
+
+char test_str[] = "Basic test string for read/write";
+char small_buf[SMALL_BUF_SZ];
+
+int test_buffers(int console_fd) {
+    /* test a small string from the code segment */
+    int result = sos_sys_write(console_fd, test_str, strlen(test_str));
+    assert(result == strlen(test_str));
+
+    /* test reading to a small buffer */
+    result = sos_sys_read(console_fd, small_buf, SMALL_BUF_SZ);
+    /* make sure you type in at least SMALL_BUF_SZ */
+    assert(result == SMALL_BUF_SZ);
+
+    /* test reading into a large on-stack buffer */
+    char stack_buf[BUF_SZ];
+    /* for this test you'll need to paste a lot of data into
+       the console, without newlines */
+
+    printf ("%d\n", BUF_SZ);
+    result = sos_sys_read(console_fd, stack_buf, BUF_SZ);
+    printf ("%d %d\n", result, BUF_SZ);
+    assert(result == BUF_SZ);
+
+    result = sos_sys_write(console_fd, stack_buf, BUF_SZ);
+    assert(result == BUF_SZ);
+
+    /* this call to malloc should trigger an brk */
+    char *heap_buf = malloc(BUF_SZ);
+    assert(heap_buf != NULL);
+
+    /* for this test you'll need to paste a lot of data into
+       the console, without newlines */
+    result = sos_sys_read(console_fd, heap_buf, BUF_SZ);
+    assert(result == BUF_SZ);
+
+    result = sos_sys_write(console_fd, heap_buf, BUF_SZ);
+    assert(result == BUF_SZ);
+
+    /* try sleeping */
+    for (int i = 0; i < 5; i++) {
+        time_t prev_seconds = time(NULL);
+        sleep(1);
+        time_t next_seconds = time(NULL);
+        assert(next_seconds > prev_seconds);
+        printf("Tick\n");
+    }
+    return 0;
+}
 void file_unittest(void)
 {
     printf ("\n\n####### start file unitest ########\n");
@@ -451,7 +502,20 @@ void file_unittest(void)
     FUNCTION_CALL(test_write_multiple_consecutive_times);
     FUNCTION_CALL(test_read_write_large_file);
 
+    /*  */
     printf ("\n####### end file unitest ########\n\n");
     printf ("############## Statistic: Ran %d Test Case, %d Passed, %d Failed\n\n", total_count, pass_count, fail_count);
     return;
+}
+
+int console_test(void)
+{
+    close(0);
+    int f = open("console", O_RDWR);
+    test_buffers(f);
+    close(f);
+    assert(0==open("console", O_RDONLY));
+
+    return 0;
+
 }

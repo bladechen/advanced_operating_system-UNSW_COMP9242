@@ -17,7 +17,7 @@
 #include "swaptable.h"
 #include "vm.h"
 
-#define MAX_CAP_ID 1000000 // delete FIXME !!!
+/* #define MAX_CAP_ID 1000000 // delete FIXME !!! */
 static frame_table _frame_table = NULL;
 // total managed_frame memory is _managed_frame_num * PAGE_SIZE
 static seL4_Word   _managed_frame_num = 0;
@@ -717,7 +717,7 @@ void uframe_free(sos_vaddr_t vaddr)
 // the first argv vaddr is as paddr in pagetable!
 int set_frame_app_cap(sos_vaddr_t vaddr, seL4_CPtr cap)
 {
-    assert(cap <= MAX_CAP_ID);
+    /* assert(cap <= MAX_CAP_ID); */
     assert(_is_valid_vaddr(vaddr));
     frame_table_entry* e = _get_ft_entry(vaddr);
     int status = _frame_entry_status(e);
@@ -769,7 +769,7 @@ uint32_t get_frame_sos_cap(sos_vaddr_t vaddr)
 // for app code section(icache)
 void flush_sos_frame(seL4_Word vaddr)
 {
-    assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr));
+    /* assert(_is_valid_vaddr(vaddr) && _valid_uvaddr(vaddr)); */
     frame_table_entry* e = _get_ft_entry(vaddr);
     assert(-1 != _frame_entry_status(e)); // just to verify status
 	seL4_CPtr cap = e->frame_cap;

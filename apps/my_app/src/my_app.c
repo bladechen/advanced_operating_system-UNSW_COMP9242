@@ -33,20 +33,13 @@
 #include <stdio.h>
 
 #include <sel4/sel4.h>
+#include <sos.h>
 
 
 #include "ttyout.h"
 
 // Block a thread forever
 // we do this by making an unimplemented system call.
-static void
-thread_block(void){
-    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, 1);
-    seL4_SetTag(tag);
-    seL4_SetMR(0, 1);
-
-    seL4_Call(SYSCALL_ENDPOINT_SLOT, tag);
-}
 
 #include <utils/page.h>
 
@@ -93,7 +86,7 @@ pt_test( void )
     free(buf2);
 }
 
-#define SHARED_PAGES 5
+#define SHARED_PAGES 10
 void test_share(char* ar)
 {
     int* addr = (int*)(0x12345000);
@@ -108,6 +101,8 @@ void test_share(char* ar)
         for (int i = 0; i < SHARED_PAGES * 4096 / 4; ++ i)
         {
             addr[i] = i;
+            assert(addr[i] == i);
+            /* printf ("writing %d to %p %d\n", i, addr + i, addr[i]); */
         }
     }
     else
@@ -119,8 +114,9 @@ void test_share(char* ar)
         // TODO try to write
         for (int i = 0; i < SHARED_PAGES * 4096 / 4; ++ i)
         {
+            /* printf ("%p %d %d\n", addr + i, addr[i], i); */
             assert(addr[i] == i);
-            addr[i] = i + 1;
+            /* addr[i] = i + 1; */
         }
     }
 }
@@ -169,12 +165,12 @@ void test_mmap()
     void* tmp = NULL;
     void* addr = (void*)my_mmap(-1, 4096, PROT_READ, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     assert(addr != (void*)(-1));
-    assert(0);
+    /* assert(0); */
 }
 
 
 
-#define LARGE_SIZE (1*1024*1024 / 4)
+#define LARGE_SIZE (8*1024*1024 / 4)
 
 static int large_DATA_arr[LARGE_SIZE];
 static int queue[300000][2] = {0};
@@ -183,6 +179,7 @@ int len = 0;
 
 void thrash_test()
 {
+    sleep(20);
     len = 0;
     memset(hash, 0, sizeof(hash));
     int large_STACK_arr[LARGE_SIZE] ;
@@ -208,6 +205,7 @@ void thrash_test()
         assert(large_STACK_arr[i] == i);
         assert(large_DATA_arr[i] == i);
     }
+    sleep(5);
 
     int j,k;
 
@@ -262,10 +260,10 @@ int main(int argc, char** argv){
     }
 
 
-    /* test_mmap(); */
-    test_multi_alloc_share();
-    thrash_test();
-    /* test_share(argv[1]); */
+    test_mmap();
+    /* test_multi_alloc_share(); */
+    /* thrash_test(); */
+    test_share(argv[1]);
     /* pt_test(); */
     /* tty_debug_print("finish pt_test\n"); */
 

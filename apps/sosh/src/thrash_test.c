@@ -1,5 +1,7 @@
 #include "thrash_test.h"
+#include <sos.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <assert.h>
 #include <string.h>
 

@@ -436,7 +436,7 @@ int page_map(struct pagetable* pt,
 
     seL4_CPtr app_cap = cspace_copy_cap(cur_cspace, cur_cspace, cap, seL4_AllRights);
     assert(app_cap != 0);
-    int ret = _map_page(pt, app_cap, vaddr, cap_right, vm_attr);
+    int ret = _map_page(pt, app_cap, vaddr, vm_attr, cap_right);
     /* int ret = seL4_ARM_Page_Map(app_cap, pt->vroot.cap, vaddr, cap_right, vm_attr); */
     /* if(ret == seL4_FailedLookup) */
     /* { */

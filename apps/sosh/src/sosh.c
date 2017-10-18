@@ -18,6 +18,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <ttyout.h>
 #include <time.h>
 #include <sys/time.h>
 #include <utils/time.h>
@@ -133,7 +134,7 @@ static int cp(int argc, char **argv) {
     return 0;
 }
 
-#define MAX_PROCESSES 10
+#define MAX_PROCESSES 32
 
 static int ps(int argc, char **argv) {
     sos_process_t *process;
@@ -273,13 +274,13 @@ static int test_file_syscall(int argc, char **argv) {
 }
 
 static int rm(int argc, char **argv) {
-    int i = 0, r;
 
     if (argc > 2) {
         printf("usage: %s [file]\n", argv[0]);
         return 1;
     }
 
+    int r = 0;
     if (argc == 2) {
         r = sos_sys_remove(argv[1]);
         if (r < 0) {
@@ -341,7 +342,9 @@ static int kill(int argc, char *argv[]) {
     if (0 != sos_process_delete(pid))
     {
         printf("kill %d failed\n", pid);
+        return 2;
     }
+    return 0;
 }
 
 static int benchmark(int argc, char *argv[]) {
@@ -359,19 +362,22 @@ static int benchmark(int argc, char *argv[]) {
 
 static int die()
 {
-
     printf ("bye!!\n");
     int stack_addr = 4;
 
+    typedef int (*FP)(int,int);
     int (*functionPtr)(int,int);
-    functionPtr =  &stack_addr;
-    int sum = (*functionPtr)(1,1);
+    functionPtr =  (FP)&stack_addr;
+    (*functionPtr)(1,1);
+    assert(0);
+    return 0;
     /* *(int*)(0) =  1313; */
 }
 
 static int thrash()
 {
     thrash_test();
+    return 0;
 }
 
 struct command {
@@ -379,18 +385,29 @@ struct command {
     int (*command)(int argc, char **argv);
 };
 
+int pt_test();
+int console_test();
+
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
     "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
                {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
                {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall},
-               {"thrash", thrash}, {"exit", die}, {"exec_test", exec_test}};
+               {"thrash", thrash}, {"exit", die}, {"exec_test", exec_test}, {"pt_test", pt_test},
+               {"console_test", console_test}};
 
 void simple_file_test()
 {
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
-    char *bp, *p;
+    (void)buf;
+    (void)argv;
+    (void)i;
+    (void)r;
+    (void)done;
+    (void)found;
+    (void)new;
+    (void)argc;
 
     // r =  sos_getdirent(1, buf, 1000);
     // assert(r > 0);

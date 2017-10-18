@@ -719,7 +719,7 @@ static bool already_in_address_space(struct addrspace* as, uint32_t addr, uint32
         size_t region_length = tmp->npages << 12;
         if (addr >= tmp->region_vaddr && addr + length <= tmp->region_vaddr + region_length)
         {
-            printf ("already in %x %u %x %u\n", addr, length, tmp->region_vaddr, region_length);
+            printf ("mmap region is already in %x %u -> %x %u\n", addr, length, tmp->region_vaddr, region_length);
             return true;
         }
     }
@@ -776,6 +776,10 @@ int as_define_mmap(struct addrspace* as, sos_mmap_t* argv, uint32_t* ret_addr)
     {
         ERROR_DEBUG("currently not support for fd: %d or flag: 0x%x\n", argv->fd, argv->flags);
         return EINVAL;
+    }
+    if (argv->addr == 0xffffffff)
+    {
+        argv->addr = 0;
     }
     if ((argv->length & 0xfff) || (argv->addr & 0xfff))
     {
@@ -865,6 +869,7 @@ int as_define_shared_vm(struct addrspace* as, vaddr_t kaddr, vaddr_t app_addr, i
     {
         seL4_CPtr cap = fetch_page_cap(proc_pagetable(&kproc), kaddr + (i << 12) );
         assert(cap != 0);
+        /* printf ("mapping %x %u %d\n", app_addr + (i << 12 ), cap, writable); */
         int ret = page_map(as->pt, cap, app_addr + (i << 12 ), seL4_ARM_Default_VMAttributes|seL4_ARM_ExecuteNever,  seL4_CanRead | (writable ? seL4_CanWrite : 0));
         if (ret != 0)
         {

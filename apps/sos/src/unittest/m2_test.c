@@ -3,8 +3,8 @@
 #include "sys/debug.h"
 #include "vm/frametable.h"
 
-#define ALLOC uframe_alloc
-#define FREE  uframe_free
+#define ALLOC kframe_alloc
+#define FREE  kframe_free
 
 static void test_normal_alloc(void)
 {
