@@ -315,7 +315,6 @@ void free_page(struct pagetable* pt, vaddr_t vaddr)
             /* assert(get_uframe_owner(paddr) != e); */
             ERROR_DEBUG("vaddr is not owned by me: %x, skip it\n", paddr);
             set_uframe_owner(paddr, NULL); // make sure the underneath not call this, because it will the mem will be freed.
-            // TODO
             /* set */
         }
     }
@@ -505,7 +504,7 @@ int alloc_page(struct pagetable* pt,
         else
         {
             frame_is_pinned = true;
-            printf("original frame: 0x%x is pinned, now copy it to stack\n", paddr);
+            COLOR_DEBUG(DB_VM, ANSI_COLOR_GREEN,"original frame: 0x%x is pinned, now copy it to stack\n", paddr);
             set_uframe_owner(paddr, NULL); // make sure the underneath not call this, because it will the mem will be freed.
             memcpy(original_page, (void*)paddr, 4096);
         }

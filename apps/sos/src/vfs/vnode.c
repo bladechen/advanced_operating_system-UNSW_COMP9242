@@ -115,7 +115,7 @@ vnode_decref(struct vnode *vn)
 
 
     if (destroy) {
-        printf ("vnode destroyed: %p\n", vn);
+        /* printf ("vnode destroyed: %p\n", vn); */
         result = VOP_RECLAIM(vn);
         if (result != 0 && result != EBUSY) {
             // XXX: lame.

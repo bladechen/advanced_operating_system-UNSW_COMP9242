@@ -15,7 +15,7 @@ extern seL4_CPtr _sos_interrupt_ep_cap;
 /*     color_print(ANSI_COLOR_GREEN, "delay: %d\n", ret); */
 /* } */
 
-static void test_start_stop_timer(void)
+void test_start_stop_timer(void)
 {
     color_print(ANSI_COLOR_WHITE, "start test_start_stop_timer\n");
     assert(0 == start_timer(_sos_interrupt_ep_cap));
@@ -41,7 +41,7 @@ void cb1(uint32_t id, void* data)
     return;
 }
 
-static void test_one_register(void)
+void test_one_register(void)
 {
     color_print(ANSI_COLOR_WHITE, "begin test_one_register\n");
     assert(0 == start_timer(_sos_interrupt_ep_cap));
@@ -54,7 +54,7 @@ static void test_one_register(void)
     /* assert(0 == stop_timer()); */
     color_print(ANSI_COLOR_WHITE, "end test_one_register\n");
 }
-static void test_add_remove(void)
+void test_add_remove(void)
 {
 
     color_print(ANSI_COLOR_WHITE, "begin test_one_register\n");
@@ -83,7 +83,7 @@ static void cb2(uint32_t id, void* data)
     assert(id == register_timer(1000, cb2, data));
 
 }
-static void test_remove_later(void)
+void test_remove_later(void)
 {
     color_print(ANSI_COLOR_WHITE, "begin test_remove_later\n");
     uint32_t id = register_timer(1000, cb2, "test_remove_later");
@@ -103,7 +103,7 @@ void cb3(uint32_t id, void* data)
     assert(id == register_timer(1000, cb3, data));
     return;
 }
-static void test_accuracy(void)
+void test_accuracy(void)
 {
 
     uint32_t id = register_timer(1000, cb3, "test_accuracy");

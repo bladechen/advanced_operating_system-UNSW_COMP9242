@@ -21,7 +21,6 @@
 static void
 do_pt_test(char *buf)
 {
-    int i;
 
     /* set */
     for (int i = 0; i < NPAGES; i++) {

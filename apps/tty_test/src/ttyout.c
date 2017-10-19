@@ -64,6 +64,7 @@ size_t sos_read(void *vData, size_t count) {
 
 int tty_debug_print(const char *fmt, ...)
 {
+    return 0;
     static char print_buf[4096];
 	int ret;
     sos_debug_print(ANSI_COLOR_BLUE, sizeof(ANSI_COLOR_BLUE));

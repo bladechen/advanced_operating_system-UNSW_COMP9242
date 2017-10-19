@@ -47,7 +47,8 @@
 
 volatile bool sos_init_flag = false;
 
-uint32_t dbflags = 0xFFFFFFFF | (DB_VM);
+/* uint32_t dbflags = 0xFFFFFFFF | (DB_VM); */
+uint32_t dbflags = 0;
 /* uint32_t dbflags = 0xFFFFFFFF ; */
 /* uint32_t dbflags = 0 ;//0xFFFFFFFF; */
 

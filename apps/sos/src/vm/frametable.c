@@ -631,7 +631,6 @@ sos_vaddr_t uframe_alloc()
         assert(e->owner != NULL);
         _pin_frame(e); //need pin it, make sure other one not evict or do something with this frame
         uint32_t swap_frame = 0;
-        // FIXME race condition?
         int ret = do_swapout_frame(frame_translate_index_to_vaddr(e->myself), unshift_swapnumber(e->swap_frame_number),  (!(e->ctrl & FRAME_DIRTY_BIT)) ? e->swap_frame_version : 0, &swap_frame);
         if (ret != 0)
         {

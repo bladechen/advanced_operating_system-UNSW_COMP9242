@@ -719,7 +719,7 @@ static bool already_in_address_space(struct addrspace* as, uint32_t addr, uint32
         size_t region_length = tmp->npages << 12;
         if (addr >= tmp->region_vaddr && addr + length <= tmp->region_vaddr + region_length)
         {
-            printf ("mmap region is already in %x %u -> %x %u\n", addr, length, tmp->region_vaddr, region_length);
+            ERROR_DEBUG ("mmap region is already in %x %u -> %x %u\n", addr, length, tmp->region_vaddr, region_length);
             return true;
         }
     }

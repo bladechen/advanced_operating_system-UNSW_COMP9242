@@ -270,7 +270,6 @@ void remove_vm_share(uint32_t addr, uint32_t size)
     if (cur->ref_count == 1)
     {
         // the last app ref to it now, free all the resources
-        //  TODO you should free all the ref firstly, then call this func
         free_pages(proc_pagetable(&kproc), cur->sos_vaddr, size >> 12);
         shared_mem_bytes -= cur->npages << 12;
         if (prev == NULL)
@@ -306,7 +305,7 @@ int vm_share(struct addrspace* as,
              bool writable)
 
 {
-    // TODO maybe we scale up
+    // TODO maybe we scale up to support page & 0xFFF != 0
     // currently only support addr and size both page aligned
     if (!IS_PAGE_ALIGNED(size) || !IS_PAGE_ALIGNED(addr))
     {

@@ -271,7 +271,6 @@ int _init_proc(struct proc* process, char* name, seL4_CPtr fault_ep_cap)
         return -1;
     }
 
-    // TODO: as_define_mmap(process->p_addrspace);
 
     ret = init_fd_table((&process->p_resource.fs_struct));
     if(ret != 0)
@@ -451,7 +450,7 @@ int proc_start(struct proc* proc, int argc, char** argv)
     {
         proc->p_status.argv_str = strdup(proc->p_status.name);
     }
-    printf ("proc argv [%s]\n", proc->p_status.argv_str);
+    printf ("start process [%s]\n", proc->p_status.argv_str);
 
     seL4_UserContext context;
     memset(&context, 0, sizeof(context));

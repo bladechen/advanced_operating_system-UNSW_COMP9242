@@ -62,7 +62,6 @@ extern seL4_CPtr _sos_ipc_ep_cap;
 
 bool path_transfer(char* in, size_t off)
 {
-    //FIXME
     static char file_name [4096];
     if (off >= APP_PROCESS_IPC_SHARED_BUFFER_SIZE - 20)
     {
@@ -481,10 +480,10 @@ void sos_syscall_create_process(void * args)
         goto create_end;
     }
 
-    for (int i = 0; i < argc; i ++)
-    {
-        printf ("argc[%d]: %s\n", i, argv[i]);
-    }
+    /* for (int i = 0; i < argc; i ++) */
+    /* { */
+    /*     printf ("argc[%d]: %s\n", i, argv[i]); */
+    /* } */
 
     ret = run_program(argv[0], _sos_ipc_ep_cap, argc, argv);
     if (ret < 0)
@@ -507,7 +506,6 @@ create_end:
 
 
 /* static void wait_for_childproc(struct processes) */
-// TODO handle pid = -1
 void sos_syscall_wait_process(void * argv)
 {
     struct proc* proc = (struct proc*) argv;
@@ -704,7 +702,7 @@ void sos_syscall_process_status(void * argv)
         idx += strlen(tmp->p_status.argv_str);
         s[idx ++] = ']';
         s[idx ++] = 0;
-        printf ("%s\n", s);
+        /* printf ("%s\n", s); */
         strncpy(processes[j].command, s, N_NAME - 1);
         free(s);
         processes[j].command[N_NAME - 1] = 0;
@@ -782,7 +780,7 @@ void handle_syscall(seL4_Word badge, struct proc * app_process)
     }
 
     if (syscall_number < 0 || syscall_number > NUMBER_OF_SYSCALL) {
-        printf("%s:%d (%s) Unknown syscall %d\n",
+        ERROR_DEBUG("%s:%d (%s) Unknown syscall %d\n",
                        __FILE__, __LINE__, __func__, syscall_number);
         assert("unknown syscall number!\n");
     }

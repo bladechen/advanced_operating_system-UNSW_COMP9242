@@ -48,7 +48,7 @@ bool proc_load_elf(struct proc * process, const char* file_name)
         vfs_close(elf_file_vnode);
         return false;
     }
-    printf ("read elf header: %d\n", seL4_PAGE_SIZE - u.uio_resid);
+    /* printf ("read elf header: %d\n", seL4_PAGE_SIZE - u.uio_resid); */
     /* unsigned long elf_size = ret; */
     /* char * elf_base = elf_header; */
     /* if (elf_base == NULL) */

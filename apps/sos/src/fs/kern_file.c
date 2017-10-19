@@ -87,7 +87,7 @@ int close_kern_file(struct file* fs)
 
         if (v_tmp != NULL)
         {
-            printf ("vfs close: %p\n", v_tmp);
+            /* printf ("vfs close: %p\n", v_tmp); */
             vfs_close(v_tmp);
         }
 
