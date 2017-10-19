@@ -262,9 +262,9 @@ int main(int argc, char** argv){
 
     test_mmap();
     /* test_multi_alloc_share(); */
-    /* thrash_test(); */
-    test_share(argv[1]);
-    /* pt_test(); */
+    thrash_test();
+    /* test_share(argv[1]); */
+    pt_test();
     /* tty_debug_print("finish pt_test\n"); */
 
     /* sos_process_create(); */

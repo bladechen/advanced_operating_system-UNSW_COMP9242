@@ -209,6 +209,7 @@ static int test_limited_open_fd(void)
             }
             else
             {
+                printf ("open %d error!\n", i);
                 TASSERT(fd == -24, fd);
                 // TASSERT(errno, ENFILE);
                 upper_fd = i;
@@ -221,14 +222,15 @@ static int test_limited_open_fd(void)
         /* TASSERT(errno == EMFILE, errno); */
         for (int i = 3; i < upper_fd; i++)
         {
+            printf ("close %d\n", i);
             ret = sos_sys_close(i);
             TASSERT(ret == 0, ret);
 
             char tmp[80] = {0};
             sprintf(tmp, "test_limited_open_fd_%d", i);
 
-            ret = sos_sys_remove(tmp);
-            TASSERT(ret == 0, 0);
+            /* ret = sos_sys_remove(tmp); */
+            /* TASSERT(ret == 0, 0); */
         }
 
         how_many_fd_generate_each_time[a] = fd_generate_counter;
