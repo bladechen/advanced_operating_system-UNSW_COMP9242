@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2014, NICTA
  *
@@ -17,13 +18,15 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <ttyout.h>
 #include <time.h>
 #include <sys/time.h>
 #include <utils/time.h>
 
 /* Your OS header file */
 #include <sos.h>
-
+#include "file-system-unit-test.h"
+#include "thrash_test.h"
 #include "benchmark.h"
 
 #define BUF_SIZ    6144
@@ -34,12 +37,15 @@ static sos_stat_t sbuf;
 
 static void prstat(const char *name) {
     /* print out stat buf */
-    printf("%c%c%c%c 0x%06x 0x%lx 0x%06lx %s\n",
-            sbuf.st_type == ST_SPECIAL ? 's' : '-',
-            sbuf.st_fmode & FM_READ ? 'r' : '-',
-            sbuf.st_fmode & FM_WRITE ? 'w' : '-',
-            sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
-            sbuf.st_atime, name);
+    /* printf ("hello %c %c %c %c\n",   sbuf.st_type == ST_SPECIAL ? 's' : '-' , sbuf.st_fmode & FM_READ ? 'r' : '-', */
+            /* sbuf.st_fmode & FM_WRITE ? 'w' : '-', sbuf.st_fmode & FM_EXEC ? 'x' : '-'); */
+    printf("%c%c%c%c 0x%06x 0x%06lx 0x%06lx %s\n",
+           sbuf.st_type == ST_SPECIAL ? 's' : '-',
+           sbuf.st_fmode & FM_READ ? 'r' : '-',
+           sbuf.st_fmode & FM_WRITE ? 'w' : '-',
+           sbuf.st_fmode & FM_EXEC ? 'x' : '-', sbuf.st_size, sbuf.st_ctime,
+           sbuf.st_atime, name);
+    /* printf ("world\n"); */
 }
 
 static int cat(int argc, char **argv) {
@@ -57,6 +63,13 @@ static int cat(int argc, char **argv) {
 
     fd = open(argv[1], O_RDONLY);
     stdout_fd = open("console", O_WRONLY);
+    if (fd < 0)
+    {
+        close(fd);
+        close(stdout_fd);
+        printf ("error\n");
+        return 2;
+    }
 
     assert(fd >= 0);
 
@@ -64,6 +77,9 @@ static int cat(int argc, char **argv) {
         num_written = write(stdout_fd, buf, num_read);
 
     close(stdout_fd);
+    close(fd);
+    close(stdout_fd);
+
 
     if (num_read == -1 || num_written == -1) {
         printf("error on write\n");
@@ -90,20 +106,35 @@ static int cp(int argc, char **argv) {
     fd = open(file1, O_RDONLY);
     fd_out = open(file2, O_WRONLY);
 
+    if (fd < 0 || fd_out < 0)
+    {
+        printf ("something error\n");
+        close(fd);
+        close(fd_out);
+        return 2;
+    }
     assert(fd >= 0);
+    assert(fd_out >= 0);
 
     while ((num_read = read(fd, buf, BUF_SIZ)) > 0)
         num_written = write(fd_out, buf, num_read);
 
     if (num_read == -1 || num_written == -1) {
+        close(fd);
+        close(fd_out);
+
+
         printf("error on cp\n");
         return 1;
     }
+    close(fd);
+    close(fd_out);
+
 
     return 0;
 }
 
-#define MAX_PROCESSES 10
+#define MAX_PROCESSES 32
 
 static int ps(int argc, char **argv) {
     sos_process_t *process;
@@ -118,15 +149,35 @@ static int ps(int argc, char **argv) {
 
     processes = sos_process_status(process, MAX_PROCESSES);
 
-    printf("TID SIZE   STIME   CTIME COMMAND\n");
+    printf("PID  PPID  STATUS   STIME     RES     SWAP   COMMAND\n");
 
     for (i = 0; i < processes; i++) {
-        printf("%3d %4d %7d %s\n", process[i].pid, process[i].size,
-                process[i].stime, process[i].command);
+        printf("%3d %5d %7c %7d %7d %8d    %s\n",
+               process[i].pid,
+               process[i].ppid,
+               process[i].status,
+               process[i].stime,
+               process[i].size,
+               process[i].swap_size,
+               process[i].command);
     }
 
     free(process);
 
+    return 0;
+}
+
+static int exec_test(int argc, char **argv)
+{
+    for (int i =0; i < 3; i ++)
+    {
+        int pid = sos_process_create("my_app");
+        printf ("sos_process_create: %d\n", pid);
+    }
+    for (int i = 0; i < 3 ;i ++)
+    {
+        printf("wait return: %d\n", sos_process_wait(-1));
+    }
     return 0;
 }
 
@@ -135,12 +186,14 @@ static int exec(int argc, char **argv) {
     int r;
     int bg = 0;
 
-    if (argc < 2 || (argc > 2 && argv[2][0] != '&')) {
-        printf("Usage: exec filename [&]\n");
-        return 1;
-    }
+    tty_debug_print("argc num: %d\n", argc);
+    /* if (argc < 2 || (argc > 2 && argv[2][0] != '&')) { */
+    /*     printf("Usage: exec filename [&]\n"); */
+    /*     return 1; */
+    /* } */
 
-    if ((argc > 2) && (argv[2][0] == '&')) {
+    if ((argc > 2) && (argv[argc-1][0] == '&')) {
+        argc --;
         bg = 1;
     }
 
@@ -149,9 +202,16 @@ static int exec(int argc, char **argv) {
         assert(r == 0);
     }
 
-    pid = sos_process_create(argv[1]);
+    if (argc > 2)
+    {
+        pid = sos_process_exec(argc - 1, argv + 1);
+    }
+    else
+        pid = sos_process_create(argv[1]);
+
     if (pid >= 0) {
         printf("Child pid=%d\n", pid);
+        /* sleep(1); */
         if (bg == 0) {
             sos_process_wait(pid);
         }
@@ -159,6 +219,7 @@ static int exec(int argc, char **argv) {
         printf("Failed!\n");
     }
     if (bg == 0) {
+        tty_debug_print("continue sosh\n");
         in = open("console", O_RDONLY);
         assert(in >= 0);
     }
@@ -185,6 +246,7 @@ static int dir(int argc, char **argv) {
     }
 
     while (1) {
+        tty_debug_print("start ls loop: %d\n",i);
         r = sos_getdirent(i, buf, BUF_SIZ);
         if (r < 0) {
             printf("dirent(%d) failed: %d\n", i, r);
@@ -197,11 +259,39 @@ static int dir(int argc, char **argv) {
             printf("stat(%s) failed: %d\n", buf, r);
             break;
         }
+        tty_debug_print("finish ls loop: %s %d\n", buf, i);
         prstat(buf);
         i++;
     }
     return 0;
 }
+
+static int test_file_syscall(int argc, char **argv) {
+    (void) argc;
+    (void)argv;
+    file_unittest();
+    return 0;
+}
+
+static int rm(int argc, char **argv) {
+
+    if (argc > 2) {
+        printf("usage: %s [file]\n", argv[0]);
+        return 1;
+    }
+
+    int r = 0;
+    if (argc == 2) {
+        r = sos_sys_remove(argv[1]);
+        if (r < 0) {
+            printf("stat(%s) failed: %d\n", argv[1], r);
+        }
+        return 0;
+    }
+
+    return 0;
+}
+
 
 static int second_sleep(int argc,char *argv[]) {
     if (argc != 2) {
@@ -249,7 +339,12 @@ static int kill(int argc, char *argv[]) {
     }
 
     pid = atoi(argv[1]);
-    return sos_process_delete(pid);
+    if (0 != sos_process_delete(pid))
+    {
+        printf("kill %d failed\n", pid);
+        return 2;
+    }
+    return 0;
 }
 
 static int benchmark(int argc, char *argv[]) {
@@ -265,30 +360,121 @@ static int benchmark(int argc, char *argv[]) {
     }
 }
 
+static int die()
+{
+    printf ("bye!!\n");
+    int stack_addr = 4;
+
+    typedef int (*FP)(int,int);
+    int (*functionPtr)(int,int);
+    functionPtr =  (FP)&stack_addr;
+    (*functionPtr)(1,1);
+    assert(0);
+    return 0;
+    /* *(int*)(0) =  1313; */
+}
+
+static int thrash()
+{
+    thrash_test();
+    return 0;
+}
+
 struct command {
     char *name;
     int (*command)(int argc, char **argv);
 };
 
+int pt_test();
+int console_test();
+
 struct command commands[] = { { "dir", dir }, { "ls", dir }, { "cat", cat }, {
-        "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
-        {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
-        {"benchmark", benchmark}};
+    "cp", cp }, { "ps", ps }, { "exec", exec }, {"sleep",second_sleep}, {"msleep",milli_sleep},
+               {"time", second_time}, {"mtime", micro_time}, {"kill", kill},
+               {"benchmark", benchmark}, {"rm", rm}, {"test_file_syscall", test_file_syscall},
+               {"thrash", thrash}, {"exit", die}, {"exec_test", exec_test}, {"pt_test", pt_test},
+               {"console_test", console_test}};
+
+void simple_file_test()
+{
+    char buf[BUF_SIZ];
+    char *argv[MAX_ARGS];
+    int i, r, done, found, new, argc;
+    (void)buf;
+    (void)argv;
+    (void)i;
+    (void)r;
+    (void)done;
+    (void)found;
+    (void)new;
+    (void)argc;
+
+    // r =  sos_getdirent(1, buf, 1000);
+    // assert(r > 0);
+    // buf[r] = 0;
+    // tty_debug_print("get file : %s\n", buf);
+
+    // r =  sos_getdirent(3, buf, 1000);
+    // assert(r > 0);
+    // buf[r] = 0;
+    // tty_debug_print("get file : %s\n", buf);
+
+    // r =  sos_getdirent(10, buf, 1000);
+    // assert(r < 0);
+
+    // r =  sos_getdirent(4, buf, 1000);
+    // assert(r == 0);
+    // /* while(1){} */
+    // sos_stat_t stat;
+    // assert(0 == sos_stat("hello_world", &stat));
+    // // TODO check status
+    // tty_debug_print("%u %u %u %llu %llu\n", stat.st_size, stat.st_fmode, stat.st_type, stat.st_ctime, stat.st_atime);
+    /* assert( open("hello_world", O_RDONLY ) < 0); */
+    in = open("hello_world",  O_RDWR| O_CREAT  );
+
+    for(int i=0; i<BUF_SIZ; i++) {
+        buf[i] = 'a';
+    }
+
+    int ret = write(in, buf, BUF_SIZ);
+    // assert(ret == BUF_SIZ);
+    tty_debug_print("sosh write to `hello_world` ret: %d\n",  ret);
+
+    memset(buf, 0, BUF_SIZ);
+    // assert( open("hello_world", O_RDONLY ) > 0);
+    ret = read(in, buf, BUF_SIZ - 1);
+    // tty_debug_print("read return value: %d\n", ret);
+    // assert(ret == BUF_SIZ - 1);
+    // buf[ret] = 0;
+    tty_debug_print("sosh read len %d\n",  ret);
+    // ret = write(in, buf, BUF_SIZ - 1);
+    // assert(ret == BUF_SIZ - 1);
+    tty_debug_print("sosh read from `hello_world`: %s\n",  buf);
+
+    close(in);
+    // close(in + 1);
+
+    sos_sys_remove("hello_world");
+    // close(in + 1);
+}
 
 int main(void) {
     char buf[BUF_SIZ];
     char *argv[MAX_ARGS];
     int i, r, done, found, new, argc;
     char *bp, *p;
-
     in = open("console", O_RDONLY);
-    assert(in >= 0);
-
+    /* ass */
+    /* assert(in == 0); */
     bp = buf;
     done = 0;
     new = 1;
 
-    printf("\n[SOS Starting]\n");
+    /* stress tests for file operations */
+    /* file_unittest(); */
+
+    /* while (1){} */
+    printf("\n[SOS SHELL Starting at PID: %d]\n", sos_my_id());
 
     while (!done) {
         if (new) {
@@ -307,6 +493,8 @@ int main(void) {
                 break;
             }
             bp[r] = 0; /* terminate */
+
+            tty_debug_print("[sosh] read user input: %s\n", bp);
             for (p = bp; p < bp + r; p++) {
                 if (*p == '\03') { /* ^C */
                     printf("^C\n");
@@ -373,6 +561,7 @@ int main(void) {
         }
 
         found = 0;
+        tty_debug_print("[sosh] executing command, argc: %d, %s\n", argc, argv[0]);
 
         for (i = 0; i < sizeof(commands) / sizeof(struct command); i++) {
             if (strcmp(argv[0], commands[i].name) == 0) {

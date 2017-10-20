@@ -45,7 +45,13 @@ time_recv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
     pbuf_free(p);
 }
 
-uint32_t 
+extern struct ip_addr nfs_server;
+uint32_t nfs_current_time()
+{
+    return udp_time_get(&nfs_server);
+
+}
+uint32_t
 udp_time_get(const struct ip_addr *server)
 {
     struct udp_pcb *time_pcb = NULL;
@@ -67,7 +73,7 @@ udp_time_get(const struct ip_addr *server)
         int cnt_out;
         int err;
 
-        /* 
+        /*
          * Sending an empty packet registers ourselves with the server
          * LWIP does not preserve the pbuf so we need a new one each time.
          */

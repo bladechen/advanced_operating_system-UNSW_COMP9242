@@ -31,6 +31,10 @@ include tools/common/project.mk
 
 all: app-images
 	mkdir -p $(TFTPROOT)
+	cp ./build/arm/imx6/sosh/sosh.bin $(TFTPROOT)/sosh
+	cp ./build/arm/imx6/my_app/my_app.bin $(TFTPROOT)/my_app
+	cp ./build/arm/imx6/time_driver/time_driver.bin $(TFTPROOT)/time_driver
+	cp ./build/arm/imx6/tty_test/tty_test.bin  $(TFTPROOT)/tty_test
 	cp -v $(IMAGE_ROOT)/sos-image-arm-imx6 $(TFTPROOT)/bootimg.elf
 	$(MAKE) reset
 

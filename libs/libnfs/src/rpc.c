@@ -186,7 +186,7 @@ struct rpc_queue {
 
 static struct rpc_queue *queue = NULL;
 
-/* 
+/*
  * Poll to see if packets should be resent.
  * Packet loss can be simulated using the following command on the
  * server:
@@ -213,7 +213,7 @@ rpc_timeout(int ms)
 
 
 static void
-add_to_queue(struct pbuf *pbuf, struct udp_pcb* pcb, 
+add_to_queue(struct pbuf *pbuf, struct udp_pcb* pcb,
          void (*func)(void *, uintptr_t, struct pbuf *),
          void *callback, uintptr_t arg)
 {
@@ -294,8 +294,8 @@ my_recv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
 
 
 enum rpc_stat
-rpc_send(struct pbuf *pbuf, int len, struct udp_pcb *pcb, 
-     void (*func)(void *, uintptr_t, struct pbuf *), 
+rpc_send(struct pbuf *pbuf, int len, struct udp_pcb *pcb,
+     void (*func)(void *, uintptr_t, struct pbuf *),
      void *callback, uintptr_t token)
 {
     int err;
@@ -331,8 +331,8 @@ rpc_call_cb(void *callback, uintptr_t token, struct pbuf *pbuf)
 }
 
 enum rpc_stat
-rpc_call(struct pbuf *pbuf, int len, struct udp_pcb *pcb, 
-     void (*func)(void *, uintptr_t, struct pbuf *), 
+rpc_call(struct pbuf *pbuf, int len, struct udp_pcb *pcb,
+     void (*func)(void *, uintptr_t, struct pbuf *),
      void *callback, uintptr_t token)
 {
     struct rpc_call_arg call_arg;
@@ -354,7 +354,7 @@ rpc_call(struct pbuf *pbuf, int len, struct udp_pcb *pcb,
 
     /* Make the call */
     xid = extract_xid(pbuf);
-    stat = rpc_send(pbuf, pbuf->tot_len, pcb, &rpc_call_cb, NULL, 
+    stat = rpc_send(pbuf, pbuf->tot_len, pcb, &rpc_call_cb, NULL,
                    (uintptr_t)&call_arg);
     if(stat){
         return stat;
@@ -372,7 +372,7 @@ rpc_call(struct pbuf *pbuf, int len, struct udp_pcb *pcb,
         time_out -= CALL_TIMEOUT_MS;
     }
 
-    /* If we get here, we have failed. Data is on the stack so make sure 
+    /* If we get here, we have failed. Data is on the stack so make sure
      * we remove references from the queue */
     q_item = get_from_queue(xid);
     assert(q_item);
@@ -383,9 +383,10 @@ rpc_call(struct pbuf *pbuf, int len, struct udp_pcb *pcb,
 
 
 /************************************************************
- * Initialisation 
+ * Initialisation
  ***********************************************************/
 
+extern uint32_t nfs_current_time();
 int
 init_rpc(const struct ip_addr *server)
 {
@@ -395,8 +396,8 @@ init_rpc(const struct ip_addr *server)
     return time == 0;
 }
 
-struct udp_pcb* 
-rpc_new_udp(const struct ip_addr *server, int remote_port, 
+struct udp_pcb*
+rpc_new_udp(const struct ip_addr *server, int remote_port,
             enum port_type local_port)
 {
     struct udp_pcb* ret;

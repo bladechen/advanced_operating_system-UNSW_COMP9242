@@ -12,6 +12,7 @@ uintptr_t __brk(uintptr_t);
 
 void *__simple_malloc(size_t n)
 {
+    printf ("__simple_malloc\n");
 	static uintptr_t cur, brk;
 	uintptr_t base, new;
 	static int lock[2];
