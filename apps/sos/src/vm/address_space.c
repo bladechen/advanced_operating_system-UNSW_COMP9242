@@ -399,6 +399,7 @@ int vm_elf_load(struct addrspace* dest_as, seL4_ARM_PageDirectory dest_vspace, c
     dest_as->entry_point = (uint32_t )elf_getEntryPoint(elf_header);
     if (dest_as->entry_point == 0)
     {
+        ERROR_DEBUG("fucking entry\n");
         return ENOEXEC;
     }
     assert(elf != NULL);

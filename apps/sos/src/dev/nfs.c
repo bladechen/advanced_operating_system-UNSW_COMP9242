@@ -292,10 +292,14 @@ static void _nfs_read_cb(uintptr_t token, enum nfs_stat status, fattr_t *fattr, 
 {
     struct nfs_cb_arg* arg = (struct nfs_cb_arg*)(token);
     arg->stat = status;
+    assert(status == NFS_OK);
     if (status == NFS_OK)
     {
-        assert(count <= arg->uio->uio_resid);
-        uiomove(data, count, arg->uio);
+        assert(count <= arg->len);
+        printf ("read cb: %d\n", count);
+        memcpy(arg->buf, data, count);
+        arg->len = count;
+        /* uiomove(data, count, arg->uio); */
     }
     V(arg->sem);
 }
@@ -310,22 +314,44 @@ static int _nfs_read_op(const struct fhandle* hd,
         ERROR_DEBUG("sem_create error\n");
         return ENOMEM;
     }
-    cb_argv.uio = uio;
-    int ret = nfs_read(hd, uio->uio_offset, uio->uio_resid, &_nfs_read_cb, (uintptr_t)&cb_argv);
-    if (ret != 0)
+    int parallel = 4;
+    struct nfs_cb_arg my_cb[4];
+    printf ("uio: %llu %d\n", uio->uio_offset, uio->uio_resid);
+    for (int i = 0; i < parallel; i ++)
     {
-        ERROR_DEBUG("nfs_read, rpc error code: %d\n", ret);
-        sem_destroy(cb_argv.sem);
-        return _rpc_stat2sos_err(ret);
+        /* struct nfs_cb_arg my_cb; */
+        /* my_cb[i[.b]] */
+        my_cb[i].buf = kframe_alloc();
+        assert(my_cb[i].buf);
+        my_cb[i].sem = cb_argv.sem;
+        /* my_cb[i].uio = uio; */
+        my_cb[i].pos = uio->uio_offset + i * uio->uio_resid / parallel;
+        if (i != parallel -1)
+            my_cb[i].len = uio->uio_resid / parallel;
+        else
+            my_cb[i].len =  uio->uio_resid / parallel + uio->uio_resid % parallel;
+        printf ("%d %d\n", my_cb[i].pos, my_cb[i].len);
+        /* int ret = nfs_read(hd, uio->uio_offset, uio->uio_resid, &_nfs_read_cb, (uintptr_t)&cb_argv); */
+        int ret = nfs_read(hd, my_cb[i].pos, my_cb[i].len, &_nfs_read_cb, (uintptr_t)&(my_cb[i]));
+        assert(ret == 0);
+    }
+    for (int i = 0; i < parallel; ++ i)
+    {
+        P(cb_argv.sem);
+    }
+    for (int i = 0; i < parallel; ++ i)
+    {
+        uiomove(my_cb[i].buf, my_cb[i].len, uio);
+        kframe_free(my_cb[i].buf);
     }
 
-    ret = _nfs_waitdone(&cb_argv);
+    /* ret = _nfs_waitdone(&cb_argv); */
     sem_destroy(cb_argv.sem);
-    if (ret)
-    {
-        ERROR_DEBUG("nfs_read, read_cb stat: %d\n", ret);
-        return _nfs_stat2sos_err(ret);
-    }
+    /* if (ret) */
+    /* { */
+    /*     ERROR_DEBUG("nfs_read, read_cb stat: %d\n", ret); */
+    /*     return _nfs_stat2sos_err(ret); */
+    /* } */
     return 0;
 }
 /*
@@ -343,6 +369,7 @@ _nfs_read(struct vnode *v, struct uio *uio)
     assert(uio->uio_rw == UIO_READ);
     assert(uio->uio_resid <= seL4_PAGE_SIZE);
     /*  */
+    printf ("issue res: %d\n", uio->uio_resid);
     while (uio->uio_resid > 0)
     {
         oldresid = uio->uio_resid;

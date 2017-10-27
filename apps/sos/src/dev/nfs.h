@@ -19,6 +19,11 @@ struct nfs_cb_arg
     fattr_t attr;
     struct uio* uio;
 
+    int pos;
+    int len;
+
+    char* buf;
+
     nfscookie_t cookie; // need by nfs to iteratively communicate with it
     int remain_pos;
 

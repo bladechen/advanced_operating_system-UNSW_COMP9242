@@ -157,7 +157,7 @@ void syscall_loop(seL4_CPtr ep)
         }
         else
         {
-            ERROR_DEBUG("Rootserver got an unknown message\n");
+            ERROR_DEBUG("Rootserver got an unknown message badge: 0x%x, label: 0x%x\n", badge, label);
         }
         //coroutine schedule routine.
         schedule_loop();
