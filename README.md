@@ -1,4 +1,6 @@
 
+<a href="https://www.cse.unsw.edu.au/~cs9242/17/project/index.shtml">Project Specification</a>
+
 <a href="https://docs.google.com/document/d/19fXb-yMn_Jw4ZJLLcibB6KgE7xL7uI_eaVSqsF4gFrM/edit?usp=sharing">Design Documentation Link</a>
 
 
